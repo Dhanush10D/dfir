@@ -77,4 +77,3 @@ class Event(Base):
     ingested_at: Mapped[datetime] = mapped_column(
         TSTZ, nullable=False, server_default=text("now()")
     )
-

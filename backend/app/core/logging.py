@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import logging
 import sys
-from typing import Any
+from typing import Any, TextIO
 
 import structlog
 
@@ -20,8 +20,8 @@ _SHARED_PROCESSORS: list[Any] = [
 ]
 
 
-def setup_logging(level: str = "INFO", json: bool = True) -> None:
-    """Configure structlog + stdlib logging. Safe to call more than once."""
+def setup_logging(level: str = "INFO", json: bool = True, stream: TextIO | None = None) -> None:
+    """Configure structlog + stdlib logging to ``stream`` (default stdout). Idempotent."""
     renderer: Any = (
         structlog.processors.JSONRenderer() if json else structlog.dev.ConsoleRenderer(colors=False)
     )
@@ -45,7 +45,7 @@ def setup_logging(level: str = "INFO", json: bool = True) -> None:
         ],
     )
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(stream or sys.stdout)
     handler.setFormatter(formatter)
 
     root = logging.getLogger()
