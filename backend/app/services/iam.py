@@ -55,6 +55,11 @@ def utcnow() -> datetime:
     return datetime.now(UTC)
 
 
+def normalize_email(email: str) -> str:
+    """E-mail addresses are stored and compared lower-cased (migration 0003 enforces it)."""
+    return email.strip().lower()
+
+
 def invalid_credentials() -> AppError:
     return AppError("invalid_credentials", "Invalid e-mail or password.", 401)
 
@@ -125,10 +130,36 @@ class IAMService:
             raise AppError("mfa_not_enrolled", "MFA is not enrolled.", 409)
         return self._box().decrypt(user.totp_secret, user.id.bytes).decode("ascii")
 
-    def _user_by_email(self, email: str) -> User | None:
-        return self.session.execute(
-            select(User).where(User.email == email.strip())
+    def _user_by_email(self, email: str, *, lock: bool = False) -> User | None:
+        stmt = select(User).where(func.lower(User.email) == normalize_email(email))
+        if lock:
+            # Serialize concurrent attempts on one account: the lockout counter and the TOTP
+            # replay guard are read-modify-write and must not race.
+            stmt = stmt.with_for_update().execution_options(populate_existing=True)
+        return self.session.execute(stmt).scalar_one_or_none()
+
+    def _lock_user(self, user_id: uuid.UUID) -> User:
+        user = self.session.execute(
+            select(User)
+            .where(User.id == user_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
         ).scalar_one_or_none()
+        if user is None:
+            raise NotFoundError("User not found.")
+        return user
+
+    def _require_password(
+        self, user: User, password: str | None, meta: RequestMeta, message: str
+    ) -> None:
+        """Re-authentication for sensitive actions; failures count towards the same lockout."""
+        now = self.clock()
+        if user.locked_until is not None and user.locked_until > now:
+            raise self._locked_error(user, now)
+        if not password or not verify_password(self.hasher, user.password_hash, password):
+            self._register_failure(user, now, "bad_reauth_password", meta)
+            self.session.commit()
+            raise AppError("reauth_required", message, 403)
 
     def _locked_error(self, user: User, now: datetime) -> AppError:
         remaining = (user.locked_until - now).total_seconds() if user.locked_until else 0
@@ -142,6 +173,7 @@ class IAMService:
         )
 
     def _register_failure(self, user: User, now: datetime, reason: str, meta: RequestMeta) -> None:
+        """Count a failed secret (caller holds the row lock on ``user``)."""
         s = self.settings
         user.failed_logins += 1
         detail: dict[str, Any] = {"reason": reason, "failed_logins": user.failed_logins}
@@ -223,7 +255,7 @@ class IAMService:
 
     def login(self, email: str, password: str, meta: RequestMeta) -> LoginResult:
         now = self.clock()
-        user = self._user_by_email(email)
+        user = self._user_by_email(email, lock=True)
         if user is None or not user.is_active or not user.password_hash:
             verify_password(self.hasher, None, password)  # equalize timing
             self.audit.record(
@@ -269,7 +301,12 @@ class IAMService:
             raise UnauthenticatedError(
                 "MFA challenge is invalid or expired.", "token_invalid"
             ) from exc
-        user = self.session.get(User, user_id)
+        user = self.session.execute(
+            select(User)
+            .where(User.id == user_id)
+            .with_for_update()
+            .execution_options(populate_existing=True)
+        ).scalar_one_or_none()
         if user is None or not user.is_active or not user.mfa_enabled:
             raise UnauthenticatedError("MFA challenge is invalid or expired.", "token_invalid")
         if user.locked_until is not None and user.locked_until > now:
@@ -438,9 +475,8 @@ class IAMService:
     def change_password(
         self, principal: Principal, current: str, new: str, meta: RequestMeta
     ) -> None:
-        user = self._get_user(principal.user_id)
-        if not verify_password(self.hasher, user.password_hash, current):
-            raise AppError("reauth_required", "Current password is incorrect.", 403)
+        user = self._lock_user(principal.user_id)
+        self._require_password(user, current, meta, "Current password is incorrect.")
         self._check_password(user, new)
         user.password_hash = hash_password(self.hasher, new)
         revoked = self._revoke_families(user.id, "password_changed", None)
@@ -480,7 +516,7 @@ class IAMService:
         return codes
 
     def mfa_confirm(self, principal: Principal, code: str, meta: RequestMeta) -> list[str]:
-        user = self._get_user(principal.user_id)
+        user = self._lock_user(principal.user_id)
         if user.mfa_enabled:
             raise ConflictError("MFA is already enabled.", "mfa_already_enabled")
         step = match_totp_step(
@@ -498,15 +534,16 @@ class IAMService:
     def mfa_disable(
         self, principal: Principal, password: str, code: str, meta: RequestMeta
     ) -> None:
-        user = self._get_user(principal.user_id)
+        user = self._lock_user(principal.user_id)
         if not user.mfa_enabled:
             raise ConflictError("MFA is not enabled.", "mfa_not_enabled")
-        if not verify_password(self.hasher, user.password_hash, password):
-            raise AppError("reauth_required", "Password is incorrect.", 403)
+        self._require_password(user, password, meta, "Password is incorrect.")
         step = match_totp_step(
             self._totp_secret(user), code, now=self.clock(), last_step=user.totp_last_step
         )
         if step is None:
+            self._register_failure(user, self.clock(), "bad_totp_reauth", meta)
+            self.session.commit()
             raise AppError("mfa_invalid", "The MFA code is invalid.", 400)
         self._clear_mfa(user)
         self.audit.record("user.mfa_disabled", user_id=user.id, meta=meta)
@@ -589,7 +626,7 @@ class IAMService:
     # ------------------------------------------------------------------ administration
 
     def _create_user(self, email: str, display_name: str, role: UserRole, password: str) -> User:
-        user = User(email=email.strip(), display_name=display_name.strip(), role=role)
+        user = User(email=normalize_email(email), display_name=display_name.strip(), role=role)
         self._check_password(user, password)
         user.password_hash = hash_password(self.hasher, password)
         self.session.add(user)
@@ -645,16 +682,14 @@ class IAMService:
         self.session.commit()
         return user
 
-    def _reauth(self, principal: Principal, admin_password: str | None) -> None:
-        actor = self._get_user(principal.user_id)
-        if not admin_password or not verify_password(
-            self.hasher, actor.password_hash, admin_password
-        ):
-            raise AppError(
-                "reauth_required",
-                "Re-enter your password (admin_password) to confirm this change.",
-                403,
-            )
+    def _reauth(self, principal: Principal, admin_password: str | None, meta: RequestMeta) -> None:
+        actor = self._lock_user(principal.user_id)
+        self._require_password(
+            actor,
+            admin_password,
+            meta,
+            "Re-enter your password (admin_password) to confirm this change.",
+        )
 
     def _active_admins(self) -> int:
         return int(
@@ -686,7 +721,7 @@ class IAMService:
             or reset_mfa
         )
         if sensitive:
-            self._reauth(principal, admin_password)
+            self._reauth(principal, admin_password, meta)
         changes: dict[str, Any] = {}
         losing_admin = (
             user.role is UserRole.admin

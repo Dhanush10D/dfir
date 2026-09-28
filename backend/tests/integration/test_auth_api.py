@@ -395,3 +395,64 @@ def test_last_admin_cannot_be_removed(h: Harness, db_engine: Engine) -> None:
         f"/users/{admin.id}", admin, json={"role": "analyst", "admin_password": TEST_PASSWORD}
     )
     assert r.status_code == 409 and r.json()["error"]["code"] == "last_admin"
+
+
+def test_failed_reauthentication_counts_towards_lockout(h: Harness) -> None:
+    user = h.make_user(UserRole.analyst)
+    body = {"current_password": "Wrong-Password-123", "new_password": "Another-Good-Passphrase-9"}
+    for _ in range(h.settings.login_lockout_threshold):
+        assert h.post("/me/password", user, json=body).status_code == 403
+    body["current_password"] = TEST_PASSWORD
+    r = h.post("/me/password", user, json=body)
+    assert r.status_code == 429 and r.json()["error"]["code"] == "account_locked"
+    assert _login(h, user.email, TEST_PASSWORD)[0] == 429
+
+
+def test_failed_admin_reauth_locks_the_admin(h: Harness) -> None:
+    admin = h.make_user(UserRole.admin)
+    target = h.make_user(UserRole.viewer, login=False)
+    for _ in range(h.settings.login_lockout_threshold):
+        r = h.patch(f"/users/{target.id}", admin, json={"role": "lead", "admin_password": "nope"})
+        assert r.status_code == 403
+    r = h.patch(
+        f"/users/{target.id}", admin, json={"role": "lead", "admin_password": TEST_PASSWORD}
+    )
+    assert r.status_code == 429
+
+
+def test_wrong_totp_when_disabling_mfa_counts(h: Harness, db_engine: Engine) -> None:
+    user = h.make_user(UserRole.analyst)
+    _enable_mfa(h, user)
+    r = h.post("/me/mfa/disable", user, json={"password": TEST_PASSWORD, "code": "000000"})
+    assert r.status_code == 400
+    with db_engine.connect() as conn:
+        failed = conn.execute(
+            text("SELECT failed_logins FROM users WHERE id = :u"), {"u": user.id}
+        ).scalar_one()
+    assert failed == 1
+
+
+def test_email_is_case_insensitive_and_stored_lower_case(h: Harness, db_engine: Engine) -> None:
+    admin = h.make_user(UserRole.admin)
+    local = f"Mixed.Case-{uuid.uuid4().hex[:6]}"
+    email = f"{local}@DFIR.Test"
+    r = h.post(
+        "/users",
+        admin,
+        json={"email": email, "display_name": "Mixed", "role": "viewer", "password": TEST_PASSWORD},
+    )
+    assert r.status_code == 201, r.text
+    assert r.json()["email"] == email.lower()
+    for variant in (email, email.lower(), email.upper()):
+        assert _login(h, variant, TEST_PASSWORD)[0] == 200, variant
+    r = h.post(
+        "/users",
+        admin,
+        json={
+            "email": email.lower(),
+            "display_name": "Dup",
+            "role": "viewer",
+            "password": TEST_PASSWORD,
+        },
+    )
+    assert r.status_code == 409 and r.json()["error"]["code"] == "email_taken"
