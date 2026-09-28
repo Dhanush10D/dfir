@@ -5,7 +5,17 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import CHAR, BigInteger, Boolean, ForeignKey, Integer, LargeBinary, Text, text
+from sqlalchemy import (
+    CHAR,
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    Text,
+    text,
+)
 from sqlalchemy.dialects.postgresql import CITEXT, INET
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -16,6 +26,8 @@ from app.db.models.enums import UserRole, user_role_enum
 
 class User(Base):
     __tablename__ = "users"
+    # Stored lower-case (migration 0003); citext keeps the UNIQUE case-insensitive too.
+    __table_args__ = (CheckConstraint("email::text = lower(email::text)", name="email_lowercase"),)
 
     id: Mapped[uuid.UUID] = uuid_pk()
     email: Mapped[str] = mapped_column(CITEXT(), unique=True, nullable=False)

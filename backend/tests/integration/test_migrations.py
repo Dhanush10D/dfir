@@ -53,7 +53,7 @@ def test_all_core_tables_exist(db_engine: Engine) -> None:
     assert "events_default" in tables
     with db_engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0002"
+    assert version == "0003"
 
 
 def test_app_role_privileges(db_engine: Engine) -> None:
@@ -75,6 +75,13 @@ def test_app_role_privileges(db_engine: Engine) -> None:
     assert privileges("alembic_version") == {"SELECT"}
     assert privileges("evidence") == {"SELECT", "INSERT", "UPDATE", "DELETE"}
     assert privileges("refresh_tokens") == {"SELECT", "INSERT", "UPDATE", "DELETE"}
+    # 0003: the published key copy cannot be rewritten or deleted by the app.
+    assert privileges("signing_keys") == {"SELECT", "INSERT"}
+    with db_engine.connect() as conn:
+        # 0003: the migrating role can SET ROLE to the app role even without superuser.
+        assert conn.execute(
+            text("SELECT pg_has_role(current_user, 'dfirbench_app', 'MEMBER')")
+        ).scalar_one()
     with db_engine.begin() as conn:  # default privileges cover tables created later by the owner
         conn.execute(text("CREATE TABLE later_table (id int)"))
     try:
@@ -257,3 +264,18 @@ def test_downgrade_and_reupgrade_roundtrip(admin_engine: Engine) -> None:
         command.upgrade(cfg, "head")
     finally:
         drop_temp_database(admin_engine, db_url)
+
+
+def test_emails_are_stored_lower_case(db_engine: Engine) -> None:
+    with pytest.raises(DBAPIError, match="ck_users_email_lowercase"), db_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO users (email, display_name) VALUES ('Mixed@Case.test', 'x')")
+        )
+    with db_engine.begin() as conn:
+        conn.execute(
+            text("INSERT INTO users (email, display_name) VALUES ('lower@case.test', 'x')")
+        )
+    with pytest.raises(DBAPIError), db_engine.begin() as conn:  # citext UNIQUE
+        conn.execute(
+            text("INSERT INTO users (email, display_name) VALUES ('LOWER@case.test', 'x')")
+        )
