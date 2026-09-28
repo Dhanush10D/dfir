@@ -49,6 +49,10 @@ extend-exclude = [".venv"]
 select = ["E", "W", "F", "I", "B", "UP", "S", "N", "SIM", "RUF", "BLE", "DTZ", "T20"]
 ignore = ["S101"]  # asserts are fine for type narrowing and in tests
 
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
+known-third-party = ["alembic"]
+
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "DTZ001"]
 "alembic/**" = ["E501"]

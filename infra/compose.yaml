@@ -1,0 +1,167 @@
+# dfirbench Standard profile: single-node development stack (guide 21.1).
+# DEV ONLY: passwords below are placeholder defaults; APP_ENV=prod refuses them. Override via a
+# repo-root .env (copy .env.example) or `docker compose --env-file`.
+#
+#   docker compose -f infra/compose.yaml up -d --build
+#
+# Host ports bind to 127.0.0.1 only.
+
+name: dfirbench
+
+x-backend-env: &backend-env
+  APP_ENV: ${APP_ENV:-dev}
+  LOG_LEVEL: ${LOG_LEVEL:-INFO}
+  DATABASE_URL: postgresql+psycopg://dfir:${POSTGRES_PASSWORD:-dfir_dev_password}@postgres:5432/dfirbench
+  REDIS_URL: redis://redis:6379/0
+  S3_ENDPOINT: minio:9000
+  S3_ACCESS_KEY: ${MINIO_ROOT_USER:-dfir}
+  S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
+  S3_SECURE: "false"
+  VAULT_BUCKET: ${VAULT_BUCKET:-evidence}
+  ARTIFACTS_BUCKET: ${ARTIFACTS_BUCKET:-artifacts}
+  VAULT_RETENTION_DAYS: ${VAULT_RETENTION_DAYS:-3650}
+  CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://localhost:5173}
+
+x-backend-build: &backend-build
+  context: ../backend
+  dockerfile: ../infra/docker/api.Dockerfile
+
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    environment:
+      POSTGRES_DB: dfirbench
+      POSTGRES_USER: dfir
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-dfir_dev_password}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    ports: ["127.0.0.1:${POSTGRES_PORT:-5432}:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dfir -d dfirbench"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: ["redisdata:/data"]
+    ports: ["127.0.0.1:${REDIS_PORT:-6379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  minio:
+    # Upstream minio/minio images are no longer published; pgsty/minio is a maintained
+    # community build of the same AGPLv3 server. Any S3-compatible store with Object Lock works.
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-dfir}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-minio_dev_password}
+    volumes: ["miniodata:/data"]
+    ports:
+      - "127.0.0.1:${MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    healthcheck:
+      # Image has no curl/wget/mc; probe the unauthenticated liveness endpoint with bash.
+      test:
+        - CMD
+        - bash
+        - -c
+        - >-
+          exec 3<>/dev/tcp/127.0.0.1/9000 &&
+          printf 'GET /minio/health/live HTTP/1.0\r\nHost: localhost\r\n\r\n' >&3 &&
+          read -r line <&3 && [[ $$line == *" 200 "* ]]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # One-shot: create the WORM vault bucket (Object Lock) and the artifacts bucket.
+  storage-init:
+    image: dfirbench/api:dev
+    build: *backend-build
+    command: ["python", "-m", "app.storage", "init"]
+    environment: *backend-env
+    depends_on:
+      minio: { condition: service_healthy }
+    restart: "no"
+
+  # One-shot: apply Alembic migrations before the API starts.
+  migrate:
+    image: dfirbench/api:dev
+    build: *backend-build
+    command: ["alembic", "upgrade", "head"]
+    environment: *backend-env
+    depends_on:
+      postgres: { condition: service_healthy }
+    restart: "no"
+
+  api:
+    image: dfirbench/api:dev
+    build: *backend-build
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      storage-init: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    ports: ["127.0.0.1:${API_PORT:-8000}:8000"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  worker:
+    image: dfirbench/worker:dev
+    build:
+      context: ../backend
+      dockerfile: ../infra/docker/worker.Dockerfile
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "default,parse,ai,reports", "-c", "2", "-n", "worker@%h", "--loglevel", "INFO"]
+    environment: *backend-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      storage-init: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    # Dev shortcut. In production each parser job runs in its own sandbox container with
+    # --network none and a read-only evidence mount (guide 10.7, 21.1; Phase 10).
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    healthcheck:
+      test: ["CMD-SHELL", "celery -A app.workers.celery_app inspect ping -d worker@$$HOSTNAME --timeout 5 | grep -q pong"]
+      interval: 20s
+      timeout: 15s
+      retries: 6
+      start_period: 20s
+
+  web:
+    image: dfirbench/web:dev
+    build:
+      context: ../frontend
+      dockerfile: ../infra/docker/web.Dockerfile
+      additional_contexts:
+        infra: ./docker
+    depends_on:
+      api: { condition: service_healthy }
+    ports: ["127.0.0.1:${WEB_PORT:-8080}:8080"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  miniodata: {}

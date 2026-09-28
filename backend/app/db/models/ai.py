@@ -61,5 +61,5 @@ class EventChunk(Base):
     case_id: Mapped[uuid.UUID] = mapped_column(UUID_T, ForeignKey("cases.id"), nullable=False)
     event_ids: Mapped[list[uuid.UUID]] = mapped_column(ARRAY(UUID_T), nullable=False)
     text: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding: Mapped[Any] = mapped_column(Vector(EMBEDDING_DIM))
+    embedding: Mapped[Any] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
     created_at: Mapped[datetime] = created_at()

@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import ForeignKey, Index, Integer, Text, func, literal_column, text
+from sqlalchemy import ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import INET, JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -26,6 +26,16 @@ class Event(Base):
         Index("ix_events_case_id_event_code", "case_id", "event_code"),
         Index("ix_events_case_id_host", "case_id", "host"),
         Index("ix_events_attack_tags", "attack_tags", postgresql_using="gin"),
+        # Full-text index over message + cmdline (guide 7.2).
+        Index(
+            "ix_events_fts",
+            # Written in PostgreSQL's normalized form so Alembic drift checks compare equal.
+            text(
+                "to_tsvector('simple'::regconfig, (COALESCE(message, ''::text) || ' '::text) "
+                "|| COALESCE(cmdline, ''::text))"
+            ),
+            postgresql_using="gin",
+        ),
         {"postgresql_partition_by": "RANGE (ts)"},
     )
 
@@ -68,15 +78,3 @@ class Event(Base):
         TSTZ, nullable=False, server_default=text("now()")
     )
 
-
-# Full-text index over message + cmdline (guide 7.2); defined after the class so it can use columns.
-Index(
-    "ix_events_fts",
-    func.to_tsvector(
-        literal_column("'simple'::regconfig"),
-        func.coalesce(Event.message, literal_column("''"))
-        + literal_column("' '")
-        + func.coalesce(Event.cmdline, literal_column("''")),
-    ),
-    postgresql_using="gin",
-)

@@ -47,13 +47,13 @@ class Settings(BaseSettings):
     )
 
     # Stores
-    database_url: str = "postgresql+psycopg://dfir:dfir_dev_password@localhost:5432/dfirbench"
-    redis_url: str = "redis://localhost:6379/0"
+    database_url: str = "postgresql+psycopg://dfir:dfir_dev_password@127.0.0.1:5432/dfirbench"
+    redis_url: str = "redis://127.0.0.1:6379/0"
     enable_opensearch: bool = False
     opensearch_url: str | None = None
 
     # Evidence vault (MinIO / S3)
-    s3_endpoint: str = "localhost:9000"
+    s3_endpoint: str = "127.0.0.1:9000"
     s3_access_key: str = "dfir"
     s3_secret_key: SecretStr = SecretStr("minio_dev_password")
     s3_secure: bool = False
