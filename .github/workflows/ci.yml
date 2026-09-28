@@ -113,7 +113,7 @@ jobs:
           curl -fsS http://127.0.0.1:8080/api/v1/health
       - name: Phase 1 live smoke + tamper demo
         run: |
-          export DFIR_ADMIN_PASSWORD="ci-admin-$RANDOM-Passphrase-$(date +%s)"
+          export DFIR_ADMIN_PASSWORD="CiSmoke-$RANDOM-Passphrase-$(date +%s)"  # must not contain the e-mail name
           docker compose -f infra/compose.yaml exec -T -e DFIR_ADMIN_PASSWORD api \
             python -m app.cli create-admin --email ci-admin@dfirbench.test
           python3 scripts/phase1-smoke.py --admin-email ci-admin@dfirbench.test

@@ -37,7 +37,12 @@ metadata are detected and reported precisely.
   `signing_keys`; pure `verify_chain()` reports each problem with its exact `seq` and a code.
 - Custody signing key: settings `CUSTODY_SIGNING_KEY_PATH` (+ optional
   `CUSTODY_SIGNING_KEY_PASSPHRASE`), `CUSTODY_KEY_ID` (defaults to a fingerprint-derived id);
-  `python -m app.core.signing generate` writes a PKCS#8 PEM (0600, optional passphrase). Compose gets
+  `python -m app.core.signing generate` writes a PKCS#8 PEM (0600, optional passphrase).
+- Custody trust anchor: verification trusts only the running signer's public key plus the keys in
+  `CUSTODY_TRUSTED_KEYS_PATH` (JSON `{key_id: public PEM}`, maintained with
+  `python -m app.core.signing trust`). `signing_keys` is a published copy for display/export; an
+  entry signed under any other key id, or whose published key differs from the trusted key for its
+  id, is `untrusted_key`. Compose gets
   a one-shot `keygen` service that creates the dev key in a named volume; nothing secret is
   committed.
 - Audit (16.5): pure-ASGI `AuditMiddleware` writes one `audit_log` row per `/api/v1` request (except
@@ -84,7 +89,7 @@ events/alerts, Phase 4).
 - `infra/compose.yaml`: `keygen` one-shot, `custodykeys` volume, `DATABASE_APP_ROLE`, key env.
 - `scripts/verify-phase1.sh`, `scripts/dev-keygen.sh`.
 
-## Data model changes (`alembic/versions/0002_iam_evidence.py`)
+## Data model changes (`0002_iam_evidence.py`, `0003_trust_hardening.py`)
 - `users.totp_last_step bigint` (TOTP replay protection).
 - `refresh_tokens(id, user_id FK cascade, family_id, token_hash char(64) unique, issued_at,
   expires_at, session_started_at, revoked_at, revoked_reason, replaced_by, user_agent, ip inet)`.
@@ -98,6 +103,9 @@ events/alerts, Phase 4).
   tables; USAGE/SELECT on sequences; `custody_log`/`audit_log` restricted to SELECT, INSERT;
   `alembic_version` SELECT only; default privileges for tables/sequences the owner creates later.
   Downgrade revokes; the cluster-wide role is not dropped.
+- 0003: `dfirbench_app` gets only SELECT/INSERT on `signing_keys`; `users.email` values are
+  lower-cased and kept so by `CHECK (email::text = lower(email::text))` (citext UNIQUE stays);
+  `GRANT dfirbench_app TO CURRENT_USER` so a non-superuser owner can `SET ROLE`.
 - Evidence status values: `uploading` (record created, awaiting bytes) -> `uploaded` (bytes stored,
   `ingested` custody entry) -> `stored` (finalized: re-hashed, compared, locked) | `failed`
   (hash mismatch). Later phases add `processing`/`processed`/`partial`/`archived`.
@@ -108,9 +116,12 @@ detail, prev_hash}`; `entry_hash = sha256(json.dumps(body, sort_keys, (",",":"),
 ensure_ascii=False))`; `signature = Ed25519(entry_hash ascii).hex()`. `ts` is written by the service
 (not `now()`) so it round-trips through `timestamptz`; `detail` accepts only JSON types that
 round-trip through `jsonb` (no floats, no NUL). Actions: `created`, `ingested`, `hash_verified`,
-`hash_failed`, `verification_failed`, `locked`, `downloaded`, `note`. Problem codes from
-`verify_chain`: `seq_gap`, `duplicate_seq`, `broken_link`, `hash_mismatch`, `bad_signature`,
-`unknown_key`, `evidence_mismatch`. Tail truncation is not detectable without anchors (BACKLOG).
+`hash_failed`, `verification_failed`, `locked`, `downloaded`, `note`. A finalize mismatch (stored
+bytes vs. streaming/expected hash or declared size) writes `verification_failed` (guide 8.1 step 3);
+verify writes `hash_failed` when the stored object no longer matches and `verification_failed` when
+only the chain is broken. Problem codes from `verify_chain`: `seq_gap`, `duplicate_seq`,
+`broken_link`, `hash_mismatch`, `bad_signature`, `untrusted_key`, `evidence_mismatch`,
+`empty_chain`. Tail truncation is not detectable without anchors (BACKLOG).
 
 ## API changes (all under `/api/v1`)
 | Method | Path | Access |
@@ -166,7 +177,7 @@ Auth: `Authorization: Bearer <access>` or `X-API-Key`. Errors use the 15.3 envel
 ## Acceptance criteria (executable)
 1. `docker compose -f infra/compose.yaml up -d --build` -> all services healthy; `keygen`, `migrate`,
    `storage-init` exit 0.
-2. `alembic upgrade head` reaches `0002`; `alembic check` reports no drift.
+2. `alembic upgrade head` reaches `0003`; `alembic check` reports no drift.
 3. Live smoke through the running API (`scripts/phase1-smoke.py`): create admin, login, create
    analyst/viewer/auditor, case, evidence, stream-upload a file, finalize, verify ok with the
    stored SHA-256 equal to an independent `hashlib.sha256`; viewer denied (403) on upload; auditor
@@ -204,7 +215,18 @@ demo, then backend lint/format/types/bandit and the full test suite; leaves the 
 - **Finalize** refuses (503 `vault_not_worm`) if the stored version has no Object Lock retention.
 - **Tokens** are returned in JSON (Bearer); cookie delivery + CSRF waits for the UI (Phase 4).
 - **Account lockout** answers 429 `account_locked` with `Retry-After`; unknown users and wrong
-  passwords give the same 401 and burn one Argon2 computation.
+  passwords give the same 401 and burn one Argon2 computation. Login, MFA verify/confirm/disable,
+  password change and admin re-authentication lock the user row (`SELECT ... FOR UPDATE`), so the
+  failure counter and the TOTP replay guard cannot race; failed re-authentication (wrong current
+  password, wrong admin password, wrong TOTP when disabling MFA) counts towards the same lockout.
+- **Uploads** re-check the evidence status after taking the advisory lock, so a finished upload
+  that raced the first check cannot be followed by a second object version.
+- **Closed cases** accept only a reopen (`status: open`, needs case:manage); any other PATCH is 409.
+- **Upload limits**: settings validation rejects `MAX_UPLOAD_GB` / `UPLOAD_PART_SIZE_MB`
+  combinations that exceed S3's 10,000-part limit.
+- **E-mails** are normalized to lower case on write and compared lower-cased on lookup.
+- A tampered published copy of the running signer's key does not block custody writes (the trust
+  anchor is outside the DB); it is logged and reported as `untrusted_key` by every verification.
 - `app/core/exceptions.py` holds the framework-free domain errors (re-exported by `core/errors.py`).
 - The compose `keygen` one-shot creates `custody-dev.pem` in the `custodykeys` volume (mounted
   read-only into api and worker); host-side dev keys go to the git-ignored `var/keys/` via

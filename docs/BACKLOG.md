@@ -38,3 +38,4 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | `/cases/{id}/summary` | Needs events/alerts | Phase 4 |
 | Workers writing custody entries (`processed`) need the signer: the key volume is already mounted read-only into the worker | No processing yet | Phase 2 |
 | `audit_log` growth: partition by month or archive (never purge) | Volume is small in dev | Phase 10 |
+| Custody signing keys in Vault/KMS or an HSM, with the trusted-keys file (`CUSTODY_TRUSTED_KEYS_PATH`) distributed from the secret manager; today both are files (dev key in the `custodykeys` volume) | Needs a secret manager | Phase 10 |

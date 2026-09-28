@@ -33,14 +33,24 @@ with get_engine().connect() as conn:
 assert role == 'dfirbench_app', role
 print('signer', signer.key_id, 'role', role)"
 
+step "app role cannot rewrite custody, audit or published signing keys"
+for stmt in "UPDATE custody_log SET action = 'x'" "DELETE FROM audit_log"             "UPDATE signing_keys SET public_key = 'x'" "DELETE FROM signing_keys"; do
+  out="$("${COMPOSE[@]}" exec -T postgres psql -U dfir -d dfirbench -v ON_ERROR_STOP=1          -c "BEGIN; SET LOCAL ROLE dfirbench_app; $stmt; ROLLBACK;" 2>&1 || true)"
+  if ! grep -q "permission denied" <<<"$out"; then
+    echo "app role was NOT denied: $stmt -> $out" >&2
+    exit 1
+  fi
+  echo "denied: $stmt"
+done
+
 step "alembic upgrade head + drift check (host -> compose Postgres)"
 "$BIN/alembic" upgrade head
-"$BIN/alembic" current | grep -q '0002 (head)'
+"$BIN/alembic" current | grep -q '0003 (head)'
 "$BIN/alembic" check
 
 step "live smoke + tamper demo through the running API"
 ADMIN_EMAIL="verify-admin-$(date +%s)-$RANDOM@dfirbench.test"
-DFIR_ADMIN_PASSWORD="Verify-Admin-$(date +%s)-$RANDOM-Passphrase"
+DFIR_ADMIN_PASSWORD="Phase1-Check-$RANDOM-Passphrase-$(date +%s)"  # policy: not the e-mail name
 export DFIR_ADMIN_PASSWORD
 "${COMPOSE[@]}" exec -T -e DFIR_ADMIN_PASSWORD api \
   python -m app.cli create-admin --email "$ADMIN_EMAIL" --name "Verify Admin" >/dev/null
