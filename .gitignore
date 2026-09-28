@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+# Node
+node_modules/
+dist/
+# Env / secrets
+.env
+*.key
+*.pem
+!data/samples/**
+# Runtime data
+var/
+vault/
