@@ -6,6 +6,13 @@ from pydantic import ValidationError
 from app.config import Settings, get_settings
 
 
+@pytest.fixture(autouse=True)
+def _hermetic_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    # CI (and developer shells) export APP_ENV, DATABASE_URL, ...; these tests assert defaults.
+    for name in Settings.model_fields:
+        monkeypatch.delenv(name.upper(), raising=False)
+
+
 def make(**kwargs: object) -> Settings:
     return Settings(_env_file=None, **kwargs)  # type: ignore[arg-type]
 

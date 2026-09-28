@@ -102,3 +102,8 @@ bash scripts/verify-phase0.sh
 ```
 (brings the stack up, waits for health, curls health/ready, runs alembic, backend tests + lint + types,
 frontend lint/typecheck/test/build; exits non-zero on any failure).
+
+## Implementation notes
+- `forbid_mutation` is attached as statement-level BEFORE UPDATE/DELETE/TRUNCATE triggers rather than a row
+  trigger plus a TRUNCATE trigger; this is strictly stronger (zero-row statements are rejected too).
+- The MinIO init service is named `storage-init`.
