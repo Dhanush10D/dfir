@@ -117,12 +117,14 @@ def error_response(
 
 
 async def _app_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, AppError)
+    if not isinstance(exc, AppError):  # registered only for AppError
+        raise exc
     return error_response(exc.status_code, exc.code, exc.message, exc.details, request=request)
 
 
 async def _http_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, StarletteHTTPException)
+    if not isinstance(exc, StarletteHTTPException):  # registered only for StarletteHTTPException
+        raise exc
     status_code = exc.status_code
     if isinstance(exc.detail, str):
         message = exc.detail
@@ -143,7 +145,8 @@ async def _http_error_handler(request: Request, exc: Exception) -> JSONResponse:
 
 
 async def _validation_error_handler(request: Request, exc: Exception) -> JSONResponse:
-    assert isinstance(exc, RequestValidationError)
+    if not isinstance(exc, RequestValidationError):  # registered only for RequestValidationError
+        raise exc
     errors = [
         {"loc": list(err.get("loc", ())), "msg": err.get("msg", ""), "type": err.get("type", "")}
         for err in exc.errors()

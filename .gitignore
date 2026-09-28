@@ -19,3 +19,4 @@ dist/
 # Runtime data
 var/
 vault/
+*.tsbuildinfo
