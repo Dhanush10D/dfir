@@ -6,13 +6,14 @@ from collections.abc import Callable, Iterator
 from functools import lru_cache
 
 import structlog
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from minio import Minio
 from redis import Redis
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
-from app.core.signing import CustodySigner, SigningKeyError, load_signer
+from app.core.signing import CustodySigner, SigningKeyError, load_signer, load_trusted_keys
 from app.db.session import get_engine, get_sessionmaker
 from app.repositories.vault import MinioVault, VaultStore
 from app.services.audit import DbAuditSink
@@ -88,6 +89,16 @@ def get_custody_signer() -> CustodySigner | None:
     except SigningKeyError as exc:
         log.warning("custody_signer_unavailable", reason=str(exc))
         return None
+
+
+@lru_cache(maxsize=1)
+def get_trusted_keys() -> dict[str, Ed25519PublicKey]:
+    """Extra trusted custody keys from CUSTODY_TRUSTED_KEYS_PATH (the signer is added per use)."""
+    try:
+        return load_trusted_keys(get_settings())
+    except SigningKeyError as exc:
+        log.error("custody_trusted_keys_unreadable", reason=str(exc))
+        return {}
 
 
 def get_audit_sink() -> DbAuditSink:

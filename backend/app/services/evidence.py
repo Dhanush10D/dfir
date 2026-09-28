@@ -11,12 +11,13 @@ from __future__ import annotations
 import re
 import unicodedata
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
 import structlog
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from sqlalchemy import Engine, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -131,13 +132,14 @@ class EvidenceService:
         *,
         vault: VaultStore | None,
         signer: CustodySigner | None,
+        trusted_keys: Mapping[str, Ed25519PublicKey] | None = None,
         clock: Callable[[], datetime] = utcnow,
     ) -> None:
         self.session = session
         self.settings = settings
         self.vault = vault
         self.clock = clock
-        self.custody = CustodyService(session, signer, clock)
+        self.custody = CustodyService(session, signer, clock, trusted_keys)
         self.audit = AuditService(session)
 
     # ------------------------------------------------------------------ helpers
@@ -358,6 +360,14 @@ class EvidenceService:
 
         handle = self._upload_lock(evidence_id)
         try:
+            # Re-check under the lock: another upload may have finished between the first check and
+            # acquiring the lock, and a second PUT would add another version at the original's key.
+            current = self.session.execute(
+                select(Evidence.status).where(Evidence.id == evidence_id)
+            ).scalar_one()
+            self.session.commit()
+            if current != "uploading":
+                raise InvalidStateError("Evidence bytes were already received.", status=current)
             reader = HashingReader(source, limit)
             part_size = self.settings.upload_part_size_mb * MIB
             try:
@@ -455,7 +465,10 @@ class EvidenceService:
         common = {"source": "finalize", "version_id": version, **digests.as_dict()}
         if mismatches:
             ev.status = "failed"
-            self.custody.append(ev.id, "hash_failed", actor, {**common, "mismatches": mismatches})
+            # Guide 8.1 step 3: a mismatch at ingest stops processing -> verification_failed.
+            self.custody.append(
+                ev.id, "verification_failed", actor, {**common, "mismatches": mismatches}
+            )
             notify_admins(
                 self.session,
                 "evidence.verification_failed",

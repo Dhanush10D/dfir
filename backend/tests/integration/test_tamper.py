@@ -18,9 +18,9 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import Connection, Engine, text
 from sqlalchemy.exc import DBAPIError
 
-from app.core.signing import CustodySigner
+from app.core.signing import CustodySigner, public_key_pem
 from app.db.models import UserRole
-from app.services.custody import build_entry
+from app.services.custody import GENESIS, ChainEntry, build_entry
 from tests.fakes import FakeVault
 from tests.integration.harness import Harness, UserCtx
 
@@ -37,8 +37,69 @@ def _setup(h: Harness) -> tuple[UserCtx, dict[str, Any]]:
 
 def _as_owner_without_triggers(engine: Engine) -> Connection:
     conn = engine.connect()
-    conn.execute(text("SET session_replication_role = replica"))
+    # SET LOCAL: ends with the transaction, so the pooled connection never keeps triggers off.
+    conn.execute(text("SET LOCAL session_replication_role = replica"))
     return conn
+
+
+def _insert_entry(conn: Connection, entry: ChainEntry) -> None:
+    conn.execute(
+        text(
+            "INSERT INTO custody_log (evidence_id, seq, ts, actor_id, actor_label, action, "
+            "detail, prev_hash, entry_hash, signature, key_id) VALUES (:e, :s, :ts, :aid, "
+            ":al, :a, CAST(:d AS jsonb), :p, :h, :sig, :k)"
+        ),
+        {
+            "e": entry.evidence_id,
+            "s": entry.seq,
+            "ts": entry.ts,
+            "aid": entry.actor_id,
+            "al": entry.actor_label,
+            "a": entry.action,
+            "d": json.dumps(entry.detail),
+            "p": entry.prev_hash,
+            "h": entry.entry_hash,
+            "sig": entry.signature,
+            "k": entry.key_id,
+        },
+    )
+
+
+def _publish_key(conn: Connection, signer: CustodySigner) -> None:
+    conn.execute(
+        text(
+            "INSERT INTO signing_keys (key_id, algorithm, public_key, purpose) "
+            "VALUES (:k, 'ed25519', :pem, 'custody')"
+        ),
+        {"k": signer.key_id, "pem": public_key_pem(signer.public_key)},
+    )
+
+
+def _resign_chain(engine: Engine, evidence_id: str, signer: CustodySigner) -> list[ChainEntry]:
+    """Rebuild an evidence item's whole chain with ``signer`` (same content, fresh links)."""
+    with engine.connect() as conn:
+        rows = conn.execute(
+            text("SELECT * FROM custody_log WHERE evidence_id = :e ORDER BY seq"),
+            {"e": evidence_id},
+        ).all()
+    entries: list[ChainEntry] = []
+    prev = GENESIS
+    for row in rows:
+        m = row._mapping
+        entry = build_entry(
+            signer,
+            evidence_id=evidence_id,
+            seq=m["seq"],
+            ts=m["ts"],
+            actor_id=m["actor_id"],
+            actor_label=m["actor_label"],
+            action=m["action"],
+            detail=m["detail"],
+            prev_hash=prev,
+        )
+        entries.append(entry)
+        prev = entry.entry_hash
+    return entries
 
 
 def _verify(h: Harness, user: UserCtx, evidence_id: str) -> dict[str, Any]:
@@ -215,28 +276,10 @@ def test_forged_appended_entry_is_rejected(h: Harness, db_engine: Engine) -> Non
     )
     with db_engine.begin() as conn:  # plain INSERT: the trigger allows appends
         for entry in (forged, forged2):
-            conn.execute(
-                text(
-                    "INSERT INTO custody_log (evidence_id, seq, ts, actor_id, actor_label, action, "
-                    "detail, prev_hash, entry_hash, signature, key_id) VALUES (:e, :s, :ts, NULL, "
-                    ":al, :a, CAST(:d AS jsonb), :p, :h, :sig, :k)"
-                ),
-                {
-                    "e": ev["id"],
-                    "s": entry.seq,
-                    "ts": entry.ts,
-                    "al": entry.actor_label,
-                    "a": entry.action,
-                    "d": json.dumps(entry.detail),
-                    "p": entry.prev_hash,
-                    "h": entry.entry_hash,
-                    "sig": entry.signature,
-                    "k": entry.key_id,
-                },
-            )
+            _insert_entry(conn, entry)
     report = _verify(h, lead, ev["id"])
     assert report["ok"] is False
-    assert _codes(report) == {(5, "bad_signature"), (6, "unknown_key")}
+    assert _codes(report) == {(5, "bad_signature"), (6, "untrusted_key")}
 
 
 def test_wrong_signature_bytes_are_rejected(h: Harness, db_engine: Engine) -> None:
@@ -338,3 +381,143 @@ def test_app_role_can_append_and_read(app_engine: Engine) -> None:
 def test_unknown_evidence_verify_is_404(h: Harness) -> None:
     lead = h.make_user(UserRole.lead)
     assert h.post(f"/evidence/{uuid.uuid4()}/verify", lead).status_code == 404
+
+
+def test_owner_publishing_attacker_key_and_resigning_whole_chain_fails(
+    h: Harness, db_engine: Engine
+) -> None:
+    """Demo (a): signing_keys is not a trust anchor; a key added there verifies nothing."""
+    lead, ev = _setup(h)
+    attacker = CustodySigner("attacker-key", Ed25519PrivateKey.generate())
+    forged = _resign_chain(db_engine, ev["id"], attacker)
+    with _as_owner_without_triggers(db_engine) as conn:
+        _publish_key(conn, attacker)
+        for entry in forged:
+            conn.execute(
+                text(
+                    "UPDATE custody_log SET prev_hash = :p, entry_hash = :h, signature = :s, "
+                    "key_id = :k WHERE evidence_id = :e AND seq = :q"
+                ),
+                {
+                    "p": entry.prev_hash,
+                    "h": entry.entry_hash,
+                    "s": entry.signature,
+                    "k": entry.key_id,
+                    "e": ev["id"],
+                    "q": entry.seq,
+                },
+            )
+        conn.commit()
+    try:
+        report = _verify(h, lead, ev["id"])
+        assert report["ok"] is False
+        assert _codes(report) == {(seq, "untrusted_key") for seq in (1, 2, 3, 4)}
+        assert report["chain"]["first_broken_seq"] == 1
+    finally:
+        with db_engine.begin() as conn:
+            conn.execute(text("DELETE FROM signing_keys WHERE key_id = 'attacker-key'"))
+
+
+def test_owner_replacing_published_real_key_is_detected(h: Harness, db_engine: Engine) -> None:
+    """Swapping the published key for the real kid and re-signing under that kid also fails."""
+    lead, ev = _setup(h)
+    real_kid = _row(db_engine, ev["id"], 1)["key_id"]
+    attacker = CustodySigner(real_kid, Ed25519PrivateKey.generate())
+    forged = _resign_chain(db_engine, ev["id"], attacker)
+    with db_engine.connect() as conn:
+        original_pem = conn.execute(
+            text("SELECT public_key FROM signing_keys WHERE key_id = :k"), {"k": real_kid}
+        ).scalar_one()
+    with _as_owner_without_triggers(db_engine) as conn:
+        conn.execute(
+            text("UPDATE signing_keys SET public_key = :pem WHERE key_id = :k"),
+            {"pem": public_key_pem(attacker.public_key), "k": real_kid},
+        )
+        for entry in forged:
+            conn.execute(
+                text(
+                    "UPDATE custody_log SET prev_hash = :p, entry_hash = :h, signature = :s "
+                    "WHERE evidence_id = :e AND seq = :q"
+                ),
+                {
+                    "p": entry.prev_hash,
+                    "h": entry.entry_hash,
+                    "s": entry.signature,
+                    "e": ev["id"],
+                    "q": entry.seq,
+                },
+            )
+        conn.commit()
+    try:
+        report = _verify(h, lead, ev["id"])
+        assert report["ok"] is False
+        codes = _codes(report)
+        assert {(1, "bad_signature"), (1, "untrusted_key")} <= codes
+        assert report["chain"]["broken_seqs"] == [1, 2, 3, 4]
+    finally:
+        with db_engine.begin() as conn:
+            conn.execute(
+                text("UPDATE signing_keys SET public_key = :pem WHERE key_id = :k"),
+                {"pem": original_pem, "k": real_kid},
+            )
+
+
+def test_app_role_rogue_key_and_signed_append_fails(
+    h: Harness, app_engine: Engine, db_engine: Engine
+) -> None:
+    """Demo (b): what SQL injection as dfirbench_app could do: publish a key, append an entry."""
+    lead, ev = _setup(h)
+    rogue = CustodySigner(f"rogue-{uuid.uuid4().hex[:8]}", Ed25519PrivateKey.generate())
+    head = _row(db_engine, ev["id"], 4)
+    entry = build_entry(
+        rogue,
+        evidence_id=ev["id"],
+        seq=5,
+        ts=head["ts"] + timedelta(seconds=1),
+        actor_id=None,
+        actor_label="Evidence Custodian",
+        action="transferred",
+        detail={"to": "offsite"},
+        prev_hash=head["entry_hash"],
+    )
+    with app_engine.begin() as conn:
+        assert conn.execute(text("SELECT current_user")).scalar_one() == "dfirbench_app"
+        _publish_key(conn, rogue)
+        _insert_entry(conn, entry)
+    report = _verify(h, lead, ev["id"])
+    assert report["ok"] is False
+    assert _codes(report) == {(5, "untrusted_key")}
+    assert report["custody_entry"]["action"] == "verification_failed"
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        "UPDATE signing_keys SET public_key = 'x'",
+        "DELETE FROM signing_keys",
+        "TRUNCATE signing_keys",
+    ],
+)
+def test_app_role_cannot_rewrite_or_delete_signing_keys(app_engine: Engine, statement: str) -> None:
+    with pytest.raises(DBAPIError, match="permission denied"), app_engine.begin() as conn:
+        conn.execute(text(statement))
+
+
+def test_retired_key_is_trusted_only_via_trust_file(h: Harness) -> None:
+    """Key rotation: chains signed by an old key verify only if that key is configured trusted."""
+    lead, ev = _setup(h)
+    old_signer = h.signer
+    assert old_signer is not None
+    h.signer = CustodySigner(f"rotated-{uuid.uuid4().hex[:8]}", Ed25519PrivateKey.generate())
+    try:
+        report = _verify(h, lead, ev["id"])
+        assert report["ok"] is False
+        assert {code for _, code in _codes(report)} == {"untrusted_key"}
+        assert report["chain"]["broken_seqs"] == [1, 2, 3, 4]
+        h.trusted = {old_signer.key_id: old_signer.public_key}
+        report = _verify(h, lead, ev["id"])
+        # seq 5 (previous verification entry) was signed by the new signer: all trusted now.
+        assert report["chain"]["ok"] is True, report["chain"]
+    finally:
+        h.signer = old_signer
+        h.trusted = {}

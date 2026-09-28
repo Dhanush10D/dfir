@@ -12,6 +12,8 @@ from typing import Annotated, Literal
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+S3_MAX_PARTS = 10_000
+
 AppEnv = Literal["dev", "test", "prod"]
 SandboxMode = Literal["docker", "k8s", "none"]
 LLMProvider = Literal["anthropic", "ollama", "openai_compat", "fake"]
@@ -93,6 +95,9 @@ class Settings(BaseSettings):
     custody_signing_key_path: str | None = None
     custody_signing_key_passphrase: SecretStr | None = None
     custody_key_id: str | None = None  # default: derived from the public key fingerprint
+    # JSON {key_id: public key PEM} of retired/other trusted custody keys. Verification trusts ONLY
+    # these plus the running signer, never whatever is in the signing_keys table.
+    custody_trusted_keys_path: str | None = None
 
     # Upload / processing limits
     max_upload_gb: int = Field(default=20, ge=1)
@@ -148,6 +153,20 @@ class Settings(BaseSettings):
         if level not in {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}:
             raise ValueError(f"invalid LOG_LEVEL {value!r}")
         return level
+
+    @model_validator(mode="after")
+    def _upload_parts_fit(self) -> Settings:
+        # S3 multipart allows at most 10,000 parts: MAX_UPLOAD_GB must fit in that many parts.
+        part = self.upload_part_size_mb * 1024 * 1024
+        parts = -(-self.max_upload_bytes // part)
+        if parts > S3_MAX_PARTS:
+            needed = -(-self.max_upload_bytes // S3_MAX_PARTS // (1024 * 1024))
+            raise ValueError(
+                f"MAX_UPLOAD_GB={self.max_upload_gb} needs {parts} parts of "
+                f"UPLOAD_PART_SIZE_MB={self.upload_part_size_mb} (S3 limit {S3_MAX_PARTS}); "
+                f"raise UPLOAD_PART_SIZE_MB to at least {needed}"
+            )
+        return self
 
     @model_validator(mode="after")
     def _prod_fail_fast(self) -> Settings:

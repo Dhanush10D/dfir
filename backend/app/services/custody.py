@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
+import structlog
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
@@ -32,9 +33,13 @@ from app.core.signing import (
     CustodySigner,
     SigningKeyError,
     load_public_key_pem,
+    same_key,
+    trusted_key_set,
     verify_signature,
 )
 from app.db.models import CustodyLog, Evidence, SigningKey
+
+log = structlog.stdlib.get_logger("dfirbench.custody")
 
 GENESIS = "0" * 64
 BODY_FIELDS = (
@@ -214,7 +219,7 @@ def build_entry(
 @dataclass(frozen=True)
 class ChainProblem:
     seq: int
-    code: str  # seq_gap|duplicate_seq|broken_link|hash_mismatch|bad_signature|unknown_key|...
+    code: str  # seq_gap|duplicate_seq|broken_link|hash_mismatch|bad_signature|untrusted_key|...
     message: str
 
     def as_dict(self) -> dict[str, Any]:
@@ -256,16 +261,20 @@ class ChainReport:
 
 def verify_chain(
     entries: Sequence[ChainEntry],
-    public_keys: Mapping[str, Ed25519PublicKey],
+    trusted_keys: Mapping[str, Ed25519PublicKey],
     *,
+    published_keys: Mapping[str, Ed25519PublicKey] | None = None,
     evidence_id: str | None = None,
     require_entries: bool = True,
 ) -> ChainReport:
     """Check sequence continuity, links, entry hashes and signatures; report each problem's seq.
 
-    Links are checked against the *stored* previous hash, so a single edited row is reported at its
-    own seq (hash mismatch or bad signature) and, if its stored hash was rewritten, at seq+1
-    (broken link). Deleting the newest entries is only detectable with anchors (BACKLOG).
+    ``trusted_keys`` must come from outside the database (running signer + trust file). An entry
+    whose key id is not trusted, or whose database-published key differs from the trusted key for
+    that id, is ``untrusted_key``. Links are checked against the *stored* previous hash, so a single
+    edited row is reported at its own seq (hash mismatch or bad signature) and, if its stored hash
+    was rewritten, at seq+1 (broken link). Deleting the newest entries is only detectable with
+    anchors (BACKLOG).
     """
     report = ChainReport(evidence_id=evidence_id, entries=len(entries))
     if not entries:
@@ -301,15 +310,25 @@ def verify_chain(
             report.problems.append(
                 ChainProblem(seq, "hash_mismatch", "entry content does not match entry_hash")
             )
-        key = public_keys.get(entry.key_id)
+        key = trusted_keys.get(entry.key_id)
+        published = (published_keys or {}).get(entry.key_id)
         if key is None:
             report.problems.append(
-                ChainProblem(seq, "unknown_key", f"signing key {entry.key_id!r} is not published")
+                ChainProblem(seq, "untrusted_key", f"signing key {entry.key_id!r} is not trusted")
             )
-        elif not verify_signature(key, entry.signature, entry.entry_hash):
-            report.problems.append(
-                ChainProblem(seq, "bad_signature", "Ed25519 signature does not verify")
-            )
+        else:
+            if published is not None and not same_key(published, key):
+                report.problems.append(
+                    ChainProblem(
+                        seq,
+                        "untrusted_key",
+                        f"published key for {entry.key_id!r} differs from the trusted key",
+                    )
+                )
+            if not verify_signature(key, entry.signature, entry.entry_hash):
+                report.problems.append(
+                    ChainProblem(seq, "bad_signature", "Ed25519 signature does not verify")
+                )
         prev_hash = entry.entry_hash
         expected_seq = seq + 1
     report.head_seq = ordered[-1].seq
@@ -337,10 +356,12 @@ class CustodyService:
         session: Session,
         signer: CustodySigner | None,
         clock: Callable[[], datetime] = utcnow,
+        trusted_keys: Mapping[str, Ed25519PublicKey] | None = None,
     ) -> None:
         self.session = session
         self.signer = signer
         self.clock = clock
+        self.extra_trusted = dict(trusted_keys or {})
 
     def _require_signer(self) -> CustodySigner:
         if self.signer is None:
@@ -351,8 +372,13 @@ class CustodyService:
             )
         return self.signer
 
-    def ensure_signing_key(self) -> None:
-        """Publish the signer's public key in ``signing_keys`` (idempotent, race-safe)."""
+    def ensure_signing_key(self) -> bool:
+        """Publish the signer's public key in ``signing_keys`` (idempotent, race-safe).
+
+        The published copy is not a trust anchor, so a tampered copy does not stop custody writes;
+        it is logged here and reported as ``untrusted_key`` by every verification. Returns whether
+        the published copy matches the signer.
+        """
         signer = self._require_signer()
         pem = signer.public_key_pem()
         self.session.execute(
@@ -360,13 +386,18 @@ class CustodyService:
             .values(key_id=signer.key_id, algorithm=ALGORITHM, public_key=pem, purpose="custody")
             .on_conflict_do_nothing(index_elements=["key_id"])
         )
-        stored = self.session.get(SigningKey, signer.key_id)
-        if stored is None or stored.public_key.strip() != pem.strip():
-            raise AppError(
-                "signing_key_conflict",
-                f"Key id {signer.key_id!r} is already published with a different public key.",
-                500,
+        stored = self.session.execute(
+            select(SigningKey.public_key).where(SigningKey.key_id == signer.key_id)
+        ).scalar_one_or_none()
+        try:
+            matches = stored is not None and same_key(
+                load_public_key_pem(stored), signer.public_key
             )
+        except SigningKeyError:
+            matches = False
+        if not matches:
+            log.error("published_signing_key_mismatch", key_id=signer.key_id)
+        return matches
 
     def append(
         self,
@@ -429,7 +460,15 @@ class CustodyService:
             ).scalars()
         )
 
+    def trusted_keys(self) -> dict[str, Ed25519PublicKey]:
+        """Running signer + configured trust file. Never read from the database."""
+        try:
+            return trusted_key_set(self.signer, self.extra_trusted)
+        except SigningKeyError as exc:
+            raise AppError("signing_key_conflict", str(exc), 500) from exc
+
     def public_keys(self) -> dict[str, Ed25519PublicKey]:
+        """Keys published in ``signing_keys`` (display/export copy; NOT a trust anchor)."""
         keys: dict[str, Ed25519PublicKey] = {}
         for row in self.session.execute(select(SigningKey)).scalars():
             if row.algorithm != ALGORITHM:
@@ -449,7 +488,8 @@ class CustodyService:
         rows = self.entries(evidence_id)
         return verify_chain(
             [ChainEntry.from_row(r) for r in rows],
-            self.public_keys(),
+            self.trusted_keys(),
+            published_keys=self.public_keys(),
             evidence_id=str(evidence_id),
         )
 

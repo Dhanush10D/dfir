@@ -18,7 +18,7 @@ from app.config import Settings
 from app.core.signing import CustodySigner
 from app.db.models import UserRole
 from app.db.session import make_session_factory
-from app.deps import get_app_settings, get_custody_signer, get_db, get_vault
+from app.deps import get_app_settings, get_custody_signer, get_db, get_trusted_keys, get_vault
 from app.main import create_app
 from app.services.audit import DbAuditSink
 from app.services.iam import IAMService
@@ -58,6 +58,9 @@ class Harness:
         self.app.dependency_overrides[get_db] = self._db
         self.app.dependency_overrides[get_vault] = lambda: self.vault
         self.app.dependency_overrides[get_custody_signer] = lambda: self.signer
+        # Extra trusted custody keys (CUSTODY_TRUSTED_KEYS_PATH); the signer is always trusted.
+        self.trusted: dict[str, Any] = {}
+        self.app.dependency_overrides[get_trusted_keys] = lambda: self.trusted
         self.client = TestClient(self.app, raise_server_exceptions=False, client=(CLIENT_IP, 50000))
 
     def _db(self) -> Iterator[Session]:

@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from app.config import Settings
 from app.core.signing import (
@@ -15,7 +16,12 @@ from app.core.signing import (
     key_fingerprint_id,
     load_public_key_pem,
     load_signer,
+    load_trusted_keys,
+    load_trusted_keys_file,
     main,
+    public_key_pem,
+    same_key,
+    trusted_key_set,
     verify_signature,
 )
 
@@ -104,3 +110,41 @@ def test_cli_generate_if_missing_and_show(
     assert main(["generate", "--out", str(enc), "--passphrase-env", "KEY_PASS"]) == 0
     assert main(["show", str(enc), "--passphrase-env", "KEY_PASS"]) == 0
     assert main(["generate", "--out", str(tmp_path / "x.pem"), "--passphrase-env", "NOPE"]) == 2
+
+
+def test_trusted_keys_file_and_trust_cli(tmp_path: Path) -> None:
+    old_path, new_path = tmp_path / "old.pem", tmp_path / "new.pem"
+    old_key = generate_key_file(old_path)
+    generate_key_file(new_path)
+    trust_file = tmp_path / "trusted.json"
+    assert main(["trust", str(old_path), "--file", str(trust_file)]) == 0
+    assert main(["trust", str(old_path), "--file", str(trust_file)]) == 0  # idempotent
+    pub_pem = tmp_path / "other.pub"
+    pub_pem.write_text(public_key_pem(Ed25519PrivateKey.generate().public_key()))
+    assert main(["trust", str(pub_pem), "--file", str(trust_file), "--key-id", "legacy-1"]) == 0
+    # A key id may not be re-bound to a different key.
+    assert main(["trust", str(new_path), "--file", str(trust_file), "--key-id", "legacy-1"]) == 1
+
+    trusted = load_trusted_keys_file(trust_file)
+    old_id = key_fingerprint_id(old_key.public_key())
+    assert set(trusted) == {old_id, "legacy-1"}
+    assert same_key(trusted[old_id], old_key.public_key())
+
+    s = settings(custody_signing_key_path=str(new_path), custody_trusted_keys_path=str(trust_file))
+    signer = load_signer(s)
+    full = trusted_key_set(signer, load_trusted_keys(s))
+    assert set(full) == {old_id, "legacy-1", signer.key_id}
+    assert load_trusted_keys(settings()) == {}
+    assert trusted_key_set(None, None) == {}
+    with pytest.raises(SigningKeyError, match="different public key"):
+        trusted_key_set(signer, {signer.key_id: old_key.public_key()})
+
+
+@pytest.mark.parametrize("content", ["not json", "[1, 2]", '{"k": 1}', '{"k": "not a pem"}'])
+def test_bad_trusted_keys_file(tmp_path: Path, content: str) -> None:
+    path = tmp_path / "trusted.json"
+    path.write_text(content)
+    with pytest.raises(SigningKeyError):
+        load_trusted_keys_file(path)
+    with pytest.raises(SigningKeyError):
+        load_trusted_keys_file(tmp_path / "missing.json")

@@ -168,7 +168,7 @@ def test_duplicate_seq() -> None:
     assert (2, "duplicate_seq") in problems(chain)
 
 
-def test_forged_entry_with_foreign_key_and_unknown_key() -> None:
+def test_forged_entry_with_foreign_key_and_untrusted_key() -> None:
     chain = make_chain(3)
     rogue = CustodySigner("rogue", Ed25519PrivateKey.generate())
     fake = build_entry(
@@ -182,7 +182,7 @@ def test_forged_entry_with_foreign_key_and_unknown_key() -> None:
         detail={},
         prev_hash=chain[-1].entry_hash,
     )
-    assert problems([*chain, fake]) == {(4, "unknown_key")}
+    assert problems([*chain, fake]) == {(4, "untrusted_key")}
     impostor = dataclasses.replace(fake, key_id="k1")
     assert problems([*chain, impostor]) == {(4, "bad_signature")}
 
@@ -243,3 +243,32 @@ def test_property_any_single_mutation_is_detected(
     report = verify_chain(chain, KEYS, evidence_id=EVIDENCE)
     assert not report.ok
     assert report.first_broken_seq is not None
+
+
+def test_published_key_is_not_a_trust_anchor() -> None:
+    """A key an attacker publishes (e.g. in signing_keys) never makes its signatures valid."""
+    attacker = CustodySigner("evil", Ed25519PrivateKey.generate())
+    chain = make_chain(3, signer=attacker)
+    report = verify_chain(chain, KEYS, published_keys={"evil": attacker.public_key})
+    assert {(p.seq, p.code) for p in report.problems} == {(i, "untrusted_key") for i in (1, 2, 3)}
+
+
+def test_published_key_differing_from_trusted_key_is_flagged() -> None:
+    chain = make_chain(2)
+    impostor = Ed25519PrivateKey.generate().public_key()
+    report = verify_chain(chain, KEYS, published_keys={"k1": impostor})
+    assert {(p.seq, p.code) for p in report.problems} == {
+        (1, "untrusted_key"),
+        (2, "untrusted_key"),
+    }
+    same = verify_chain(chain, KEYS, published_keys={"k1": SIGNER.public_key})
+    assert same.ok
+
+
+def test_chain_signed_by_attacker_under_real_key_id() -> None:
+    attacker = CustodySigner("k1", Ed25519PrivateKey.generate())
+    chain = make_chain(3, signer=attacker)
+    report = verify_chain(chain, KEYS, published_keys={"k1": attacker.public_key})
+    codes = {(p.seq, p.code) for p in report.problems}
+    assert {(1, "bad_signature"), (1, "untrusted_key")} <= codes
+    assert report.broken_seqs == [1, 2, 3]

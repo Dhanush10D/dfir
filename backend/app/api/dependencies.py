@@ -11,6 +11,7 @@ from collections.abc import Callable
 from typing import Annotated
 
 import structlog
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi import Depends, Request, Security
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
@@ -19,7 +20,7 @@ from app.config import Settings
 from app.core.exceptions import ForbiddenError, UnauthenticatedError
 from app.core.permissions import Permission, Principal
 from app.core.signing import CustodySigner
-from app.deps import get_app_settings, get_custody_signer, get_db, get_vault
+from app.deps import get_app_settings, get_custody_signer, get_db, get_trusted_keys, get_vault
 from app.repositories.vault import VaultStore
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import require_global
@@ -97,8 +98,9 @@ def get_evidence_service(
     settings: AppSettings,
     vault: Annotated[VaultStore | None, Depends(get_vault)],
     signer: Annotated[CustodySigner | None, Depends(get_custody_signer)],
+    trusted: Annotated[dict[str, Ed25519PublicKey], Depends(get_trusted_keys)],
 ) -> EvidenceService:
-    return EvidenceService(db, settings, vault=vault, signer=signer)
+    return EvidenceService(db, settings, vault=vault, signer=signer, trusted_keys=trusted)
 
 
 def get_custody_service(db: DbSession) -> CustodyService:

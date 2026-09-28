@@ -29,6 +29,8 @@ x-backend-env: &backend-env
   # Dev custody signing key, generated once by the keygen job into the custodykeys volume.
   CUSTODY_SIGNING_KEY_PATH: /var/lib/dfirbench/keys/custody-dev.pem
   CUSTODY_KEY_ID: ${CUSTODY_KEY_ID:-}
+  # Retired/other trusted custody public keys (JSON {key_id: PEM}); empty = only the signer.
+  CUSTODY_TRUSTED_KEYS_PATH: ${CUSTODY_TRUSTED_KEYS_PATH:-}
 
 x-backend-build: &backend-build
   context: ../backend
