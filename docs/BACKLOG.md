@@ -39,3 +39,6 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Workers writing custody entries (`processed`) need the signer: the key volume is already mounted read-only into the worker | No processing yet | Phase 2 |
 | `audit_log` growth: partition by month or archive (never purge) | Volume is small in dev | Phase 10 |
 | Custody signing keys in Vault/KMS or an HSM, with the trusted-keys file (`CUSTODY_TRUSTED_KEYS_PATH`) distributed from the secret manager; today both are files (dev key in the `custodykeys` volume) | Needs a secret manager | Phase 10 |
+| Two admins changing each other concurrently can deadlock in `update_user` (target read unlocked, acting admin locked in `_reauth`); Postgres aborts one as a 500. Lock both rows in id order, or map the deadlock to 409 | Rare; no data harm | Phase 10 |
+| Notify admins when the published `signing_keys` row differs from the trusted key (today it is logged and reported only when someone runs verify) | Needs the Phase 2 scheduler / periodic re-verify | Phase 2 |
+| Test migration 0003's `GRANT dfirbench_app TO CURRENT_USER` with a non-superuser (CREATEROLE) owner on PG16 | Compose and CI owners are superusers | Phase 10 |

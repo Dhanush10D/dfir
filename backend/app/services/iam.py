@@ -131,18 +131,20 @@ class IAMService:
         return self._box().decrypt(user.totp_secret, user.id.bytes).decode("ascii")
 
     def _user_by_email(self, email: str, *, lock: bool = False) -> User | None:
-        stmt = select(User).where(func.lower(User.email) == normalize_email(email))
+        # citext equality is case-insensitive and uses the unique index; 0003 stores lower case.
+        stmt = select(User).where(User.email == normalize_email(email))
         if lock:
             # Serialize concurrent attempts on one account: the lockout counter and the TOTP
-            # replay guard are read-modify-write and must not race.
-            stmt = stmt.with_for_update().execution_options(populate_existing=True)
+            # replay guard are read-modify-write and must not race. NO KEY UPDATE (key_share)
+            # keeps FK checks from other inserts (audit, custody, tokens) from queueing behind it.
+            stmt = stmt.with_for_update(key_share=True).execution_options(populate_existing=True)
         return self.session.execute(stmt).scalar_one_or_none()
 
     def _lock_user(self, user_id: uuid.UUID) -> User:
         user = self.session.execute(
             select(User)
             .where(User.id == user_id)
-            .with_for_update()
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         ).scalar_one_or_none()
         if user is None:
@@ -304,7 +306,7 @@ class IAMService:
         user = self.session.execute(
             select(User)
             .where(User.id == user_id)
-            .with_for_update()
+            .with_for_update(key_share=True)
             .execution_options(populate_existing=True)
         ).scalar_one_or_none()
         if user is None or not user.is_active or not user.mfa_enabled:
@@ -329,7 +331,7 @@ class IAMService:
                     MfaRecoveryCode.code_hash == sha256_hex(normalize_recovery_code(recovery_code)),
                     MfaRecoveryCode.used_at.is_(None),
                 )
-                .with_for_update()
+                .with_for_update(key_share=True)
             ).scalar_one_or_none()
             if row is not None:
                 row.used_at = now
@@ -347,7 +349,7 @@ class IAMService:
         row = self.session.execute(
             select(RefreshToken)
             .where(RefreshToken.token_hash == sha256_hex(refresh_token))
-            .with_for_update()
+            .with_for_update(key_share=True)
         ).scalar_one_or_none()
         if row is None:
             raise UnauthenticatedError("Refresh token is invalid.", "token_invalid")
