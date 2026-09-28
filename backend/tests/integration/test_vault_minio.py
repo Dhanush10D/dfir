@@ -10,6 +10,7 @@ import hashlib
 import io
 import os
 import uuid
+import warnings
 from collections.abc import Iterator
 
 import pytest
@@ -43,20 +44,57 @@ def minio_client() -> Minio:
     return make_minio_client(settings, timeout_s=60.0, retries=1)
 
 
+TEST_BUCKET_PREFIX = "dfirtest-"
+
+
+def purge_bucket(client: Minio, name: str, attempts: int = 3) -> bool:
+    """Best effort: delete every version and delete marker (governance bypass), then the bucket.
+
+    Only ever used on ``dfirtest-*`` buckets (GOVERNANCE mode); never on the real vault.
+    """
+    assert name.startswith(TEST_BUCKET_PREFIX)
+    for _ in range(attempts):
+        try:
+            versions = [
+                DeleteObject(o.object_name, o.version_id)
+                for o in client.list_objects(name, recursive=True, include_version=True)
+                if o.object_name
+            ]
+            errors = list(client.remove_objects(name, versions, bypass_governance_mode=True))
+            if errors:
+                continue
+            client.remove_bucket(name)
+            return True
+        except S3Error as exc:
+            if exc.code == "NoSuchBucket":
+                return True
+    warnings.warn(f"could not remove MinIO test bucket {name}", stacklevel=2)
+    return False
+
+
 @pytest.fixture(scope="module")
 def worm_bucket(minio_client: Minio) -> Iterator[str]:
-    name = f"dfirtest-{uuid.uuid4().hex[:12]}"
+    # Sweep buckets leaked by earlier interrupted runs (only our own test prefix).
+    for bucket in minio_client.list_buckets():
+        if bucket.name.startswith(TEST_BUCKET_PREFIX):
+            purge_bucket(minio_client, bucket.name, attempts=1)
+    name = f"{TEST_BUCKET_PREFIX}{uuid.uuid4().hex[:12]}"
     minio_client.make_bucket(name, object_lock=True)
     minio_client.set_object_lock_config(name, ObjectLockConfig(GOVERNANCE, 1, DAYS))
-    yield name
-    versions = [
-        DeleteObject(o.object_name, o.version_id)
-        for o in minio_client.list_objects(name, recursive=True, include_version=True)
-        if o.object_name
-    ]
-    errors = list(minio_client.remove_objects(name, versions, bypass_governance_mode=True))
-    if not errors:
-        minio_client.remove_bucket(name)
+    try:
+        yield name
+    finally:
+        purge_bucket(minio_client, name)
+
+
+def test_purge_removes_locked_versions(minio_client: Minio) -> None:
+    name = f"{TEST_BUCKET_PREFIX}{uuid.uuid4().hex[:12]}"
+    minio_client.make_bucket(name, object_lock=True)
+    minio_client.set_object_lock_config(name, ObjectLockConfig(GOVERNANCE, 1, DAYS))
+    for i in range(3):  # several versions of one key, all under retention
+        minio_client.put_object(name, "k", io.BytesIO(b"v%d" % i), 2)
+    assert purge_bucket(minio_client, name)
+    assert not minio_client.bucket_exists(name)
 
 
 @pytest.fixture

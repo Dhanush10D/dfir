@@ -99,7 +99,7 @@ def test_expected_hash_mismatch_fails_finalize(h: Harness) -> None:
     assert body["ok"] is False
     assert body["evidence"]["status"] == "failed"
     assert [m["field"] for m in body["mismatches"]] == ["expected_sha256"]
-    assert _actions(h, analyst, ev["id"])[-1] == "hash_failed"
+    assert _actions(h, analyst, ev["id"])[-1] == "verification_failed"
     with h.engine.connect() as conn:
         kinds = conn.execute(
             text("SELECT kind FROM notifications WHERE user_id = :u"), {"u": admin.id}

@@ -167,7 +167,8 @@ class CaseService:
         applied: dict[str, Any] = {}
         status = changes.pop("status", None)
         lead_id = changes.pop("lead_id", None)
-        if case.status is CaseStatus.closed and (changes or lead_id) and status is None:
+        if case.status is CaseStatus.closed and status is not CaseStatus.open:
+            # Only a reopen (status -> open, needs case:manage) may touch a closed case.
             raise InvalidStateError("Closed cases are read-only; reopen the case first.")
         if status is not None and status != case.status:
             if not transition_allowed(case.status, status):

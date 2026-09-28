@@ -185,6 +185,10 @@ def test_case_lifecycle_transitions_and_close(h: Harness, world: World) -> None:
     assert r.status_code == 200 and r.json()["status"] == "closed" and r.json()["closed_at"]
     # Closed cases are read-only; evidence can still be verified (and downloaded by L/U).
     assert h.patch(f"/cases/{cid}", world.analyst, json={"title": "x"}).status_code == 409
+    # ... including a no-op "closed" status sent along with other edits.
+    r = h.patch(f"/cases/{cid}", world.lead, json={"status": "closed", "title": "sneaky"})
+    assert r.status_code == 409
+    assert h.get(f"/cases/{cid}", world.lead).json()["title"] != "sneaky"
     r = h.post(f"/cases/{cid}/evidence", world.lead, json={"kind": "log", "original_name": "a"})
     assert r.status_code == 409
     assert h.post(f"/evidence/{world.evidence['id']}/verify", world.auditor).status_code == 200

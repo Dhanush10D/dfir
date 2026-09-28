@@ -147,3 +147,10 @@ def test_phase1_defaults() -> None:
     assert s.login_lockout_threshold == 5
     assert s.max_upload_bytes == 20 * 1024**3
     assert s.auditor_all_cases is True
+
+
+def test_upload_limit_must_fit_s3_part_count() -> None:
+    assert make(max_upload_gb=78, upload_part_size_mb=8).max_upload_gb == 78  # 9,984 parts
+    with pytest.raises(ValidationError, match="UPLOAD_PART_SIZE_MB to at least 11"):
+        make(max_upload_gb=100, upload_part_size_mb=8)
+    assert make(max_upload_gb=100, upload_part_size_mb=11).upload_part_size_mb == 11
