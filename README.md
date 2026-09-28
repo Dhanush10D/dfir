@@ -36,6 +36,21 @@ Default credentials are **development placeholders** (see [`.env.example`](.env.
 refuses to start with them. To override, `cp .env.example .env`, edit, and run compose with
 `--env-file .env`. Stop with `docker compose -f infra/compose.yaml down` (add `-v` to wipe data).
 
+### First login and evidence (Phase 1)
+
+```bash
+# create the first admin (password from the environment, never on the command line)
+DFIR_ADMIN_PASSWORD='choose-a-long-passphrase' docker compose -f infra/compose.yaml exec -T \
+  -e DFIR_ADMIN_PASSWORD api python -m app.cli create-admin --email admin@example.org
+```
+
+Then `POST /api/v1/auth/login`, create users (`/users`), a case (`/cases`), an evidence record
+(`/cases/{id}/evidence`), stream the file with `PUT /evidence/{eid}/upload`
+(`application/octet-stream`), `POST /evidence/{eid}/finalize`, and check integrity with
+`POST /evidence/{eid}/verify`. OpenAPI docs: http://127.0.0.1:8000/api/v1/docs. The compose `keygen`
+job creates the dev Ed25519 custody signing key in the `custodykeys` volume; for a host-run API use
+`bash scripts/dev-keygen.sh` and set `CUSTODY_SIGNING_KEY_PATH=../var/keys/custody-dev.pem`.
+
 ## Local development
 
 ```bash
@@ -64,6 +79,7 @@ cd ../frontend
 npm run lint && npm run typecheck && npm test && npm run build
 
 bash scripts/verify-phase0.sh          # everything above plus the compose stack, end to end
+bash scripts/verify-phase1.sh          # stack + live smoke/tamper demo + backend checks (keeps stack up)
 ```
 
 Integration tests create a throwaway database on the compose Postgres (or `TEST_DATABASE_URL`), run the

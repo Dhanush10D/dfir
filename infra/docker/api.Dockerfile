@@ -20,7 +20,8 @@ ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 RUN groupadd --system --gid 10001 dfir \
- && useradd --system --uid 10001 --gid dfir --home-dir /app --shell /usr/sbin/nologin dfir
+ && useradd --system --uid 10001 --gid dfir --home-dir /app --shell /usr/sbin/nologin dfir \
+ && install -d -o dfir -g dfir -m 0700 /var/lib/dfirbench/keys
 COPY --from=build /opt/venv /opt/venv
 WORKDIR /app
 COPY alembic.ini ./

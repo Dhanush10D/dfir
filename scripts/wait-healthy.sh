@@ -7,7 +7,7 @@ TIMEOUT="${1:-240}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE=(docker compose -f "$ROOT/infra/compose.yaml")
 SERVICES=(postgres redis minio api worker web)
-ONESHOT=(migrate storage-init)
+ONESHOT=(migrate storage-init keygen)
 
 deadline=$(( $(date +%s) + TIMEOUT ))
 while :; do

@@ -35,7 +35,8 @@ ENV PATH=/opt/venv/bin:/opt/dfir/bin:$PATH \
     DFIR_TOOL_VERSIONS=/opt/dfir/tool-versions.txt
 RUN groupadd --system --gid 10001 dfir \
  && useradd --system --uid 10001 --gid dfir --home-dir /work --shell /usr/sbin/nologin dfir \
- && mkdir -p /work && chown dfir:dfir /work
+ && mkdir -p /work && chown dfir:dfir /work \
+ && install -d -o dfir -g dfir -m 0700 /var/lib/dfirbench/keys
 COPY --from=build /opt/venv /opt/venv
 WORKDIR /work
 USER dfir:dfir
