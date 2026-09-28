@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=75", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dfirbench"
+version = "0.1.0"
+description = "dfirbench: AI-assisted DFIR workbench (Standard profile) - backend and workers"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fastapi==0.141.1",
+  "starlette==1.7.0",
+  "uvicorn[standard]==0.54.0",
+  "pydantic==2.13.5",
+  "pydantic-settings==2.15.0",
+  "SQLAlchemy==2.1.1",
+  "alembic==1.20.0",
+  "psycopg[binary]==3.3.6",
+  "pgvector==0.5.0",
+  "redis==8.1.0",
+  "celery==5.6.3",
+  "minio==7.2.20",
+  "structlog==26.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest==9.1.1",
+  "pytest-cov==7.1.0",
+  "httpx2==2.13.1",
+  "ruff==0.16.9",
+  "mypy==2.3.1",
+  "celery-types==0.26.0",
+  "bandit==1.9.4",
+]
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.setuptools.package-data]
+"*" = ["*.yml", "*.yaml", "*.md", "*.j2", "py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+extend-exclude = [".venv"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "I", "B", "UP", "S", "N", "SIM", "RUF", "BLE", "DTZ", "T20"]
+ignore = ["S101"]  # asserts are fine for type narrowing and in tests
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S", "DTZ001"]
+"alembic/**" = ["E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+warn_unused_ignores = true
+exclude = ["alembic/", "tests/"]
+
+[[tool.mypy.overrides]]
+module = ["pgvector.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+markers = [
+  "integration: needs PostgreSQL (compose or TEST_DATABASE_URL); skipped when unreachable",
+]
+filterwarnings = ["error::DeprecationWarning:app.*"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/workers/celery_app.py"]
+
+[tool.bandit]
+exclude_dirs = ["tests", ".venv"]
