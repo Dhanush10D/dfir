@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Text, text
+from sqlalchemy import ForeignKey, Index, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -42,6 +42,7 @@ class Case(Base):
 
 class CaseMember(Base):
     __tablename__ = "case_members"
+    __table_args__ = (Index("ix_case_members_user_id", "user_id"),)
 
     case_id: Mapped[uuid.UUID] = mapped_column(
         UUID_T, ForeignKey("cases.id", ondelete="CASCADE"), primary_key=True

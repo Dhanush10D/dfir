@@ -26,10 +26,13 @@ CORE_TABLES = {
     "playbooks", "playbook_runs", "agents", "agent_tasks", "bookmarks", "saved_queries",
     "integrations", "notifications", "settings", "signing_keys", "anchors",
 }  # fmt: skip
+# Phase 1 (migration 0002): server-side refresh tokens and hashed MFA recovery codes.
+PHASE1_TABLES = {"refresh_tokens", "mfa_recovery_codes"}
+ALL_TABLES = CORE_TABLES | PHASE1_TABLES
 
 
 def test_metadata_has_every_core_table() -> None:
-    assert set(Base.metadata.tables) == CORE_TABLES
+    assert set(Base.metadata.tables) == ALL_TABLES
 
 
 def test_all_timestamps_are_timezone_aware() -> None:
@@ -101,6 +104,24 @@ def _imports(path: Path) -> set[str]:
         elif isinstance(node, ast.ImportFrom) and node.module:
             names.add(node.module)
     return names
+
+
+def test_only_custody_service_writes_custody_log() -> None:
+    """Guide 6 rule 4: nothing but services/custody.py may create custody rows."""
+    offenders: list[str] = []
+    for path in APP_DIR.rglob("*.py"):
+        rel = path.relative_to(APP_DIR).as_posix()
+        if rel in {"services/custody.py", "db/models/evidence.py", "db/models/__init__.py"}:
+            continue
+        src = path.read_text(encoding="utf-8")
+        if "CustodyLog(" in src or "insert(CustodyLog" in src or "into custody_log" in src.lower():
+            offenders.append(rel)
+    assert offenders == []
+
+
+def test_services_do_not_import_web_framework_transitively_via_exceptions() -> None:
+    mods = _imports(APP_DIR / "core" / "exceptions.py")
+    assert not any(m.split(".")[0] in {"fastapi", "starlette"} for m in mods)
 
 
 def test_layer_boundaries() -> None:

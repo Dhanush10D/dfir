@@ -15,7 +15,7 @@ from sqlalchemy.exc import DBAPIError
 import app.db.models  # noqa: F401
 from app.db.base import Base
 from tests.integration.conftest import alembic_config, create_temp_database, drop_temp_database
-from tests.unit.test_models_and_workers import CORE_TABLES
+from tests.unit.test_models_and_workers import ALL_TABLES
 
 pytestmark = pytest.mark.integration
 
@@ -49,11 +49,39 @@ def _insert_custody(conn: object, evidence_id: uuid.UUID, seq: int) -> None:
 
 def test_all_core_tables_exist(db_engine: Engine) -> None:
     tables = set(inspect(db_engine).get_table_names())
-    assert tables >= CORE_TABLES
+    assert tables >= ALL_TABLES
     assert "events_default" in tables
     with db_engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0001"
+    assert version == "0002"
+
+
+def test_app_role_privileges(db_engine: Engine) -> None:
+    """Migration 0002: dfirbench_app has DML on ordinary tables, SELECT/INSERT on custody/audit."""
+
+    def privileges(table: str) -> set[str]:
+        with db_engine.connect() as conn:
+            return {
+                p
+                for p in ("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE")
+                if conn.execute(
+                    text("SELECT has_table_privilege('dfirbench_app', :t, :p)"),
+                    {"t": table, "p": p},
+                ).scalar_one()
+            }
+
+    assert privileges("custody_log") == {"SELECT", "INSERT"}
+    assert privileges("audit_log") == {"SELECT", "INSERT"}
+    assert privileges("alembic_version") == {"SELECT"}
+    assert privileges("evidence") == {"SELECT", "INSERT", "UPDATE", "DELETE"}
+    assert privileges("refresh_tokens") == {"SELECT", "INSERT", "UPDATE", "DELETE"}
+    with db_engine.begin() as conn:  # default privileges cover tables created later by the owner
+        conn.execute(text("CREATE TABLE later_table (id int)"))
+    try:
+        assert privileges("later_table") == {"SELECT", "INSERT", "UPDATE", "DELETE"}
+    finally:
+        with db_engine.begin() as conn:
+            conn.execute(text("DROP TABLE later_table"))
 
 
 def test_extensions_and_enums(db_engine: Engine) -> None:

@@ -1,12 +1,12 @@
-"""users, api_keys (guide 7.2)."""
+"""users, api_keys (guide 7.2); refresh_tokens, mfa_recovery_codes (Phase 1, guide 16.2)."""
 
 from __future__ import annotations
 
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, ForeignKey, Integer, LargeBinary, Text, text
-from sqlalchemy.dialects.postgresql import CITEXT
+from sqlalchemy import CHAR, BigInteger, Boolean, ForeignKey, Integer, LargeBinary, Text, text
+from sqlalchemy.dialects.postgresql import CITEXT, INET
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -31,6 +31,8 @@ class User(Base):
     locked_until: Mapped[datetime | None] = mapped_column(TSTZ)
     last_login_at: Mapped[datetime | None] = mapped_column(TSTZ)
     created_at: Mapped[datetime] = created_at()
+    # Last accepted TOTP time step; codes for this step or earlier are replays (Phase 1).
+    totp_last_step: Mapped[int | None] = mapped_column(BigInteger)
 
 
 class ApiKey(Base):
@@ -41,8 +43,44 @@ class ApiKey(Base):
         UUID_T, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    key_hash: Mapped[str] = mapped_column(Text, nullable=False)  # hash only; key shown once
+    # SHA-256 of the key; the key itself is shown once at creation.
+    key_hash: Mapped[str] = mapped_column(Text, nullable=False, unique=True, index=True)
     scopes: Mapped[list[str]] = text_array()
     expires_at: Mapped[datetime | None] = mapped_column(TSTZ)
     revoked_at: Mapped[datetime | None] = mapped_column(TSTZ)
+    created_at: Mapped[datetime] = created_at()
+    key_prefix: Mapped[str | None] = mapped_column(Text)  # first characters, for display
+    last_used_at: Mapped[datetime | None] = mapped_column(TSTZ)
+
+
+class RefreshToken(Base):
+    """Server-side refresh token (hash only), rotated on every use; a family is one login."""
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID_T, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    family_id: Mapped[uuid.UUID] = mapped_column(UUID_T, nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False, unique=True)
+    issued_at: Mapped[datetime] = created_at()
+    expires_at: Mapped[datetime] = mapped_column(TSTZ, nullable=False)
+    session_started_at: Mapped[datetime] = mapped_column(TSTZ, nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(TSTZ)
+    revoked_reason: Mapped[str | None] = mapped_column(Text)  # rotated|logout|reuse|...
+    replaced_by: Mapped[uuid.UUID | None] = mapped_column(UUID_T)
+    user_agent: Mapped[str | None] = mapped_column(Text)
+    ip: Mapped[str | None] = mapped_column(INET)
+
+
+class MfaRecoveryCode(Base):
+    __tablename__ = "mfa_recovery_codes"
+
+    id: Mapped[uuid.UUID] = uuid_pk()
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID_T, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    code_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(TSTZ)
     created_at: Mapped[datetime] = created_at()

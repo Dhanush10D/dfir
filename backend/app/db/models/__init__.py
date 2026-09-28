@@ -12,7 +12,7 @@ from app.db.models.evidence import CustodyLog, Evidence
 from app.db.models.jobs import Job
 from app.db.models.ops import Agent, AgentTask, Integration, Playbook, PlaybookRun, Setting
 from app.db.models.reports import Report
-from app.db.models.users import ApiKey, User
+from app.db.models.users import ApiKey, MfaRecoveryCode, RefreshToken, User
 
 # Tables whose rows may never be updated, deleted or truncated (enforced by DB triggers).
 APPEND_ONLY_TABLES = ("custody_log", "audit_log")
@@ -43,10 +43,12 @@ __all__ = [
     "Ioc",
     "Job",
     "JobStatus",
+    "MfaRecoveryCode",
     "Note",
     "Notification",
     "Playbook",
     "PlaybookRun",
+    "RefreshToken",
     "Report",
     "Rule",
     "SavedQuery",

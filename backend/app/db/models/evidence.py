@@ -1,7 +1,8 @@
 """evidence, custody_log (guide 7.2).
 
 custody_log is append-only: the database rejects UPDATE, DELETE and TRUNCATE via triggers created in
-the baseline migration. Only ``services/custody.py`` (Phase 1) may insert into it.
+the baseline migration, and the app role has only SELECT/INSERT (migration 0002). Only
+``services/custody.py`` may insert into it.
 """
 
 from __future__ import annotations
@@ -39,10 +40,16 @@ class Evidence(Base):
     acquired_by: Mapped[str | None] = mapped_column(Text)
     acquisition_tool: Mapped[str | None] = mapped_column(Text)
     acquisition_notes: Mapped[str | None] = mapped_column(Text)
-    # uploading|stored|processing|processed|partial|archived|failed
+    # uploading|uploaded|stored|failed (Phase 1); processing|processed|partial|archived later
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'uploading'"))
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(UUID_T, ForeignKey("users.id"))
     created_at: Mapped[datetime] = created_at()
+    # Phase 1: hashes supplied by the collector/acquisition tool, compared at finalize.
+    expected_sha256: Mapped[str | None] = mapped_column(CHAR(64))
+    expected_md5: Mapped[str | None] = mapped_column(CHAR(32))
+    # Vault object version written at upload (S3 versioning is implied by Object Lock).
+    storage_version_id: Mapped[str | None] = mapped_column(Text)
+    retain_until: Mapped[datetime | None] = mapped_column(TSTZ)  # Object Lock retain-until
 
 
 class CustodyLog(Base):
@@ -57,7 +64,7 @@ class CustodyLog(Base):
     ts: Mapped[datetime] = mapped_column(TSTZ, nullable=False, server_default=text("now()"))
     actor_id: Mapped[uuid.UUID | None] = mapped_column(UUID_T, ForeignKey("users.id"))
     actor_label: Mapped[str] = mapped_column(Text, nullable=False)
-    # ingested|verified|accessed|processed|exported|transferred|note
+    # created|ingested|hash_verified|hash_failed|verification_failed|locked|downloaded|note|...
     action: Mapped[str] = mapped_column(Text, nullable=False)
     detail: Mapped[dict[str, Any]] = jsonb_obj()
     prev_hash: Mapped[str] = mapped_column(CHAR(64), nullable=False)

@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CHAR, BigInteger, Integer, LargeBinary, Text, text
+from sqlalchemy import CHAR, BigInteger, Index, Integer, LargeBinary, Text, text
 from sqlalchemy.dialects.postgresql import INET
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,6 +20,10 @@ from app.db.models._common import TSTZ, UUID_T, created_at, jsonb_obj
 
 class AuditLog(Base):
     __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_log_ts", "ts"),
+        Index("ix_audit_log_user_id_ts", "user_id", "ts"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True)
     ts: Mapped[datetime] = mapped_column(TSTZ, nullable=False, server_default=text("now()"))
