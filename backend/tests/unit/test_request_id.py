@@ -54,6 +54,7 @@ def test_access_log_is_json_with_request_id(client: TestClient) -> None:
     assert rec["request_id"] == "logcheck-0001"
     assert rec["path"] == "/api/v1/health"
     assert rec["status"] == 200
+    assert rec["client"] == "testclient"
     assert rec["level"] == "info"
     assert rec["timestamp"].endswith("Z")
     assert logging.getLogger().handlers  # root logger configured by setup_logging

@@ -101,7 +101,11 @@ services:
   api:
     image: dfirbench/api:dev
     build: *backend-build
-    environment: *backend-env
+    environment:
+      <<: *backend-env
+      # uvicorn trusts X-Forwarded-For only from the nginx (web) container, so audit rows get the
+      # real client IP while direct callers on :8000 cannot spoof it.
+      FORWARDED_ALLOW_IPS: ${WEB_IP:-172.30.240.10}
     depends_on:
       migrate: { condition: service_completed_successfully }
       storage-init: { condition: service_completed_successfully }
@@ -152,6 +156,9 @@ services:
     depends_on:
       api: { condition: service_healthy }
     ports: ["127.0.0.1:${WEB_PORT:-8080}:8080"]
+    networks:
+      default:
+        ipv4_address: ${WEB_IP:-172.30.240.10}
     read_only: true
     tmpfs: ["/tmp"]
     security_opt: ["no-new-privileges:true"]
@@ -160,6 +167,14 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+networks:
+  default:
+    # Fixed subnet so the web container has a stable address to trust (FORWARDED_ALLOW_IPS).
+    # Override WEB_SUBNET/WEB_IP in .env if this range collides with a local network.
+    ipam:
+      config:
+        - subnet: ${WEB_SUBNET:-172.30.240.0/24}
 
 volumes:
   pgdata: {}

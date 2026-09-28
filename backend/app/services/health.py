@@ -7,6 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from minio.error import S3Error
 from sqlalchemy import Engine, text
 
 
@@ -16,6 +17,8 @@ class RedisLike(Protocol):
 
 class StorageLike(Protocol):
     def bucket_exists(self, bucket_name: str) -> bool: ...
+
+    def get_object_lock_config(self, bucket_name: str) -> Any: ...
 
 
 @dataclass(frozen=True)
@@ -73,7 +76,15 @@ def check_redis(client: RedisLike) -> CheckResult:
 
 def check_storage(client: StorageLike, bucket: str) -> CheckResult:
     def run() -> str | None:
-        return None if client.bucket_exists(bucket) else "vault_bucket_missing"
+        if not client.bucket_exists(bucket):
+            return "vault_bucket_missing"
+        try:
+            client.get_object_lock_config(bucket)
+        except S3Error as exc:
+            if exc.code == "ObjectLockConfigurationNotFoundError":
+                return "vault_not_worm"
+            raise
+        return None
 
     return _timed("storage", run)
 

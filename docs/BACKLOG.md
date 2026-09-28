@@ -18,7 +18,4 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Split worker images (`worker-parse`, `worker-ai`) per guide 21.2 | Only one worker needed now | Phase 6/7 |
 | Evaluate replacing the `pgsty/minio` community image if upstream images return, or pin by digest | Upstream `minio/minio` images are no longer published on Docker Hub/quay | Phase 10 |
 | `EMBEDDING_DIM` != 384 requires a migration of `event_chunks.embedding` | Model not chosen yet | Phase 7 |
-| `ensure_buckets` only checks bucket existence: verify/re-apply Object Lock on the vault bucket if missing, and surface it in `/ready` | Must hold before any evidence is uploaded | Phase 1 |
-| uvicorn `--forwarded-allow-ips` for the nginx container so `X-Forwarded-For` yields real client IPs for `audit_log.ip` | Needed once audit rows record IPs | Phase 1 |
 | `dfir_ensure_events_partition` fails if `events_default` already holds rows for that month; ingest must move them first | Covered by partition maintenance work | Phase 2 |
-| Disable or privatize frontend source maps (`build.sourcemap`) in prod builds | Dev convenience today | Phase 10 |

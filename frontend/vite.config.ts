@@ -18,7 +18,8 @@ export default defineConfig({
     port: 5173,
     proxy: { '/api': { target: apiTarget, changeOrigin: false } },
   },
-  build: { sourcemap: true },
+  // Source maps only when asked for (VITE_SOURCEMAP=1); nginx would otherwise serve them publicly.
+  build: { sourcemap: process.env.VITE_SOURCEMAP === '1' },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

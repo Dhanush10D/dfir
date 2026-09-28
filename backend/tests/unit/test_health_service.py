@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from minio.error import S3Error
 from sqlalchemy import create_engine
 
 from app.services.health import (
@@ -23,14 +24,25 @@ class FakeRedis:
         return self.result
 
 
+def s3_error(code: str) -> S3Error:
+    return S3Error(None, code, "msg", "/evidence", "req", "host")  # type: ignore[arg-type]
+
+
 class FakeStorage:
-    def __init__(self, buckets: set[str], exc: Exception | None = None) -> None:
-        self.buckets, self.exc = buckets, exc
+    def __init__(
+        self, buckets: set[str], exc: Exception | None = None, locked: bool = True
+    ) -> None:
+        self.buckets, self.exc, self.locked = buckets, exc, locked
 
     def bucket_exists(self, bucket_name: str) -> bool:
         if self.exc:
             raise self.exc
         return bucket_name in self.buckets
+
+    def get_object_lock_config(self, bucket_name: str) -> Any:
+        if not self.locked:
+            raise s3_error("ObjectLockConfigurationNotFoundError")
+        return object()
 
 
 def test_database_check_ok_with_sqlite() -> None:
@@ -59,6 +71,12 @@ def test_storage_check() -> None:
     missing = check_storage(FakeStorage(set()), "evidence")
     assert missing.error == "vault_bucket_missing"
     assert check_storage(FakeStorage(set(), exc=TimeoutError()), "evidence").error == "TimeoutError"
+
+
+def test_storage_check_requires_object_lock() -> None:
+    unlocked = check_storage(FakeStorage({"evidence"}, locked=False), "evidence")
+    assert not unlocked.ok
+    assert unlocked.error == "vault_not_worm"
 
 
 def test_run_readiness_aggregates() -> None:

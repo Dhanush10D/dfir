@@ -55,6 +55,7 @@ class RequestIdMiddleware:
                 "http_request",
                 method=scope.get("method"),
                 path=scope.get("path"),
+                client=(scope.get("client") or (None,))[0],
                 status=status_code,
                 duration_ms=round((time.perf_counter() - started) * 1000, 2),
             )

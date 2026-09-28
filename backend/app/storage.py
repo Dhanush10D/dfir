@@ -8,6 +8,7 @@ import structlog
 import urllib3
 from minio import Minio
 from minio.commonconfig import COMPLIANCE
+from minio.error import S3Error
 from minio.objectlockconfig import DAYS, ObjectLockConfig
 
 from app.config import Settings, get_settings
@@ -30,21 +31,43 @@ def make_minio_client(settings: Settings, *, timeout_s: float = 10.0, retries: i
     )
 
 
+class VaultNotWormError(RuntimeError):
+    """The vault bucket exists but was created without Object Lock (cannot be enabled later)."""
+
+
+def get_object_lock(client: Minio, bucket: str) -> ObjectLockConfig | None:
+    """The bucket's Object Lock configuration, or ``None`` if Object Lock is not enabled.
+
+    A config whose ``mode`` is ``None`` means Object Lock is enabled without default retention.
+    """
+    try:
+        return client.get_object_lock_config(bucket)
+    except S3Error as exc:
+        if exc.code == "ObjectLockConfigurationNotFoundError":
+            return None
+        raise
+
+
 def ensure_buckets(client: Minio, settings: Settings, *, set_retention: bool = True) -> list[str]:
     """Create the vault bucket (Object Lock enabled, WORM) and the artifacts bucket if missing.
 
-    Object Lock can only be enabled at bucket creation. Default retention is COMPLIANCE mode for
-    ``VAULT_RETENTION_DAYS`` so originals cannot be overwritten or deleted.
+    Object Lock can only be enabled at bucket creation, so an existing vault without it is a hard
+    error. Default retention (COMPLIANCE for ``VAULT_RETENTION_DAYS``) is re-checked on each run and
+    re-applied if absent or different, so a partial earlier init cannot leave originals unprotected.
     """
     created: list[str] = []
-    if not client.bucket_exists(settings.vault_bucket):
-        client.make_bucket(settings.vault_bucket, object_lock=True)
-        created.append(settings.vault_bucket)
-        if set_retention:
-            client.set_object_lock_config(
-                settings.vault_bucket,
-                ObjectLockConfig(COMPLIANCE, settings.vault_retention_days, DAYS),
-            )
+    vault = settings.vault_bucket
+    if not client.bucket_exists(vault):
+        client.make_bucket(vault, object_lock=True)
+        created.append(vault)
+    lock = get_object_lock(client, vault)
+    if lock is None:
+        raise VaultNotWormError(f"bucket {vault!r} exists without Object Lock; recreate it")
+    if set_retention:
+        wanted = (COMPLIANCE, settings.vault_retention_days, DAYS)
+        if (lock.mode, lock.duration, lock.duration_unit) != wanted:
+            client.set_object_lock_config(vault, ObjectLockConfig(*wanted))
+            log.info("vault_retention_applied", bucket=vault, days=settings.vault_retention_days)
     if not client.bucket_exists(settings.artifacts_bucket):
         client.make_bucket(settings.artifacts_bucket)
         created.append(settings.artifacts_bucket)
