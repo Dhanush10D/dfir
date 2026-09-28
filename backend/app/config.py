@@ -48,6 +48,9 @@ class Settings(BaseSettings):
 
     # Stores
     database_url: str = "postgresql+psycopg://dfir:dfir_dev_password@127.0.0.1:5432/dfirbench"
+    # Least-privilege role every app session runs as (SET ROLE at connect). Created by migration
+    # 0002 with no UPDATE/DELETE/TRUNCATE on custody_log/audit_log. None = connect as the login.
+    database_app_role: str | None = None
     redis_url: str = "redis://127.0.0.1:6379/0"
     enable_opensearch: bool = False
     opensearch_url: str | None = None
@@ -62,19 +65,38 @@ class Settings(BaseSettings):
     artifacts_bucket: str = "artifacts"
     vault_retention_days: int = Field(default=3650, ge=1)
 
-    # Auth (used from Phase 1)
+    # Auth (guide 16)
     jwt_secret: SecretStr | None = SecretStr("dev-only-jwt-secret-change-me")
-    jwt_private_key_path: str | None = None
-    access_token_minutes: int = Field(default=15, ge=1)
+    jwt_private_key_path: str | None = None  # Ed25519 PEM -> EdDSA tokens instead of HS256
+    jwt_key_id: str = "jwt-1"
+    jwt_issuer: str = "dfirbench"
+    access_token_minutes: int = Field(default=15, ge=1, le=60)
     refresh_token_days: int = Field(default=7, ge=1)
+    session_absolute_days: int = Field(default=30, ge=1)
+    mfa_challenge_minutes: int = Field(default=5, ge=1, le=15)
     totp_enc_key: SecretStr | None = SecretStr("dev-only-totp-key-change-me")
+    totp_issuer: str = "dfirbench"
+    password_min_length: int = Field(default=12, ge=8)
+    # Argon2id cost (argon2-cffi RFC 9106 low-memory profile by default).
+    argon2_time_cost: int = Field(default=3, ge=1)
+    argon2_memory_kib: int = Field(default=65536, ge=8)
+    argon2_parallelism: int = Field(default=4, ge=1)
+    # Exponential lockout: after `threshold` consecutive failures, lock for base * 2^(n-threshold)
+    # seconds, capped at max.
+    login_lockout_threshold: int = Field(default=5, ge=1)
+    login_lockout_base_s: int = Field(default=60, ge=1)
+    login_lockout_max_s: int = Field(default=3600, ge=1)
+    auditor_all_cases: bool = True  # auditors may read every case without membership (16.1)
+    audit_http_requests: bool = True  # AuditMiddleware writes one audit_log row per API request
 
-    # Custody signing (Phase 1)
+    # Custody signing (guide 8.3, 20.3)
     custody_signing_key_path: str | None = None
-    custody_key_id: str | None = None
+    custody_signing_key_passphrase: SecretStr | None = None
+    custody_key_id: str | None = None  # default: derived from the public key fingerprint
 
     # Upload / processing limits
     max_upload_gb: int = Field(default=20, ge=1)
+    upload_part_size_mb: int = Field(default=8, ge=5, le=512)  # S3 multipart part (memory bound)
     parser_timeout_s: int = Field(default=3600, ge=1)
     parser_max_output_mb: int = Field(default=2048, ge=1)
     sandbox_mode: SandboxMode = "none"
@@ -138,8 +160,16 @@ class Settings(BaseSettings):
 
         if placeholder(self.jwt_secret) and not self.jwt_private_key_path:
             problems.append("JWT_SECRET or JWT_PRIVATE_KEY_PATH must be set")
+        if (
+            not self.jwt_private_key_path
+            and self.jwt_secret is not None
+            and len(self.jwt_secret.get_secret_value()) < 32
+        ):
+            problems.append("JWT_SECRET must be at least 32 characters")
         if placeholder(self.totp_enc_key):
             problems.append("TOTP_ENC_KEY must be set")
+        elif self.totp_enc_key is not None and len(self.totp_enc_key.get_secret_value()) < 32:
+            problems.append("TOTP_ENC_KEY must be at least 32 characters")
         if placeholder(self.s3_secret_key):
             problems.append("S3_SECRET_KEY must be set")
         if "dfir_dev_password" in self.database_url:
@@ -155,6 +185,10 @@ class Settings(BaseSettings):
     @property
     def is_prod(self) -> bool:
         return self.app_env == "prod"
+
+    @property
+    def max_upload_bytes(self) -> int:
+        return self.max_upload_gb * 1024**3
 
 
 @lru_cache(maxsize=1)

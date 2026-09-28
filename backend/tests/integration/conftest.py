@@ -94,3 +94,71 @@ def db_engine(migrated_db_url: str) -> Iterator[Engine]:
     )
     yield engine
     engine.dispose()
+
+
+# ---------------------------------------------------------------------------------------------
+# Phase 1: application-level fixtures (least-privilege engine, API client, users, fake vault)
+# ---------------------------------------------------------------------------------------------
+
+APP_ROLE = "dfirbench_app"
+
+
+def make_test_settings(db_url: str, **overrides: object) -> Settings:
+    values: dict[str, object] = {
+        "app_env": "test",
+        "database_url": db_url,
+        "database_app_role": APP_ROLE,
+        # Cheap Argon2 for tests (production defaults are asserted in unit tests).
+        "argon2_time_cost": 1,
+        "argon2_memory_kib": 1024,
+        "argon2_parallelism": 1,
+        "jwt_secret": "integration-test-jwt-secret-0123456789",
+        "totp_enc_key": "integration-test-totp-key-0123456789",
+        "log_json": True,
+        "upload_part_size_mb": 5,
+    }
+    values.update(overrides)
+    return Settings(_env_file=None, **values)  # type: ignore[arg-type]
+
+
+@pytest.fixture(scope="session")
+def app_engine(migrated_db_url: str) -> Iterator[Engine]:
+    """Engine whose sessions run as the least-privilege app role (like the API in compose)."""
+    from app.db.session import make_engine
+
+    engine = make_engine(migrated_db_url, role=APP_ROLE)
+    yield engine
+    engine.dispose()
+
+
+@pytest.fixture(scope="session")
+def test_settings(migrated_db_url: str) -> Settings:
+    return make_test_settings(migrated_db_url)
+
+
+@pytest.fixture(scope="session")
+def signer() -> object:
+    from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+    from app.core.signing import CustodySigner
+
+    return CustodySigner(key_id="test-custody-1", private_key=Ed25519PrivateKey.generate())
+
+
+@pytest.fixture
+def vault() -> object:
+    from tests.fakes import FakeVault
+
+    return FakeVault()
+
+
+@pytest.fixture
+def h(
+    app_engine: Engine, test_settings: Settings, signer: object, vault: object
+) -> Iterator[object]:
+    """API harness on the migrated test database (fake vault, test custody signer)."""
+    from tests.integration.harness import Harness
+
+    harness = Harness(app_engine, test_settings, signer, vault)  # type: ignore[arg-type]
+    with harness.client:
+        yield harness

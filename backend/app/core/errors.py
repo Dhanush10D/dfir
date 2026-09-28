@@ -18,7 +18,26 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.core.exceptions import (
+    AppError,
+    ConflictError,
+    ForbiddenError,
+    InvalidStateError,
+    NotFoundError,
+    UnauthenticatedError,
+)
 from app.core.request_context import get_request_id
+
+__all__ = [
+    "AppError",
+    "ConflictError",
+    "ForbiddenError",
+    "InvalidStateError",
+    "NotFoundError",
+    "UnauthenticatedError",
+    "error_body",
+    "register_handlers",
+]
 
 log = structlog.stdlib.get_logger("dfirbench.errors")
 
@@ -36,33 +55,6 @@ _STATUS_CODES: dict[int, str] = {
     500: "internal_error",
     503: "service_unavailable",
 }
-
-
-class AppError(Exception):
-    """Base class for domain errors raised by services and mapped to HTTP by the API layer."""
-
-    def __init__(
-        self,
-        code: str,
-        message: str,
-        status_code: int = 400,
-        details: dict[str, Any] | None = None,
-    ) -> None:
-        super().__init__(message)
-        self.code = code
-        self.message = message
-        self.status_code = status_code
-        self.details = details or {}
-
-
-class NotFoundError(AppError):
-    def __init__(self, message: str = "Resource not found.", **details: Any) -> None:
-        super().__init__("not_found", message, 404, details)
-
-
-class ConflictError(AppError):
-    def __init__(self, message: str, **details: Any) -> None:
-        super().__init__("conflict", message, 409, details)
 
 
 def code_for_status(status_code: int) -> str:
@@ -119,7 +111,14 @@ def error_response(
 async def _app_error_handler(request: Request, exc: Exception) -> JSONResponse:
     if not isinstance(exc, AppError):  # registered only for AppError
         raise exc
-    return error_response(exc.status_code, exc.code, exc.message, exc.details, request=request)
+    return error_response(
+        exc.status_code,
+        exc.code,
+        exc.message,
+        exc.details,
+        headers=exc.headers,
+        request=request,
+    )
 
 
 async def _http_error_handler(request: Request, exc: Exception) -> JSONResponse:

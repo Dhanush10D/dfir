@@ -93,8 +93,8 @@ def test_prod_rejects_wildcard_cors() -> None:
     with pytest.raises(ValidationError, match="CORS_ORIGINS"):
         make(
             app_env="prod",
-            jwt_secret="a-real-secret-0123456789",
-            totp_enc_key="another-real-secret",
+            jwt_secret="a-real-secret-0123456789-abcdefghijkl",
+            totp_enc_key="another-real-secret-0123456789-abcdef",
             s3_secret_key="real-minio-secret",
             database_url="postgresql+psycopg://dfir:strong@db:5432/dfirbench",
             custody_signing_key_path="/run/secrets/custody.key",
@@ -106,8 +106,8 @@ def test_prod_rejects_wildcard_cors() -> None:
 def test_prod_accepts_real_configuration() -> None:
     s = make(
         app_env="prod",
-        jwt_secret="a-real-secret-0123456789",
-        totp_enc_key="another-real-secret",
+        jwt_secret="a-real-secret-0123456789-abcdefghijkl",
+        totp_enc_key="another-real-secret-0123456789-abcdef",
         s3_secret_key="real-minio-secret",
         database_url="postgresql+psycopg://dfir:strong@db:5432/dfirbench",
         custody_signing_key_path="/run/secrets/custody.key",
@@ -119,3 +119,31 @@ def test_prod_accepts_real_configuration() -> None:
 
 def test_get_settings_is_cached() -> None:
     assert get_settings() is get_settings()
+
+
+def test_prod_rejects_short_secrets() -> None:
+    with pytest.raises(ValidationError) as exc:
+        make(
+            app_env="prod",
+            jwt_secret="short-but-not-placeholder",
+            totp_enc_key="also-short-secret",
+            s3_secret_key="real-minio-secret",
+            database_url="postgresql+psycopg://dfir:strong@db:5432/dfirbench",
+            custody_signing_key_path="/run/secrets/custody.key",
+            custody_key_id="custody-2026-01",
+            cors_origins=["https://dfir.example"],
+        )
+    msg = str(exc.value)
+    assert "JWT_SECRET must be at least 32" in msg
+    assert "TOTP_ENC_KEY must be at least 32" in msg
+
+
+def test_phase1_defaults() -> None:
+    s = make()
+    assert s.database_app_role is None
+    assert s.access_token_minutes == 15
+    assert s.refresh_token_days == 7
+    assert s.password_min_length == 12
+    assert s.login_lockout_threshold == 5
+    assert s.max_upload_bytes == 20 * 1024**3
+    assert s.auditor_all_cases is True

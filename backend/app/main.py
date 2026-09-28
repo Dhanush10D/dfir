@@ -8,9 +8,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import __version__
 from app.api.v1 import router as api_v1_router
 from app.config import Settings, get_settings
+from app.core.audit_middleware import AuditMiddleware
 from app.core.errors import register_handlers
 from app.core.logging import get_logger, setup_logging
 from app.core.middleware import RequestIdMiddleware
+from app.deps import get_audit_sink
 
 API_PREFIX = "/api/v1"
 
@@ -27,8 +29,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         redoc_url=None,
     )
     app.state.settings = settings
+    # Tests replace this with a fake sink (or None to disable request auditing).
+    app.state.audit_sink = get_audit_sink() if settings.audit_http_requests else None
 
-    # Order: CORS inside, request-id outermost so every response (incl. errors) gets an id.
+    # Order (outermost first): request id, audit, CORS. Request id wraps everything so every
+    # response (incl. errors) gets an id; audit sees the final status of every API request.
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -41,8 +46,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "X-Request-ID",
             "Idempotency-Key",
         ],
-        expose_headers=["X-Request-ID"],
+        expose_headers=["X-Request-ID", "X-Evidence-SHA256", "Retry-After"],
     )
+    app.add_middleware(AuditMiddleware, sink_getter=lambda: getattr(app.state, "audit_sink", None))
     app.add_middleware(RequestIdMiddleware)
     register_handlers(app)
     app.include_router(api_v1_router, prefix=API_PREFIX)

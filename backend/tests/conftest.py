@@ -11,7 +11,18 @@ from fastapi.testclient import TestClient
 from app.config import Settings, get_settings
 from app.deps import get_app_settings, get_readiness_checks
 from app.main import create_app
+from app.services.audit import AuditRecord
 from app.services.health import CheckResult
+
+
+class FakeAuditSink:
+    """Collects AuditMiddleware records in memory (unit tests never touch the database)."""
+
+    def __init__(self) -> None:
+        self.records: list[AuditRecord] = []
+
+    def write(self, record: AuditRecord) -> None:
+        self.records.append(record)
 
 
 @pytest.fixture(autouse=True)
@@ -36,8 +47,14 @@ def failing_check(name: str, error: str = "ConnectionError") -> Callable[[], Che
 
 
 @pytest.fixture
-def app(settings: Settings) -> FastAPI:
+def audit_sink() -> FakeAuditSink:
+    return FakeAuditSink()
+
+
+@pytest.fixture
+def app(settings: Settings, audit_sink: FakeAuditSink) -> FastAPI:
     application = create_app(settings)
+    application.state.audit_sink = audit_sink
     application.dependency_overrides[get_app_settings] = lambda: settings
     application.dependency_overrides[get_readiness_checks] = lambda: [
         ok_check("database"),

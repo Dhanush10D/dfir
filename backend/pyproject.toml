@@ -21,6 +21,10 @@ dependencies = [
   "celery==5.6.3",
   "minio==7.2.20",
   "structlog==26.1.0",
+  "argon2-cffi==25.1.0",
+  "PyJWT==2.15.0",
+  "pyotp==2.10.0",
+  "cryptography==50.0.1",
 ]
 
 [project.optional-dependencies]
@@ -32,13 +36,14 @@ dev = [
   "mypy==2.3.1",
   "celery-types==0.26.0",
   "bandit==1.9.4",
+  "hypothesis==6.168.3",
 ]
 
 [tool.setuptools.packages.find]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.yml", "*.yaml", "*.md", "*.j2", "py.typed"]
+"*" = ["*.yml", "*.yaml", "*.md", "*.j2", "*.txt", "py.typed"]
 
 [tool.ruff]
 line-length = 100
@@ -55,7 +60,7 @@ known-third-party = ["alembic"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "DTZ001"]
-"alembic/**" = ["E501"]
+"alembic/**" = ["E501", "S608"]  # DDL built from module constants
 
 [tool.mypy]
 python_version = "3.12"

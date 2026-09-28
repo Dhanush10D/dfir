@@ -5,13 +5,17 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from functools import lru_cache
 
+import structlog
 from minio import Minio
 from redis import Redis
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
+from app.core.signing import CustodySigner, SigningKeyError, load_signer
 from app.db.session import get_engine, get_sessionmaker
+from app.repositories.vault import MinioVault, VaultStore
+from app.services.audit import DbAuditSink
 from app.services.health import (
     CheckResult,
     check_database,
@@ -19,6 +23,8 @@ from app.services.health import (
     check_storage,
 )
 from app.storage import make_minio_client
+
+log = structlog.stdlib.get_logger("dfirbench.deps")
 
 
 def get_app_settings() -> Settings:
@@ -62,3 +68,27 @@ def get_readiness_checks() -> list[Callable[[], CheckResult]]:
         lambda: check_redis(get_redis()),
         lambda: check_storage(get_storage(), settings.vault_bucket),
     ]
+
+
+@lru_cache(maxsize=1)
+def get_vault_client() -> Minio:
+    """Client for evidence transfers: generous timeouts (a part may take a while), few retries."""
+    return make_minio_client(get_settings(), timeout_s=120.0, retries=2)
+
+
+def get_vault() -> VaultStore | None:
+    return MinioVault(get_vault_client(), get_settings().vault_bucket)
+
+
+@lru_cache(maxsize=1)
+def get_custody_signer() -> CustodySigner | None:
+    """The Ed25519 custody signer, or None (reads still work; writes answer 503)."""
+    try:
+        return load_signer(get_settings())
+    except SigningKeyError as exc:
+        log.warning("custody_signer_unavailable", reason=str(exc))
+        return None
+
+
+def get_audit_sink() -> DbAuditSink:
+    return DbAuditSink(get_sessionmaker())
