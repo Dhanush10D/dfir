@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Phase 1 verification (docs/specs/PHASE-1.md). Exits non-zero on the first failure.
-#   bash scripts/verify-phase1.sh              # stack + live smoke/tamper demo + backend checks
-#   STOP_STACK=1 bash scripts/verify-phase1.sh # also `compose down` at the end (default: keep it up)
+# Phase 2 verification (docs/specs/PHASE-2.md). Exits non-zero on the first failure.
+#   bash scripts/verify-phase2.sh              # stack + live smoke/tamper demo + backend checks
+#   STOP_STACK=1 bash scripts/verify-phase2.sh # also `compose down` at the end (default: keep it up)
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -33,8 +33,8 @@ with get_engine().connect() as conn:
 assert role == 'dfirbench_app', role
 print('signer', signer.key_id, 'role', role)"
 
-step "app role cannot rewrite custody, audit or published signing keys"
-for stmt in "UPDATE custody_log SET action = 'x'" "DELETE FROM audit_log"             "UPDATE signing_keys SET public_key = 'x'" "DELETE FROM signing_keys"; do
+step "app role cannot rewrite custody, audit, signing keys, events or run manifests"
+for stmt in "UPDATE custody_log SET action = 'x'" "DELETE FROM audit_log"             "UPDATE signing_keys SET public_key = 'x'" "DELETE FROM signing_keys"             "UPDATE events SET message = 'x'" "TRUNCATE events" "DELETE FROM jobs"             "DELETE FROM events_default"; do
   out="$("${COMPOSE[@]}" exec -T postgres psql -U dfir -d dfirbench -v ON_ERROR_STOP=1          -c "BEGIN; SET LOCAL ROLE dfirbench_app; $stmt; ROLLBACK;" 2>&1 || true)"
   if ! grep -q "permission denied" <<<"$out"; then
     echo "app role was NOT denied: $stmt -> $out" >&2
@@ -45,16 +45,25 @@ done
 
 step "alembic upgrade head + drift check (host -> compose Postgres)"
 "$BIN/alembic" upgrade head
-"$BIN/alembic" current | grep -q '(head)'
+"$BIN/alembic" current | grep -q '0004 (head)'
+"$BIN/alembic" check
+
+step "alembic round trip of migration 0004 (downgrade 0003 -> upgrade head)"
+"$BIN/alembic" downgrade 0003
+"$BIN/alembic" current | grep -q '0003'
+"$BIN/alembic" upgrade head
+"$BIN/alembic" current | grep -q '0004 (head)'
 "$BIN/alembic" check
 
 step "live smoke + tamper demo through the running API"
 ADMIN_EMAIL="verify-admin-$(date +%s)-$RANDOM@dfirbench.test"
-DFIR_ADMIN_PASSWORD="Phase1-Check-$RANDOM-Passphrase-$(date +%s)"  # policy: not the e-mail name
+DFIR_ADMIN_PASSWORD="Phase2-Check-$RANDOM-Passphrase-$(date +%s)"  # policy: not the e-mail name
 export DFIR_ADMIN_PASSWORD
 "${COMPOSE[@]}" exec -T -e DFIR_ADMIN_PASSWORD api \
   python -m app.cli create-admin --email "$ADMIN_EMAIL" --name "Verify Admin" >/dev/null
 "$BIN/python" "$ROOT/scripts/phase1-smoke.py" --admin-email "$ADMIN_EMAIL"
+step "Phase 2 live smoke: API -> Redis -> Celery worker -> events -> timeline"
+"$BIN/python" "$ROOT/scripts/phase2-smoke.py" --admin-email "$ADMIN_EMAIL"
 unset DFIR_ADMIN_PASSWORD
 
 step "backend: ruff, mypy, bandit, pytest (unit + integration + MinIO)"
@@ -68,4 +77,4 @@ if [[ "${STOP_STACK:-0}" == "1" ]]; then
   step "compose down"
   "${COMPOSE[@]}" down
 fi
-step "PHASE 1 VERIFIED"
+step "PHASE 2 VERIFIED"

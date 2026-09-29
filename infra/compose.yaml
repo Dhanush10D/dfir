@@ -149,8 +149,11 @@ services:
       context: ../backend
       dockerfile: ../infra/docker/worker.Dockerfile
     command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "default,parse,ai,reports", "-c", "2", "-n", "worker@%h", "--loglevel", "INFO"]
-    environment: *backend-env
-    volumes: ["custodykeys:/var/lib/dfirbench/keys:ro"]
+    environment:
+      <<: *backend-env
+      # Per-job scratch copies of evidence (0400, deleted after each job): a disk volume, not tmpfs.
+      SCRATCH_DIR: /var/lib/dfirbench/scratch
+    volumes: ["custodykeys:/var/lib/dfirbench/keys:ro", "scratch:/var/lib/dfirbench/scratch"]
     depends_on:
       migrate: { condition: service_completed_successfully }
       storage-init: { condition: service_completed_successfully }
@@ -204,3 +207,4 @@ volumes:
   redisdata: {}
   miniodata: {}
   custodykeys: {}
+  scratch: {}

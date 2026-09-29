@@ -117,6 +117,8 @@ jobs:
           docker compose -f infra/compose.yaml exec -T -e DFIR_ADMIN_PASSWORD api \
             python -m app.cli create-admin --email ci-admin@dfirbench.test
           python3 scripts/phase1-smoke.py --admin-email ci-admin@dfirbench.test
+          # Phase 2: real API -> Redis -> Celery worker (parse queue) -> events -> timeline.
+          python3 scripts/phase2-smoke.py --admin-email ci-admin@dfirbench.test
       - name: Logs on failure
         if: failure()
         run: docker compose -f infra/compose.yaml logs --no-color
