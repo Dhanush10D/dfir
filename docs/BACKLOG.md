@@ -25,8 +25,8 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Item | Why deferred | Target |
 |---|---|---|
 | ~~`dfir_ensure_events_partition()` as `SECURITY DEFINER`~~ | Done in Phase 2 (0004; the app role has no privileges on partitions) | - |
-| Custody anchors: periodic signed Merkle root over recent `entry_hash` values into `anchors`, optional RFC 3161 time stamp. Without anchors, deleting the *newest* custody entries of an item (tail truncation) is not detectable by the chain alone | Needs a scheduler (Celery beat); not added in Phase 2 | Phase 3 (scheduler) / Phase 8 |
-| Scheduled re-verification of all originals (`nightly_verify_all`, guide 8.1 step 6). Phase 2 re-hashes every original before parsing it | Needs Celery beat | Phase 3 |
+| Custody anchors: periodic signed Merkle root over recent `entry_hash` values into `anchors`, optional RFC 3161 time stamp. Without anchors, deleting the *newest* custody entries of an item (tail truncation) is not detectable by the chain alone | Needs a scheduler (Celery beat); not added in Phase 2 | Phase 10 (scheduler, deferred from 3) / Phase 8 |
+| Scheduled re-verification of all originals (`nightly_verify_all`, guide 8.1 step 6). Phase 2 re-hashes every original before parsing it | Needs Celery beat | Phase 10 (scheduler, deferred from 3) |
 | Evidence export package (`manifest.json`, `custody.json`, `manifest.sig`, guide 8.4) | Reporting/export phase | Phase 8 |
 | Browser token delivery via `HttpOnly; Secure; SameSite=Strict` cookies + CSRF token; Phase 1 returns tokens in JSON (Bearer) | Needs the UI | Phase 4 |
 | Per-IP rate limiting on `/auth/*` (guide 14.3) and alerting on suspicious login patterns | Account lockout covers brute force per account for now | Phase 10 |
@@ -34,27 +34,42 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | OIDC/SSO (Keycloak/Authlib) and WebAuthn | P2 in the guide | Later |
 | Accept several JWT `kid`s at once for zero-downtime JWT key rotation; `TOTP_ENC_KEY` rotation (re-wrap) | Single key per purpose is enough for dev | Phase 10 |
 | Resumable/chunked uploads (tus or presigned S3 multipart) for very large images; Phase 1 streams one `PUT` (multipart to MinIO, bounded memory) | Works for the Standard profile; resumability is a UX improvement | Phase 5/10 |
-| Reaper for evidence stuck in `uploaded` (never finalized) and for orphaned object versions left by a failed DB commit after a successful vault write | Rare; detectable (finalize/verify compare versions); needs Celery beat | Phase 3 |
+| Reaper for evidence stuck in `uploaded` (never finalized) and for orphaned object versions left by a failed DB commit after a successful vault write | Rare; detectable (finalize/verify compare versions); needs Celery beat | Phase 10 (scheduler, deferred from 3) |
 | `/cases/{id}/summary` | Needs events/alerts | Phase 4 |
 | ~~Workers writing custody entries (`processed`)~~ | Done in Phase 2 (worker signs `processed` / `hash_failed`) | - |
 | `audit_log` growth: partition by month or archive (never purge) | Volume is small in dev | Phase 10 |
 | Custody signing keys in Vault/KMS or an HSM, with the trusted-keys file (`CUSTODY_TRUSTED_KEYS_PATH`) distributed from the secret manager; today both are files (dev key in the `custodykeys` volume) | Needs a secret manager | Phase 10 |
 | Two admins changing each other concurrently can deadlock in `update_user` (target read unlocked, acting admin locked in `_reauth`); Postgres aborts one as a 500. Lock both rows in id order, or map the deadlock to 409 | Rare; no data harm | Phase 10 |
-| Notify admins when the published `signing_keys` row differs from the trusted key (today it is logged and reported only when someone runs verify) | Needs the scheduler / periodic re-verify | Phase 3 |
+| Notify admins when the published `signing_keys` row differs from the trusted key (today it is logged and reported only when someone runs verify) | Needs the scheduler / periodic re-verify | Phase 10 (scheduler, deferred from 3) |
 | Test migration 0003's `GRANT dfirbench_app TO CURRENT_USER` with a non-superuser (CREATEROLE) owner on PG16 | Compose and CI owners are superusers | Phase 10 |
 
 ## From Phase 2
 
 | Item | Why deferred | Target |
 |---|---|---|
-| Job reaper (Celery beat): re-dispatch `queued` jobs whose broker message was lost (e.g. `self.retry()` could not reach Redis) and `running` jobs whose lease expired with no redelivery pending. Today they are recoverable with `POST /jobs/{id}/retry` after a cancel | Needs the scheduler | Phase 3 |
+| Job reaper (Celery beat): re-dispatch `queued` jobs whose broker message was lost (e.g. `self.retry()` could not reach Redis) and `running` jobs whose lease expired with no redelivery pending. Today they are recoverable with `POST /jobs/{id}/retry` after a cancel | Needs the scheduler | Phase 10 (scheduler, deferred from 3) |
 | Progress over Redis pub/sub + WebSocket/SSE (guide 10.6); Phase 2 persists `progress`/`heartbeat_at` on the job row (poll `GET /jobs/{id}`) | UI arrives in Phase 4 | Phase 4 |
 | `POST /cases/{id}/events/search` with the search language, histogram, facets, context, export (guide 15.2) | Explorer UI work; Phase 2 ships `GET /cases/{id}/events` with filters + keyset cursor | Phase 4 |
 | Evidence status `processing` / `processed` / `partial` (guide 4.4) derived from its jobs | Job state carries progress today; needs a rule for multiple parsers per item | Phase 4 |
 | Reprocess swaps events in separate short transactions (delete, then batches), so a reader can briefly see a partial timeline for that evidence. Option: build into a staging `job_id` and swap visibility at finish | Final state is always correct (deterministic ids); cost/benefit | Phase 10 |
 | Backpressure: pause parsing when inserts lag (guide 10.6); batches are synchronous today, which bounds memory but not DB load across many workers | Single worker in dev | Phase 10 |
 | More `linux_auth` inputs: `journalctl -o json` exports, wtmp/btmp/lastlog, bash/zsh history (guide 10.3 catalogue) | Scope | Phase 5/6 |
-| Hayabusa/Sigma enrichment of EVTX events; richer EVTX mappings (e.g. 4611/4673 get only a generic message) | Detection phase | Phase 3 |
+| Hayabusa enrichment of EVTX events; richer EVTX mappings (e.g. 4611/4673/4616 get only a generic message; 4616 time delta) | Phase 3 shipped its own rule engine + Sigma subset | Phase 6 |
 | Per-job sandbox containers for parsers (`--network none`, read-only evidence mount, CPU/memory/pids limits); today the parser runs in the worker process on a 0400 scratch copy | Phase scope (already listed above) | Phase 10 |
 | `container_image_digest` in run manifests: set `DFIR_IMAGE_DIGEST` in the worker image at build/deploy time | Needs the release pipeline (cosign) | Phase 10 |
 | The app role has DELETE on `events` (reprocess). Option: route deletes through a `SECURITY DEFINER` function keyed by job so ad-hoc deletes are impossible | Defense in depth | Phase 10 |
+
+## From Phase 3
+
+| Item | Why deferred | Target |
+|---|---|---|
+| Celery beat: job reaper (Phase 2 item), nightly re-verify, custody anchors, uploaded-evidence reaper | Phase 3 did not need a scheduler; detection jobs recover like parse jobs (lease + retry) | Phase 10 |
+| Suppressions (`POST /alerts/{id}/suppress`: rule + entity + expiry + reason) and incident grouping of alerts by host/user/time | Lifecycle, dedup and scoring first | Phase 4 |
+| SQL push-down of rule predicates (prefilter by event_code/source_type) and streaming single-event detection at ingest; today every run rescans the case in Python | Correct and bounded; performance work | Phase 10 |
+| Detection runs are full-case rescans; incremental runs over new events only | Simplicity/idempotency first | Phase 10 |
+| Statistical analytics (beaconing, DGA, rare parent-child, IsolationForest), YARA, remaining Appendix B rules (WIN-0013..0025, 0028, LNX-0005..0010, NET-*) that need data sources not parsed yet | Needs Sysmon/PowerShell/DNS/PCAP/MFT/history parsers | Phases 6/7 |
+| MISP import, VirusTotal/MISP enrichment, global (case_id NULL) IOC management API; IOC CIDR ranges | Integrations phase | Phase 9 |
+| Asset inventory for `asset_criticality` in the risk score (1.0 today) | Needs entity/asset model | Phase 4 |
+| ATT&CK tags on events are only added; a tag from an alert that later goes stale stays on the event | Needs per-event tag provenance | Phase 4 |
+| A detection run may read a partially reprocessed timeline (reprocess swaps events non-atomically); the post-parse run corrects it and marks non-matching alerts stale | Same root cause as the Phase 2 staging-swap item | Phase 10 |
+| pySigma evaluation for wider Sigma coverage (modifiers `windash`, `base64offset`, keywords, correlations) | Own converter covers a strict, documented subset | Later |
