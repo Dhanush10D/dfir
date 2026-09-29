@@ -318,11 +318,16 @@ class BundleReader:
         if len(data) > limit:
             raise BundleRejectedError([{"code": "manifest_too_large"}])
         try:
-            return parse_manifest(data)
+            manifest, digest = parse_manifest(data)
         except ManifestError as exc:
             raise BundleRejectedError(
                 [{"code": "manifest_invalid", "detail": clean_text(str(exc), 400)}]
             ) from exc
+        if len(manifest.files) > self.limits.max_members:
+            raise BundleRejectedError(
+                [{"code": "manifest_too_many_files", "count": len(manifest.files)}]
+            )
+        return manifest, digest
 
     # ------------------------------------------------------------------ extraction
 

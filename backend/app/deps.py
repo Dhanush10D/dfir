@@ -118,3 +118,10 @@ def get_detect_dispatcher() -> Callable[[uuid.UUID], None]:
     from app.workers.dispatch import dispatch_detect
 
     return dispatch_detect
+
+
+def get_bundle_dispatcher() -> Callable[[uuid.UUID], None]:
+    """Enqueues triage bundle ingest jobs (Celery ``parse`` queue; tests override it)."""
+    from app.workers.dispatch import dispatch_bundle
+
+    return dispatch_bundle

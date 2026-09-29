@@ -248,6 +248,9 @@ class EventSink:
 
 
 class ProcessingService:
+    #: ``jobs.kind`` this service claims (the bundle ingest subclass claims ``bundle`` jobs).
+    job_kind = "parse"
+
     def __init__(
         self,
         sessions: sessionmaker[Session],
@@ -289,7 +292,7 @@ class ProcessingService:
             update(Job)
             .where(
                 Job.id == job_id,
-                Job.kind == "parse",
+                Job.kind == self.job_kind,
                 Job.superseded_by.is_(None),
                 (Job.status == JobStatus.queued)
                 | ((Job.status == JobStatus.running) & (Job.heartbeat_at < func.now() - lease)),

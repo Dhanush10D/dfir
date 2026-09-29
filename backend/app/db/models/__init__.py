@@ -4,6 +4,7 @@ from app.db.models.ai import AiInteraction, EventChunk
 from app.db.models.audit import Anchor, AuditLog, SigningKey
 from app.db.models.cases import Case, CaseMember
 from app.db.models.collaboration import Bookmark, Note, NoteVersion, Notification, SavedQuery
+from app.db.models.collection import BundleMember
 from app.db.models.detection import Alert, AlertEvent, AlertHistory, Ioc, Rule, RuleVersion
 from app.db.models.entities import Entity, EntityAlias, EntityLink
 from app.db.models.enums import AlertStatus, CaseStatus, JobStatus, Severity, UserRole
@@ -21,6 +22,7 @@ APPEND_ONLY_TABLES = (
     "rule_versions",
     "alert_history",
     "note_versions",
+    "bundle_members",
 )
 
 __all__ = [
@@ -36,6 +38,7 @@ __all__ = [
     "ApiKey",
     "AuditLog",
     "Bookmark",
+    "BundleMember",
     "Case",
     "CaseMember",
     "CaseStatus",

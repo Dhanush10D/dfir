@@ -11,7 +11,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import CHAR, BigInteger, ForeignKey, Integer, Text, UniqueConstraint, text
+from sqlalchemy import CHAR, BigInteger, ForeignKey, Index, Integer, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -20,7 +20,10 @@ from app.db.models._common import TSTZ, UUID_T, created_at, jsonb_obj, uuid_pk
 
 class Evidence(Base):
     __tablename__ = "evidence"
-    __table_args__ = (UniqueConstraint("case_id", "label"),)
+    __table_args__ = (
+        UniqueConstraint("case_id", "label"),
+        Index("ix_evidence_parent_evidence_id", "parent_evidence_id"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID] = mapped_column(
@@ -50,6 +53,11 @@ class Evidence(Base):
     # Vault object version written at upload (S3 versioning is implied by Object Lock).
     storage_version_id: Mapped[str | None] = mapped_column(Text)
     retain_until: Mapped[datetime | None] = mapped_column(TSTZ)  # Object Lock retain-until
+    # Phase 5: evidence derived from another item (a triage bundle member). Set at insert only;
+    # the app role cannot UPDATE this column (migration 0008).
+    parent_evidence_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID_T, ForeignKey("evidence.id", ondelete="RESTRICT")
+    )
 
 
 class CustodyLog(Base):

@@ -52,6 +52,9 @@ class EvidenceOut(BaseModel):
     status: str
     uploaded_by: uuid.UUID | None
     created_at: datetime
+    parent_evidence_id: uuid.UUID | None = Field(
+        default=None, description="Set on derived evidence (e.g. a triage bundle member)."
+    )
 
 
 class UploadSession(BaseModel):

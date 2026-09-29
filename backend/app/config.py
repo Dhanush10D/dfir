@@ -134,6 +134,16 @@ class Settings(BaseSettings):
     auth_cookie_secure: bool = True
     auth_cookie_name: str = Field(default="dfir_refresh", pattern=r"^[A-Za-z0-9_\-]{1,64}$")
 
+    # Collection (Phase 5, guide 9): triage bundle ingest limits (hostile archives)
+    bundle_max_members: int = Field(default=10000, ge=1, le=100000)
+    bundle_max_total_mb: int = Field(default=4096, ge=1)  # declared AND actually extracted bytes
+    bundle_max_member_mb: int = Field(default=2048, ge=1)
+    bundle_max_ratio: int = Field(default=200, ge=2)  # per member and archive, above 1 MiB
+    bundle_max_derived: int = Field(default=500, ge=1, le=10000)  # derived evidence per run
+    # Extra trusted collector hashes (JSON, same format as app/collection/trusted_collectors.json);
+    # a trust anchor: keep it on a read-only mount.
+    collector_trusted_hashes_path: str | None = None
+
     # AI (Phase 7)
     enable_ai: bool = False
     ai_local_only: bool = False

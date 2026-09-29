@@ -34,6 +34,7 @@ from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.collection import INGESTER, INGESTER_VERSION
 from app.config import Settings
 from app.core.exceptions import AppError, ConflictError, InvalidStateError, NotFoundError
 from app.core.permissions import Permission, Principal
@@ -49,6 +50,8 @@ log = structlog.stdlib.get_logger("dfirbench.jobs")
 
 PARSE = "parse"
 DETECT = "detect"
+BUNDLE = "bundle"  # triage bundle ingest (Phase 5): parser column = INGESTER
+BUNDLE_KIND = "triage_bundle"  # evidence kind ingested by a bundle job
 ACTIVE = (JobStatus.queued, JobStatus.running)
 TERMINAL = (JobStatus.succeeded, JobStatus.partial, JobStatus.failed, JobStatus.cancelled)
 RETRYABLE = (JobStatus.failed, JobStatus.partial, JobStatus.cancelled)
@@ -135,12 +138,14 @@ class JobService:
         vault: VaultStore | None = None,
         dispatcher: Dispatcher | None = None,
         detect_dispatcher: Dispatcher | None = None,
+        bundle_dispatcher: Dispatcher | None = None,
     ) -> None:
         self.session = session
         self.settings = settings
         self.vault = vault
         self.dispatcher = dispatcher
         self.detect_dispatcher = detect_dispatcher
+        self.bundle_dispatcher = bundle_dispatcher
         self.audit = AuditService(session)
 
     # ------------------------------------------------------------------ access helpers
@@ -273,6 +278,8 @@ class JobService:
         access.require(Permission.EVIDENCE_ADD)
         self._require_open(access)
         self._require_stored(ev)
+        if ev.kind == BUNDLE_KIND and not parsers:
+            return [self._submit_bundle(principal, ev, params, meta)]
         names = self._select_parsers(ev, parsers)
         given = {k: v for k, v in params.items() if v is not None}
         if not parsers:  # auto: each detected parser takes the parameters it understands
@@ -293,7 +300,8 @@ class JobService:
             prepared.append((name, validate_params(name, relevant)))
         self._lock_case_open(ev.case_id)
         results = [
-            self._create(principal, ev, name, canon, force=False) for name, canon in prepared
+            self._create(principal.user_id, ev, name, canon, force=False)
+            for name, canon in prepared
         ]
         for result in results:
             self.audit.record(
@@ -311,20 +319,59 @@ class JobService:
         self.session.commit()
         for result in results:
             if result.created:
-                self._dispatch(result.job)
+                self.dispatch(result.job)
         return results
+
+    def _submit_bundle(
+        self,
+        principal: Principal,
+        ev: Evidence,
+        params: Mapping[str, Any],
+        meta: RequestMeta,
+    ) -> Submitted:
+        """Triage bundle + ``parsers: auto``: queue (idempotently) one bundle ingest job."""
+        if any(v is not None for v in params.values()):
+            raise AppError("invalid_params", "Triage bundle ingest takes no parameters.", 422)
+        self._lock_case_open(ev.case_id)
+        result = self._create(principal.user_id, ev, INGESTER, {}, force=False, kind=BUNDLE)
+        self.audit.record(
+            "job.submitted",
+            user_id=principal.user_id,
+            meta=meta,
+            object_type="job",
+            object_id=result.job.id,
+            detail={"evidence_id": str(ev.id), "kind": BUNDLE, "created": result.created},
+        )
+        self.session.commit()
+        if result.created:
+            self.dispatch(result.job)
+        return result
+
+    def create_system_parse_job(
+        self,
+        ev: Evidence,
+        parser_name: str,
+        params: Mapping[str, Any],
+        created_by: uuid.UUID | None,
+    ) -> Submitted:
+        """Parse job for derived evidence, inside the caller's transaction (the bundle worker holds
+        the job row lock and has re-checked the case). The caller commits, then dispatches."""
+        return self._create(
+            created_by, ev, parser_name, validate_params(parser_name, params), force=False
+        )
 
     def _create(
         self,
-        principal: Principal,
+        created_by: uuid.UUID | None,
         ev: Evidence,
         parser_name: str,
         params: dict[str, Any],
         *,
         force: bool,
+        kind: str = PARSE,
     ) -> Submitted:
-        parser = get_parser(parser_name)
-        key = idempotency_key(ev.id, parser_name, parser.version, params)
+        version = INGESTER_VERSION if kind == BUNDLE else get_parser(parser_name).version
+        key = idempotency_key(ev.id, parser_name, version, params)
         self.session.execute(
             text("SELECT pg_advisory_xact_lock(:k)"), {"k": pair_lock_key(ev.id, parser_name)}
         )
@@ -340,7 +387,7 @@ class JobService:
                 .where(
                     Job.evidence_id == ev.id,
                     Job.parser == parser_name,
-                    Job.kind == PARSE,
+                    Job.kind == kind,
                     Job.superseded_by.is_(None),
                 )
                 .with_for_update(key_share=True)
@@ -368,12 +415,12 @@ class JobService:
                         id=new_id,
                         case_id=ev.case_id,
                         evidence_id=ev.id,
-                        kind=PARSE,
+                        kind=kind,
                         parser=parser_name,
                         params=params,
                         idempotency_key=key,
                         status=JobStatus.queued,
-                        created_by=principal.user_id,
+                        created_by=created_by,
                     )
                 )
         except IntegrityError as exc:  # backstop: uq_jobs_active_parse / idempotency_key
@@ -385,8 +432,11 @@ class JobService:
         job = self.session.execute(select(Job).where(Job.id == new_id)).scalar_one()
         return Submitted(job, True)
 
-    def _dispatch(self, job: Job) -> None:
-        dispatcher = self.detect_dispatcher if job.kind == DETECT else self.dispatcher
+    def dispatch(self, job: Job) -> None:
+        """Enqueue after commit; a broker failure marks the job failed (retryable) and 503s."""
+        dispatcher = {DETECT: self.detect_dispatcher, BUNDLE: self.bundle_dispatcher}.get(
+            job.kind, self.dispatcher
+        )
         if dispatcher is None:
             return
         try:
@@ -445,8 +495,8 @@ class JobService:
         self._require_open(access)
         if job.kind == DETECT:
             return self._retry_detect(principal, job, meta)
-        if job.kind != PARSE or job.evidence_id is None or job.parser is None:
-            raise InvalidStateError("Only parse and detection jobs can be retried.")
+        if job.kind not in (PARSE, BUNDLE) or job.evidence_id is None or job.parser is None:
+            raise InvalidStateError("Only parse, bundle and detection jobs can be retried.")
         ev = self.session.get(Evidence, job.evidence_id)
         if ev is None:
             raise NotFoundError("Evidence not found.")
@@ -494,7 +544,7 @@ class JobService:
         )
         self.session.commit()
         job = self._reload(job_id)
-        self._dispatch(job)
+        self.dispatch(job)
         return job
 
     def _retry_detect(self, principal: Principal, job: Job, meta: RequestMeta) -> Job:
@@ -532,7 +582,7 @@ class JobService:
         )
         self.session.commit()
         reloaded = self._reload(job.id)
-        self._dispatch(reloaded)
+        self.dispatch(reloaded)
         return reloaded
 
     def reprocess(
@@ -546,20 +596,25 @@ class JobService:
         job, access = self._load_job(principal, job_id)
         access.require(Permission.EVIDENCE_ADD)
         self._require_open(access)
-        if job.kind != PARSE or job.evidence_id is None or job.parser is None:
-            raise InvalidStateError("Only parse jobs can be reprocessed.")
+        if job.kind not in (PARSE, BUNDLE) or job.evidence_id is None or job.parser is None:
+            raise InvalidStateError("Only parse and bundle jobs can be reprocessed.")
         ev = self.session.get(Evidence, job.evidence_id)
         if ev is None:
             raise NotFoundError("Evidence not found.")
         self._require_stored(ev)
-        try:
-            get_parser(job.parser)
-        except UnknownParserError as exc:
-            raise InvalidStateError("The job's parser is no longer available.") from exc
-        canon = validate_params(job.parser, dict(job.params) if params is None else params)
+        canon: dict[str, Any] = {}
+        if job.kind == BUNDLE:
+            if params and any(v is not None for v in params.values()):
+                raise AppError("invalid_params", "Triage bundle ingest takes no parameters.", 422)
+        else:
+            try:
+                get_parser(job.parser)
+            except UnknownParserError as exc:
+                raise InvalidStateError("The job's parser is no longer available.") from exc
+            canon = validate_params(job.parser, dict(job.params) if params is None else params)
         self._lock_case_open(job.case_id)
         # _create locks and re-checks (advisory pair lock + FOR NO KEY UPDATE on the rows).
-        result = self._create(principal, ev, job.parser, canon, force=True)
+        result = self._create(principal.user_id, ev, job.parser, canon, force=True, kind=job.kind)
         self.audit.record(
             "job.reprocessed",
             user_id=principal.user_id,
@@ -569,7 +624,7 @@ class JobService:
             detail={"replaces": str(job_id), "parser": job.parser},
         )
         self.session.commit()
-        self._dispatch(result.job)
+        self.dispatch(result.job)
         return result.job
 
     def _reload(self, job_id: uuid.UUID) -> Job:

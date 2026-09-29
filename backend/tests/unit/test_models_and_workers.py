@@ -31,7 +31,8 @@ PHASE1_TABLES = {"refresh_tokens", "mfa_recovery_codes"}
 # Phase 3 (migration 0006): rule version history and alert lifecycle history (append-only).
 PHASE3_TABLES = {"rule_versions", "alert_history"}
 PHASE4_TABLES = {"note_versions"}
-ALL_TABLES = CORE_TABLES | PHASE1_TABLES | PHASE3_TABLES | PHASE4_TABLES
+PHASE5_TABLES = {"bundle_members"}
+ALL_TABLES = CORE_TABLES | PHASE1_TABLES | PHASE3_TABLES | PHASE4_TABLES | PHASE5_TABLES
 
 
 def test_metadata_has_every_core_table() -> None:
@@ -70,6 +71,7 @@ def test_append_only_tables_declared() -> None:
         "rule_versions",
         "alert_history",
         "note_versions",
+        "bundle_members",
     )
 
 

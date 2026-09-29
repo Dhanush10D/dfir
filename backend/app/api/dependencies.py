@@ -23,6 +23,7 @@ from app.core.permissions import Permission, Principal
 from app.core.signing import CustodySigner
 from app.deps import (
     get_app_settings,
+    get_bundle_dispatcher,
     get_custody_signer,
     get_db,
     get_detect_dispatcher,
@@ -34,6 +35,7 @@ from app.repositories.vault import VaultStore
 from app.services.alerts import AlertService
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import require_global
+from app.services.bundles import BundleQueryService
 from app.services.cases import CaseService
 from app.services.custody import CustodyService
 from app.services.detection import DetectionJobs
@@ -136,9 +138,15 @@ def get_job_service(
     vault: Annotated[VaultStore | None, Depends(get_vault)],
     dispatcher: Annotated[Callable[[uuid.UUID], None], Depends(get_job_dispatcher)],
     detect_dispatcher: Annotated[Callable[[uuid.UUID], None], Depends(get_detect_dispatcher)],
+    bundle_dispatcher: Annotated[Callable[[uuid.UUID], None], Depends(get_bundle_dispatcher)],
 ) -> JobService:
     return JobService(
-        db, settings, vault=vault, dispatcher=dispatcher, detect_dispatcher=detect_dispatcher
+        db,
+        settings,
+        vault=vault,
+        dispatcher=dispatcher,
+        detect_dispatcher=detect_dispatcher,
+        bundle_dispatcher=bundle_dispatcher,
     )
 
 
@@ -156,6 +164,10 @@ def get_detection_jobs(
 
 def get_alert_service(db: DbSession, settings: AppSettings) -> AlertService:
     return AlertService(db, settings)
+
+
+def get_bundle_query_service(db: DbSession, settings: AppSettings) -> BundleQueryService:
+    return BundleQueryService(db, settings)
 
 
 def get_rule_service(db: DbSession) -> RuleService:
@@ -202,6 +214,7 @@ Alerts = Annotated[AlertService, Depends(get_alert_service)]
 Rules = Annotated[RuleService, Depends(get_rule_service)]
 Iocs = Annotated[IocService, Depends(get_ioc_service)]
 Jobs = Annotated[JobService, Depends(get_job_service)]
+Bundles = Annotated[BundleQueryService, Depends(get_bundle_query_service)]
 Events = Annotated[EventService, Depends(get_event_service)]
 EvidenceSvc = Annotated[EvidenceService, Depends(get_evidence_service)]
 CustodySvc = Annotated[CustodyService, Depends(get_custody_service)]

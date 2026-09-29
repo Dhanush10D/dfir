@@ -36,3 +36,19 @@ def dispatch_detect(job_id: uuid.UUID) -> None:
         retry=True,
         retry_policy=RETRY_POLICY,
     )
+
+
+BUNDLE_TASK = "dfirbench.ingest_bundle"
+BUNDLE_QUEUE = "parse"  # I/O heavy like parsing; same worker pool
+
+
+def dispatch_bundle(job_id: uuid.UUID) -> None:
+    from app.workers.celery_app import celery_app
+
+    celery_app.send_task(
+        BUNDLE_TASK,
+        args=[str(job_id)],
+        queue=BUNDLE_QUEUE,
+        retry=True,
+        retry_policy=RETRY_POLICY,
+    )

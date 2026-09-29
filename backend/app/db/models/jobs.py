@@ -35,6 +35,13 @@ class Job(Base):
             unique=True,
             postgresql_where=text("kind = 'parse' AND status IN ('queued', 'running')"),
         ),
+        # Phase 5: one active triage-bundle ingest per evidence item.
+        Index(
+            "uq_jobs_active_bundle",
+            "evidence_id",
+            unique=True,
+            postgresql_where=text("kind = 'bundle' AND status IN ('queued', 'running')"),
+        ),
         # Phase 3: at most one *queued* detection job per case; later requests coalesce into it.
         Index(
             "uq_jobs_queued_detect",
@@ -47,7 +54,7 @@ class Job(Base):
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID] = mapped_column(UUID_T, ForeignKey("cases.id"), nullable=False)
     evidence_id: Mapped[uuid.UUID | None] = mapped_column(UUID_T, ForeignKey("evidence.id"))
-    kind: Mapped[str] = mapped_column(Text, nullable=False)  # parse|detect|ai|report|collect
+    kind: Mapped[str] = mapped_column(Text, nullable=False)  # parse|detect|bundle|ai|report
     parser: Mapped[str | None] = mapped_column(Text)
     params: Mapped[dict[str, Any]] = jsonb_obj()
     # hash(evidence_id, parser, parser_version, params)

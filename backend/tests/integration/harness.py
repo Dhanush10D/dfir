@@ -20,6 +20,7 @@ from app.db.models import UserRole
 from app.db.session import make_session_factory
 from app.deps import (
     get_app_settings,
+    get_bundle_dispatcher,
     get_custody_signer,
     get_db,
     get_detect_dispatcher,
@@ -29,6 +30,7 @@ from app.deps import (
 )
 from app.main import create_app
 from app.services.audit import DbAuditSink
+from app.services.bundles import BundleIngestService
 from app.services.detection import DetectionService
 from app.services.iam import IAMService
 from app.services.processing import ProcessingService, RunResult
@@ -78,6 +80,9 @@ class Harness:
         # Detection jobs likewise; run them with run_detect()/run_detect_pending().
         self.detect_dispatched: list[uuid.UUID] = []
         self.app.dependency_overrides[get_detect_dispatcher] = lambda: self._dispatch_detect
+        # Bundle ingest jobs likewise; run them with run_bundle()/run_bundle_pending().
+        self.bundle_dispatched: list[uuid.UUID] = []
+        self.app.dependency_overrides[get_bundle_dispatcher] = lambda: self._dispatch_bundle
         self.client = TestClient(self.app, raise_server_exceptions=False, client=(CLIENT_IP, 50000))
 
     def _dispatch(self, job_id: uuid.UUID) -> None:
@@ -89,6 +94,30 @@ class Harness:
         if self.dispatch_error is not None:
             raise self.dispatch_error
         self.detect_dispatched.append(job_id)
+
+    def _dispatch_bundle(self, job_id: uuid.UUID) -> None:
+        if self.dispatch_error is not None:
+            raise self.dispatch_error
+        self.bundle_dispatched.append(job_id)
+
+    def bundles(self, **overrides: Any) -> BundleIngestService:
+        settings = self.settings.model_copy(update=overrides) if overrides else self.settings
+        return BundleIngestService(
+            self.sessions,
+            settings,
+            vault=self.vault,
+            signer=self.signer,
+            trusted_keys=self.trusted,
+            worker_name="test-worker",
+            parse_dispatcher=self._dispatch,
+        )
+
+    def run_bundle(self, job_id: uuid.UUID | str, **kw: Any) -> RunResult:
+        return self.bundles().run(uuid.UUID(str(job_id)), **kw)
+
+    def run_bundle_pending(self) -> list[RunResult]:
+        pending, self.bundle_dispatched = self.bundle_dispatched, []
+        return [self.run_bundle(job_id) for job_id in pending]
 
     def detection(self, **overrides: Any) -> DetectionService:
         settings = self.settings.model_copy(update=overrides) if overrides else self.settings

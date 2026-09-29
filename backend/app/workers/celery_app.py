@@ -28,6 +28,7 @@ def make_celery() -> Celery:
             "app.workers.tasks.system",
             "app.workers.tasks.parse",
             "app.workers.tasks.detect",
+            "app.workers.tasks.bundle",
         ],
     )
     app.conf.update(
