@@ -23,7 +23,7 @@ def make_celery() -> Celery:
         "dfirbench",
         broker=settings.redis_url,
         backend=settings.redis_url,
-        include=["app.workers.tasks.system"],
+        include=["app.workers.tasks.system", "app.workers.tasks.parse"],
     )
     app.conf.update(
         task_default_queue="default",

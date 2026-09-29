@@ -7,6 +7,7 @@ the AuditMiddleware and bound to the structured log context.
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable
 from typing import Annotated
 
@@ -20,14 +21,23 @@ from app.config import Settings
 from app.core.exceptions import ForbiddenError, UnauthenticatedError
 from app.core.permissions import Permission, Principal
 from app.core.signing import CustodySigner
-from app.deps import get_app_settings, get_custody_signer, get_db, get_trusted_keys, get_vault
+from app.deps import (
+    get_app_settings,
+    get_custody_signer,
+    get_db,
+    get_job_dispatcher,
+    get_trusted_keys,
+    get_vault,
+)
 from app.repositories.vault import VaultStore
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import require_global
 from app.services.cases import CaseService
 from app.services.custody import CustodyService
+from app.services.events import EventService
 from app.services.evidence import EvidenceService
 from app.services.iam import IAMService
+from app.services.jobs import JobService
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
@@ -111,7 +121,22 @@ def get_audit_service(db: DbSession) -> AuditService:
     return AuditService(db)
 
 
+def get_job_service(
+    db: DbSession,
+    settings: AppSettings,
+    vault: Annotated[VaultStore | None, Depends(get_vault)],
+    dispatcher: Annotated[Callable[[uuid.UUID], None], Depends(get_job_dispatcher)],
+) -> JobService:
+    return JobService(db, settings, vault=vault, dispatcher=dispatcher)
+
+
+def get_event_service(db: DbSession, settings: AppSettings) -> EventService:
+    return EventService(db, settings)
+
+
 Cases = Annotated[CaseService, Depends(get_case_service)]
+Jobs = Annotated[JobService, Depends(get_job_service)]
+Events = Annotated[EventService, Depends(get_event_service)]
 EvidenceSvc = Annotated[EvidenceService, Depends(get_evidence_service)]
 CustodySvc = Annotated[CustodyService, Depends(get_custody_service)]
 AuditSvc = Annotated[AuditService, Depends(get_audit_service)]

@@ -18,10 +18,18 @@ from app.config import Settings
 from app.core.signing import CustodySigner
 from app.db.models import UserRole
 from app.db.session import make_session_factory
-from app.deps import get_app_settings, get_custody_signer, get_db, get_trusted_keys, get_vault
+from app.deps import (
+    get_app_settings,
+    get_custody_signer,
+    get_db,
+    get_job_dispatcher,
+    get_trusted_keys,
+    get_vault,
+)
 from app.main import create_app
 from app.services.audit import DbAuditSink
 from app.services.iam import IAMService
+from app.services.processing import ProcessingService, RunResult
 from tests.fakes import FakeVault
 
 TEST_PASSWORD = "Correct-Horse-Battery-42"
@@ -61,7 +69,34 @@ class Harness:
         # Extra trusted custody keys (CUSTODY_TRUSTED_KEYS_PATH); the signer is always trusted.
         self.trusted: dict[str, Any] = {}
         self.app.dependency_overrides[get_trusted_keys] = lambda: self.trusted
+        # Parse jobs are recorded instead of queued; tests run them with run_job()/run_pending().
+        self.dispatched: list[uuid.UUID] = []
+        self.dispatch_error: Exception | None = None
+        self.app.dependency_overrides[get_job_dispatcher] = lambda: self._dispatch
         self.client = TestClient(self.app, raise_server_exceptions=False, client=(CLIENT_IP, 50000))
+
+    def _dispatch(self, job_id: uuid.UUID) -> None:
+        if self.dispatch_error is not None:
+            raise self.dispatch_error
+        self.dispatched.append(job_id)
+
+    def processing(self, **overrides: Any) -> ProcessingService:
+        settings = self.settings.model_copy(update=overrides) if overrides else self.settings
+        return ProcessingService(
+            self.sessions,
+            settings,
+            vault=self.vault,  # type: ignore[arg-type]
+            signer=self.signer,
+            trusted_keys=self.trusted,
+            worker_name="test-worker",
+        )
+
+    def run_job(self, job_id: uuid.UUID | str, **kw: Any) -> RunResult:
+        return self.processing().run(uuid.UUID(str(job_id)), **kw)
+
+    def run_pending(self) -> list[RunResult]:
+        pending, self.dispatched = self.dispatched, []
+        return [self.run_job(job_id) for job_id in pending]
 
     def _db(self) -> Iterator[Session]:
         session = self.sessions()

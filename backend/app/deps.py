@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import uuid
 from collections.abc import Callable, Iterator
 from functools import lru_cache
 
@@ -103,3 +104,10 @@ def get_trusted_keys() -> dict[str, Ed25519PublicKey]:
 
 def get_audit_sink() -> DbAuditSink:
     return DbAuditSink(get_sessionmaker())
+
+
+def get_job_dispatcher() -> Callable[[uuid.UUID], None]:
+    """Enqueues parse jobs on the Celery ``parse`` queue (tests override it)."""
+    from app.workers.dispatch import dispatch_parse
+
+    return dispatch_parse

@@ -106,6 +106,19 @@ class Settings(BaseSettings):
     parser_max_output_mb: int = Field(default=2048, ge=1)
     sandbox_mode: SandboxMode = "none"
 
+    # Processing pipeline (Phase 2, guide 10.6)
+    # Per-job scratch directories are created (0700) under this root and removed afterwards.
+    # None = <system temp>/dfirbench-scratch. The worker container mounts a volume here.
+    scratch_dir: str | None = None
+    ingest_batch_size: int = Field(default=1000, ge=1, le=1500)  # events per INSERT/transaction
+    ingest_flush_interval_s: float = Field(default=5.0, gt=0)  # heartbeat/cancel check cadence
+    job_lease_s: int = Field(default=900, ge=30)  # a running job without heartbeat is reclaimable
+    job_max_auto_retries: int = Field(default=3, ge=0, le=10)  # transient errors only
+    parser_max_line_kb: int = Field(default=64, ge=1, le=4096)  # longer lines are counted errors
+    parser_max_decompressed_mb: int = Field(default=4096, ge=1)  # gz bomb guard (absolute)
+    parser_max_decompression_ratio: int = Field(default=200, ge=2)  # gz bomb guard (ratio)
+    max_new_partitions_per_job: int = Field(default=48, ge=1)  # hostile timestamps -> default
+
     # AI (Phase 7)
     enable_ai: bool = False
     ai_local_only: bool = False

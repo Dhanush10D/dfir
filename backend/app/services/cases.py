@@ -16,7 +16,17 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.core.exceptions import AppError, ConflictError, InvalidStateError, NotFoundError
 from app.core.permissions import Permission, Principal, has_global_access
-from app.db.models import Case, CaseMember, CaseStatus, Evidence, Severity, User, UserRole
+from app.db.models import (
+    Case,
+    CaseMember,
+    CaseStatus,
+    Evidence,
+    Job,
+    JobStatus,
+    Severity,
+    User,
+    UserRole,
+)
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import CaseAccess, load_case_access, require_global
 
@@ -220,6 +230,24 @@ class CaseService:
         pending_labels = sorted(pending)
         if pending_labels:
             raise InvalidStateError("Evidence uploads are not finalized.", evidence=pending_labels)
+        # Job submission holds FOR SHARE on this (now FOR UPDATE-locked) row while it inserts, so
+        # this check sees every job that can still write to the case.
+        active_jobs = [
+            str(j)
+            for j in self.session.execute(
+                select(Job.id)
+                .where(
+                    Job.case_id == case.id,
+                    Job.status.in_((JobStatus.queued, JobStatus.running)),
+                )
+                .limit(20)
+            ).scalars()
+        ]
+        if active_jobs:
+            raise InvalidStateError(
+                "Processing jobs are still queued or running; wait or cancel them first.",
+                jobs=active_jobs,
+            )
         previous = case.status
         case.status = CaseStatus.closed
         case.closed_at = self.clock()
