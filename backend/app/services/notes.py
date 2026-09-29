@@ -441,7 +441,9 @@ class BookmarkService(_CaseWrites):
         except AppError:
             self.session.rollback()
             raise
-        assert ttype is not None and tid is not None
+        if ttype is None or tid is None:  # target_type is required by the schema
+            self.session.rollback()
+            raise AppError("invalid_target", "A bookmark needs a target.", 422)
         new_id = self.session.execute(
             pg_insert(Bookmark)
             .values(

@@ -28,7 +28,7 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import CIDR, INET, UUID
 
 from app.db.models import Event
-from app.search.language import FIELDS, And, FreeText, Node, Not, Or, Term
+from app.search.language import FIELDS, And, FreeText, Node, Not, Or, QueryError, Term
 
 COLUMNS: dict[str, Any] = {
     name: getattr(Event, name) for name in FIELDS if name not in ("ip",) and hasattr(Event, name)
@@ -47,13 +47,20 @@ def like_pattern(value: str) -> str:
     return escaped.replace("*", "%")
 
 
+def _value(term: Term) -> str:
+    """The term's value; the parser guarantees one for every op except exists/range."""
+    if term.value is None:
+        raise QueryError(f"'{term.field}' needs a value.")
+    return term.value
+
+
 def _text(term: Term, column: Any) -> ColumnElement[bool]:
     if term.op == "exists":
         return column.is_not(None)  # type: ignore[no-any-return]
-    assert term.value is not None
+    value = _value(term)
     if term.op == "wildcard":
-        return column.ilike(like_pattern(term.value), escape="\\")  # type: ignore[no-any-return]
-    return func.lower(column) == func.lower(literal(term.value))
+        return column.ilike(like_pattern(value), escape="\\")  # type: ignore[no-any-return]
+    return func.lower(column) == func.lower(literal(value))
 
 
 def _int(term: Term, column: Any) -> ColumnElement[bool]:
@@ -66,8 +73,7 @@ def _int(term: Term, column: Any) -> ColumnElement[bool]:
         if term.high is not None:
             conds.append(column <= literal(int(term.high), INTEGER))
         return and_(*conds)
-    assert term.value is not None
-    return column == literal(int(term.value), INTEGER)  # type: ignore[no-any-return]
+    return column == literal(int(_value(term)), INTEGER)  # type: ignore[no-any-return]
 
 
 def _ip_one(term: Term, column: Any) -> ColumnElement[bool]:
@@ -81,15 +87,15 @@ def _ip_one(term: Term, column: Any) -> ColumnElement[bool]:
 def _array(term: Term, column: Any) -> ColumnElement[bool]:
     if term.op == "exists":
         return func.cardinality(column) > 0
-    assert term.value is not None
+    value = _value(term)
     if term.op == "wildcard":
         tag = func.unnest(column).table_valued("tag").render_derived(name="t")
         return exists(
             select(literal(1))
             .select_from(tag)
-            .where(tag.c.tag.ilike(like_pattern(term.value), escape="\\"))
+            .where(tag.c.tag.ilike(like_pattern(value), escape="\\"))
         )
-    return literal(term.value) == any_(column)
+    return literal(value) == any_(column)
 
 
 def _term(term: Term) -> ColumnElement[bool]:
