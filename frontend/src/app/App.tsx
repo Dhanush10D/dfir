@@ -1,36 +1,72 @@
+import { useEffect } from 'react'
+
+import { useAuth } from '@/auth/AuthContext'
+import { Button, Loading } from '@/components/ui'
+import { CaseList } from '@/features/cases/CaseList'
+import { CaseWorkspace } from '@/features/cases/CaseWorkspace'
 import { HealthStatus } from '@/features/health/HealthStatus'
+import { LoginPage } from '@/features/login/LoginPage'
 
-const NAV = ['Cases', 'Evidence', 'Timeline', 'Alerts', 'Reports', 'Admin'] as const
+import { Link } from './Link'
+import { matchRoute, navigate, useLocation } from './router'
 
-/** Placeholder application shell (Phase 0). Real routes arrive in Phase 4. */
+/** Application shell: session gate, header, and the routed page. */
 export function App() {
+  const { status, me, logout } = useAuth()
+  const { path } = useLocation()
+  const route = matchRoute(path)
+
+  useEffect(() => {
+    if (status === 'anonymous' && route.name !== 'login') navigate('/login', { replace: true })
+    if (status === 'authenticated' && route.name === 'login') navigate('/cases', { replace: true })
+  }, [status, route.name])
+
+  if (status === 'loading') {
+    return (
+      <main className="p-8">
+        <Loading label="Restoring session…" />
+      </main>
+    )
+  }
+  if (status === 'anonymous') return <LoginPage />
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <header className="border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <h1 className="text-lg font-semibold tracking-tight">dfirbench</h1>
-          <nav aria-label="Primary">
-            <ul className="flex gap-4 text-sm text-slate-400">
-              {NAV.map((item) => (
-                <li key={item} aria-disabled="true" title="Coming in a later phase">
-                  {item}
-                </li>
-              ))}
-            </ul>
-          </nav>
+        <div className="mx-auto flex max-w-screen-2xl flex-wrap items-center justify-between gap-2 px-4 py-2">
+          <div className="flex items-center gap-4">
+            <Link to="/cases" className="text-lg font-semibold tracking-tight">
+              dfirbench
+            </Link>
+            <nav aria-label="Primary">
+              <Link to="/cases" className="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300">
+                Cases
+              </Link>
+            </nav>
+          </div>
+          <div className="flex items-center gap-3 text-sm">
+            <span>
+              {me?.user.display_name} <span className="text-slate-500">({me?.user.role})</span>
+            </span>
+            <Button onClick={() => void logout()}>Sign out</Button>
+          </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">
-        <section
-          aria-labelledby="system-status"
-          className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-        >
-          <h2 id="system-status" className="mb-4 text-base font-semibold">
-            System status
-          </h2>
-          <HealthStatus />
-        </section>
+      <main className="mx-auto max-w-screen-2xl px-4 py-4">
+        {route.name === 'case' ? (
+          <CaseWorkspace key={route.id} id={route.id} tab={route.tab} />
+        ) : route.name === 'notfound' ? (
+          <p>Page not found.</p>
+        ) : (
+          <CaseList />
+        )}
       </main>
+      <footer className="mx-auto max-w-screen-2xl px-4 pb-4">
+        <details className="text-xs text-slate-500">
+          <summary>System status</summary>
+          <HealthStatus />
+        </details>
+      </footer>
     </div>
   )
 }
