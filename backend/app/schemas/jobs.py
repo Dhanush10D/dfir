@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Any, Literal
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -26,6 +26,14 @@ class ProcessParams(BaseModel):
         ge=1970,
         le=2100,
         description="Year of the FIRST syslog line (default: inferred from acquisition time).",
+    )
+    os: str | None = Field(
+        default=None, max_length=16, description="volatility: 'windows' (default) or 'linux'."
+    )
+    plugins: list[Annotated[str, Field(max_length=32)]] | None = Field(
+        default=None,
+        max_length=16,
+        description="volatility: plugin subset from the per-OS allowlist (docs/parsers.md).",
     )
 
 

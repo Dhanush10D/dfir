@@ -87,7 +87,14 @@ log = structlog.stdlib.get_logger("dfirbench.bundles")
 HEAD_BYTES = 8192
 MAX_FLAGGED_IN_MANIFEST = 200
 MAX_CUSTODY_LIST = 50
-DERIVED_KIND = {"evtx": "evtx", "linux_auth": "log"}
+DERIVED_KIND = {
+    "evtx": "evtx",
+    "linux_auth": "log",
+    "journal_json": "log",
+    "wtmp": "log",
+    "shell_history": "log",
+    "pcap": "pcap",
+}
 Dispatcher = Callable[[uuid.UUID], None]
 
 
