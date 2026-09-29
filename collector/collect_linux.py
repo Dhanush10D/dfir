@@ -551,6 +551,8 @@ class Collector:
 
     def collect(self):
         os.makedirs(self.out_dir, exist_ok=True)
+        if os.path.lexists(self.zip_path):
+            raise OSError(errno.EEXIST, "bundle already exists", self.zip_path)
         self.zip = zipfile.ZipFile(self.partial_path, "x", zipfile.ZIP_DEFLATED, allowZip64=True)
         try:
             if self.live and not self.args.no_volatile:

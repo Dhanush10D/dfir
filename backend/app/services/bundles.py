@@ -436,6 +436,13 @@ class BundleIngestService(ProcessingService):
         try:
             self.lock_running(session, job_id, claim.token)
             self._require_case_open(session, claim.case_id)
+            # Re-check under the job lock: the bundle (or a reused item) may have changed state.
+            ids = [bundle.id] + ([existing.id] if existing is not None else [])
+            statuses = session.execute(
+                select(Evidence.status).where(Evidence.id.in_(ids)).with_for_update(read=True)
+            ).scalars()
+            if any(status != "stored" for status in statuses):
+                raise ParserInputError("bundle or reused item is no longer 'stored'")
             if existing is None and upload is not None:
                 derived = self._record_derived(
                     session, job_id, claim, bundle, state, member, parser, upload

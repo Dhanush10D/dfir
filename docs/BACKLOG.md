@@ -101,4 +101,6 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Bundle formats other than ZIP (tar.gz, 7z), a bash-only Linux collector for hosts without Python 3, a Windows disk-imaging wrapper, a macOS collector | ZIP-only is a deliberate hostile-input decision; Python 3 is on practically every server; FTK Imager/ewfacquire procedure documented | Later |
 | Reaper for vault objects written by a bundle job whose DB commit then failed (derived bytes without an evidence row); same class as the Phase 1 orphaned-version item | Rare, detectable (key prefix `{case}/{bundle}/derived/` without a row); needs the scheduler | Phase 10 |
 | UI view of per-member bundle verdicts (`GET /evidence/{id}/bundle`); the Evidence tab shows derived items and their parent only | API complete; UI polish | Phase 10 |
+| Windows collector: recurse directories manually and skip ones with the `ReparsePoint` attribute (PS 5.1 `Get-ChildItem -Recurse` follows junctions under `System32\Tasks`) | Still read-only and bounded by byte caps | Phase 10 |
+| Bundle job crash mid-derivation: `_finish_bundle` should add `bundle_members` rows for candidates never processed in that attempt | Run is already marked failed; reprocess re-derives | Phase 10 |
 | Remote agent (guide 9.4), cloud/SaaS collectors (9.5), mobile/email ingest (9.6) | P2 in the guide | Later |

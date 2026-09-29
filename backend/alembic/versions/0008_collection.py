@@ -77,7 +77,10 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.CheckConstraint(f"status IN {STATUSES}", name=op.f("ck_bundle_members_status")),
         sa.ForeignKeyConstraint(
@@ -88,7 +91,9 @@ def upgrade() -> None:
             ["evidence.id"],
             name=op.f("fk_bundle_members_bundle_evidence_id_evidence"),
         ),
-        sa.ForeignKeyConstraint(["job_id"], ["jobs.id"], name=op.f("fk_bundle_members_job_id_jobs")),
+        sa.ForeignKeyConstraint(
+            ["job_id"], ["jobs.id"], name=op.f("fk_bundle_members_job_id_jobs")
+        ),
         sa.ForeignKeyConstraint(
             ["derived_evidence_id"],
             ["evidence.id"],
@@ -133,7 +138,9 @@ def downgrade() -> None:
     op.execute(f"REVOKE UPDATE ({EVIDENCE_UPDATABLE}) ON evidence FROM {APP_ROLE}")
     op.execute(f"GRANT UPDATE, DELETE ON evidence TO {APP_ROLE}")
     op.execute("DROP TRIGGER IF EXISTS bundle_members_no_update ON bundle_members")
-    op.drop_index("uq_jobs_active_bundle", table_name="jobs", postgresql_where=sa.text(ACTIVE_BUNDLE))
+    op.drop_index(
+        "uq_jobs_active_bundle", table_name="jobs", postgresql_where=sa.text(ACTIVE_BUNDLE)
+    )
     op.drop_index("ix_bundle_members_bundle_evidence_id_member_path", table_name="bundle_members")
     op.drop_table("bundle_members")
     op.drop_index("ix_evidence_parent_evidence_id", table_name="evidence")
