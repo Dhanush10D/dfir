@@ -130,9 +130,19 @@ export function EvidenceTab() {
               <tbody>
                 {list.data.items.map((ev) => {
                   const result = verified[ev.id]
+                  const parent = ev.parent_evidence_id
+                    ? list.data.items.find((p) => p.id === ev.parent_evidence_id)
+                    : undefined
                   return (
                     <tr key={ev.id} className="border-t border-slate-100 align-top dark:border-slate-800">
-                      <td className="py-1.5 font-mono">{ev.label}</td>
+                      <td className="py-1.5 font-mono">
+                        {ev.label}
+                        {ev.parent_evidence_id && (
+                          <span className="block text-xs text-slate-500">
+                            from {parent ? parent.label : 'bundle'}
+                          </span>
+                        )}
+                      </td>
                       <td className="max-w-xs break-all">{ev.original_name}</td>
                       <td>{ev.kind}</td>
                       <td>{formatBytes(ev.size_bytes)}</td>
@@ -160,7 +170,7 @@ export function EvidenceTab() {
                         )}
                         {can('evidence:add') && (
                           <Button onClick={() => process.mutate(ev.id)} disabled={process.isPending}>
-                            Process
+                            {ev.kind === 'triage_bundle' ? 'Ingest bundle' : 'Process'}
                           </Button>
                         )}
                       </td>

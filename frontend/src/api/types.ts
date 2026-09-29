@@ -83,6 +83,8 @@ export interface Evidence {
   source_host: string | null
   acquired_at: string | null
   created_at: string
+  /** Set on derived evidence, e.g. a member extracted from a triage bundle. */
+  parent_evidence_id?: string | null
 }
 
 export interface CustodyEntry {
