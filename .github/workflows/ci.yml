@@ -111,7 +111,7 @@ jobs:
           curl -fsS http://127.0.0.1:8000/api/v1/health
           curl -fsS http://127.0.0.1:8000/api/v1/ready
           curl -fsS http://127.0.0.1:8080/api/v1/health
-      - name: Phase 1 live smoke + tamper demo
+      - name: Phase 1-3 live smoke (tamper demo, parsing, detection)
         run: |
           export DFIR_ADMIN_PASSWORD="CiSmoke-$RANDOM-Passphrase-$(date +%s)"  # must not contain the e-mail name
           docker compose -f infra/compose.yaml exec -T -e DFIR_ADMIN_PASSWORD api \
@@ -119,6 +119,8 @@ jobs:
           python3 scripts/phase1-smoke.py --admin-email ci-admin@dfirbench.test
           # Phase 2: real API -> Redis -> Celery worker (parse queue) -> events -> timeline.
           python3 scripts/phase2-smoke.py --admin-email ci-admin@dfirbench.test
+          # Phase 3: parse -> automatic detection (detect queue) -> alerts, lifecycle, IOC match.
+          python3 scripts/phase3-smoke.py --admin-email ci-admin@dfirbench.test
       - name: Logs on failure
         if: failure()
         run: docker compose -f infra/compose.yaml logs --no-color
