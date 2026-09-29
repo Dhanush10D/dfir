@@ -27,7 +27,7 @@
    "message": "Connection blocked: 23.94.153.202:59639 -> 169.46.6.101:3389 (tcp)",
    "outcome": "failure",
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": null,
@@ -51,7 +51,7 @@
      "channel": "Security",
      "computer": "temporal",
      "event_id": "5152",
-     "event_record_i_d": "319457771",
+     "event_record_id": "319457771",
      "execution": {
       "ProcessID": "4",
       "ThreadID": "80"
@@ -68,7 +68,7 @@
    },
    "registry_key": null,
    "source_file": "security_short_selected.evtx",
-   "source_record_id": null,
+   "source_record_id": "319457771",
    "source_type": "evtx",
    "src_ip": "23.94.153.202",
    "src_port": 59639,
@@ -91,7 +91,7 @@
    "message": "Security 4611: SubjectUserSid=S-1-5-18, SubjectUserName=TEMPORAL$, SubjectDomainName=WORKGROUP, SubjectLogonId=0x00000000000003e7",
    "outcome": null,
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": null,
@@ -109,7 +109,7 @@
      "channel": "Security",
      "computer": "temporal",
      "event_id": "4611",
-     "event_record_i_d": "319457830",
+     "event_record_id": "319457830",
      "execution": {
       "ProcessID": "768",
       "ThreadID": "2764"
@@ -126,7 +126,7 @@
    },
    "registry_key": null,
    "source_file": "security_short_selected.evtx",
-   "source_record_id": null,
+   "source_record_id": "319457830",
    "source_type": "evtx",
    "src_ip": null,
    "src_port": null,
@@ -149,7 +149,7 @@
    "message": "Credential validation for Administrator: failure",
    "outcome": "failure",
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": null,
@@ -166,7 +166,7 @@
      "channel": "Security",
      "computer": "temporal",
      "event_id": "4776",
-     "event_record_i_d": "319457831",
+     "event_record_id": "319457831",
      "execution": {
       "ProcessID": "768",
       "ThreadID": "2764"
@@ -183,7 +183,7 @@
    },
    "registry_key": null,
    "source_file": "security_short_selected.evtx",
-   "source_record_id": null,
+   "source_record_id": "319457831",
    "source_type": "evtx",
    "src_ip": null,
    "src_port": null,
@@ -206,7 +206,7 @@
    "message": "Failed logon for TEMPORAL\\Administrator from 23.94.153.202 (type 10)",
    "outcome": "failure",
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": null,
@@ -245,7 +245,7 @@
      "channel": "Security",
      "computer": "temporal",
      "event_id": "4625",
-     "event_record_i_d": "319457832",
+     "event_record_id": "319457832",
      "execution": {
       "ProcessID": "768",
       "ThreadID": "2764"
@@ -262,7 +262,7 @@
    },
    "registry_key": null,
    "source_file": "security_short_selected.evtx",
-   "source_record_id": null,
+   "source_record_id": "319457832",
    "source_type": "evtx",
    "src_ip": "23.94.153.202",
    "src_port": 60167,
@@ -285,7 +285,7 @@
    "message": "Connection blocked: 169.46.118.42:0 -> 169.46.6.101:8 (icmp)",
    "outcome": "failure",
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": "System",
@@ -309,7 +309,7 @@
      "channel": "Security",
      "computer": "temporal",
      "event_id": "5152",
-     "event_record_i_d": "319457855",
+     "event_record_id": "319457855",
      "execution": {
       "ProcessID": "4",
       "ThreadID": "80"
@@ -326,7 +326,7 @@
    },
    "registry_key": null,
    "source_file": "security_short_selected.evtx",
-   "source_record_id": null,
+   "source_record_id": "319457855",
    "source_type": "evtx",
    "src_ip": "169.46.118.42",
    "src_port": 0,
@@ -349,7 +349,7 @@
    "message": "Connection blocked: 169.46.6.101:8 -> 169.46.118.42:0 (icmp)",
    "outcome": "failure",
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": "System",
@@ -375,7 +375,7 @@
      "channel": "Security",
      "computer": "temporal",
      "event_id": "5157",
-     "event_record_i_d": "319457856",
+     "event_record_id": "319457856",
      "execution": {
       "ProcessID": "4",
       "ThreadID": "80"
@@ -392,7 +392,7 @@
    },
    "registry_key": null,
    "source_file": "security_short_selected.evtx",
-   "source_record_id": null,
+   "source_record_id": "319457856",
    "source_type": "evtx",
    "src_ip": "169.46.6.101",
    "src_port": 8,
@@ -415,7 +415,7 @@
    "message": "Security 4673: SubjectUserSid=S-1-5-18, SubjectUserName=TEMPORAL$, SubjectDomainName=WORKGROUP, SubjectLogonId=0x00000000000003e7",
    "outcome": null,
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": null,
@@ -437,7 +437,7 @@
      "channel": "Security",
      "computer": "temporal",
      "event_id": "4673",
-     "event_record_i_d": "319457858",
+     "event_record_id": "319457858",
      "execution": {
       "ProcessID": "768",
       "ThreadID": "784"
@@ -454,7 +454,7 @@
    },
    "registry_key": null,
    "source_file": "security_short_selected.evtx",
-   "source_record_id": null,
+   "source_record_id": "319457858",
    "source_type": "evtx",
    "src_ip": null,
    "src_port": null,
@@ -465,6 +465,6 @@
   }
  ],
  "parser": "evtx",
- "parser_version": "1.0.0",
+ "parser_version": "1.0.1",
  "warnings": {}
 }

@@ -52,6 +52,17 @@ MAX_RAW_XML = 256 * 1024
 XML_INVALID = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f￾￿]")
 PROTOCOLS = {"1": "icmp", "6": "tcp", "17": "udp", "58": "icmpv6"}
 EMPTY = {"", "-", "%%1793"}  # "-" and the "<value not set>" message id
+# <System> children kept as text. 1.0.1: EventRecordID maps to ``event_record_id`` (1.0.0 produced
+# ``event_record_i_d`` and left ``source_record_id`` empty, which the record-gap detector needs).
+SYSTEM_TEXT_FIELDS = {
+    "EventRecordID": "event_record_id",
+    "Channel": "channel",
+    "Computer": "computer",
+    "Level": "level",
+    "Task": "task",
+    "Opcode": "opcode",
+    "Keywords": "keywords",
+}
 
 
 def _local(tag: str) -> str:
@@ -358,8 +369,8 @@ def _system(root: Element) -> dict[str, Any]:
             out["execution"] = {k: v for k, v in child.attrib.items() if v}
         elif tag == "Security":
             out["security_user_id"] = child.get("UserID") or None
-        elif tag in {"EventRecordID", "Channel", "Computer", "Level", "Task", "Opcode", "Keywords"}:
-            out[re.sub(r"(?<!^)(?=[A-Z])", "_", tag).lower()] = _text(child)
+        elif tag in SYSTEM_TEXT_FIELDS:
+            out[SYSTEM_TEXT_FIELDS[tag]] = _text(child)
     return out
 
 
@@ -378,7 +389,7 @@ def _parse_system_time(value: str | None) -> datetime | None:
 @register
 class EvtxParser:
     name = "evtx"
-    version = "1.0.0"
+    version = "1.0.1"
     description = "Windows XML event logs (.evtx) via python-evtx; Security/System/Sysmon mapping"
     source_types = ("evtx",)
 

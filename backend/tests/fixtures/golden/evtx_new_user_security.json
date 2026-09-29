@@ -27,7 +27,7 @@
    "message": "S-1-5-21-3463664321-2923530833-3546627382-1000 added to group IE8Win7\\None by WORKGROUP\\WIN-QALA5Q3KJ43$",
    "outcome": "success",
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": null,
@@ -54,7 +54,7 @@
      "channel": "Security",
      "computer": "IE8Win7",
      "event_id": "4728",
-     "event_record_i_d": "111",
+     "event_record_id": "111",
      "execution": {
       "ProcessID": "508",
       "ThreadID": "1032"
@@ -71,7 +71,7 @@
    },
    "registry_key": null,
    "source_file": "new_user_security.evtx",
-   "source_record_id": null,
+   "source_record_id": "111",
    "source_type": "evtx",
    "src_ip": null,
    "src_port": null,
@@ -94,7 +94,7 @@
    "message": "Account user create: IE8Win7\\IEUser by WORKGROUP\\WIN-QALA5Q3KJ43$",
    "outcome": "success",
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": null,
@@ -136,7 +136,7 @@
      "channel": "Security",
      "computer": "IE8Win7",
      "event_id": "4720",
-     "event_record_i_d": "112",
+     "event_record_id": "112",
      "execution": {
       "ProcessID": "508",
       "ThreadID": "1032"
@@ -153,7 +153,7 @@
    },
    "registry_key": null,
    "source_file": "new_user_security.evtx",
-   "source_record_id": null,
+   "source_record_id": "112",
    "source_type": "evtx",
    "src_ip": null,
    "src_port": null,
@@ -176,7 +176,7 @@
    "message": "S-1-5-21-3463664321-2923530833-3546627382-1000 added to group Builtin\\Users by WORKGROUP\\WIN-QALA5Q3KJ43$",
    "outcome": "success",
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": null,
@@ -203,7 +203,7 @@
      "channel": "Security",
      "computer": "IE8Win7",
      "event_id": "4732",
-     "event_record_i_d": "113",
+     "event_record_id": "113",
      "execution": {
       "ProcessID": "508",
       "ThreadID": "1032"
@@ -220,7 +220,7 @@
    },
    "registry_key": null,
    "source_file": "new_user_security.evtx",
-   "source_record_id": null,
+   "source_record_id": "113",
    "source_type": "evtx",
    "src_ip": null,
    "src_port": null,
@@ -243,7 +243,7 @@
    "message": "S-1-5-21-3463664321-2923530833-3546627382-1000 added to group Builtin\\Administrators by WORKGROUP\\WIN-QALA5Q3KJ43$",
    "outcome": "success",
    "parser_name": "evtx",
-   "parser_version": "1.0.0",
+   "parser_version": "1.0.1",
    "pid": null,
    "ppid": null,
    "process_name": null,
@@ -270,7 +270,7 @@
      "channel": "Security",
      "computer": "IE8Win7",
      "event_id": "4732",
-     "event_record_i_d": "116",
+     "event_record_id": "116",
      "execution": {
       "ProcessID": "508",
       "ThreadID": "1032"
@@ -287,7 +287,7 @@
    },
    "registry_key": null,
    "source_file": "new_user_security.evtx",
-   "source_record_id": null,
+   "source_record_id": "116",
    "source_type": "evtx",
    "src_ip": null,
    "src_port": null,
@@ -298,6 +298,6 @@
   }
  ],
  "parser": "evtx",
- "parser_version": "1.0.0",
+ "parser_version": "1.0.1",
  "warnings": {}
 }
