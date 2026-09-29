@@ -301,7 +301,11 @@ class AlertService:
             )
         if assignee_id is not UNSET and assignee_id != locked.assignee_id:
             if assignee_id is not None:
-                self._check_assignee(locked.case_id, assignee_id)
+                try:
+                    self._check_assignee(locked.case_id, assignee_id)
+                except Exception:
+                    self.session.rollback()  # release the case and alert row locks
+                    raise
             history.append(
                 AlertHistory(
                     alert_id=alert_id,

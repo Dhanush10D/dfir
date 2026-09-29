@@ -155,9 +155,10 @@ class DetectionJobs:
         status = self.session.execute(
             select(Case.status).where(Case.id == case_id).with_for_update(read=True)
         ).scalar_one_or_none()
-        if status is None:
-            raise NotFoundError("Case not found.")
-        if status is CaseStatus.closed:
+        if status is None or status is CaseStatus.closed:
+            self.session.rollback()  # release the FOR SHARE lock before failing
+            if status is None:
+                raise NotFoundError("Case not found.")
             raise InvalidStateError("The case is closed.")
         user_id = principal.user_id if principal else None
         job_id: uuid.UUID | None = None
