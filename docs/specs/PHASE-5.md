@@ -68,16 +68,17 @@ from jobs, resumable uploads.
 | `collector/acquire/*.ps1`, `*.sh` | acquisition wrappers: check tool presence (never download), refuse unsafe targets, hash output, write `<image>.acquisition.json` |
 | `docs/collection.md` | procedures and manifest schema |
 | `backend/app/collection/manifest.py` | `TriageManifest` (pydantic, strict), `parse_manifest(bytes) -> TriageManifest`, `ManifestError` |
-| `backend/app/collection/bundle.py` | pure: `BundleLimits`, `unsafe_name_reason(name)`, `inspect_bundle(path, limits) -> Inspection`, `verify_and_extract(zip, inspection, dest, limits) -> BundleResult`, `BundleRejectedError(reasons)` |
+| `backend/app/collection/names.py`, `bundle.py` | pure: `unsafe_name_reason(name)`; `BundleLimits`, `BundleReader(path, limits)` (inspection on enter) with `read_manifest()` and `extract(dest, manifest, progress) -> BundleResult`, `BundleRejectedError(reasons)` |
 | `backend/app/collection/trust.py` | `load_trusted_collectors(extra_path) -> dict[sha256, info]`, `collector_trust(manifest, trusted)` |
 | `backend/app/services/bundles.py` | `BundleIngestService.run(job_id)` (worker), `BundleQueryService.summary(principal, evidence_id)` (API) |
 | `backend/app/services/jobs.py` | `/process` on a `triage_bundle` (auto) creates a `bundle` job; retry/reprocess for bundle jobs; `create_system_parse_job` for the worker |
-| `backend/app/services/processing.py` | `claim`, `fetch_verified`, `record_integrity_failure` made reusable by the bundle job |
+| `backend/app/services/processing.py` | `job_kind` class attribute used by the claim; `BundleIngestService` subclasses `ProcessingService` and reuses claim, fencing, signed-hash fetch, integrity-failure recording and requeue |
 | `backend/app/workers/tasks/bundle.py` | `dfirbench.ingest_bundle(job_id)` on the `parse` queue |
 | `backend/app/db/models/collection.py` | `BundleMember` |
 | `backend/alembic/versions/0008_collection.py` | schema + grants below |
 | `frontend/src/features/evidence/EvidenceTab.tsx` | parent label for derived items, "Ingest" label for bundles |
 | `scripts/phase5-smoke.py`, `scripts/verify-phase5.sh`, `scripts/update-collector-hashes.py` | live smoke, verification, trust list |
+| `backend/tests/fixtures/bundles/` | `make_bundles.py` + committed good/mismatch/malicious zips |
 
 ## Manifest (`dfirbench.triage/1`)
 ```json
