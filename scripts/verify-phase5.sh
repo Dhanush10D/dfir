@@ -53,6 +53,7 @@ assert role == 'dfirbench_app', role
 print('role', role)"
 "${COMPOSE[@]}" exec -T worker python -c "
 from app.workers.celery_app import celery_app
+celery_app.loader.import_default_modules()  # the 'include' list, as the worker loads it
 assert 'dfirbench.ingest_bundle' in celery_app.tasks, sorted(celery_app.tasks)
 from app.collection.trust import load_trusted_collectors
 assert load_trusted_collectors(), 'trusted collector list missing from the image'
