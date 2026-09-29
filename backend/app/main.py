@@ -45,8 +45,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "X-API-Key",
             "X-Request-ID",
             "Idempotency-Key",
+            "X-Token-Delivery",
         ],
-        expose_headers=["X-Request-ID", "X-Evidence-SHA256", "Retry-After"],
+        expose_headers=[
+            "X-Request-ID",
+            "X-Evidence-SHA256",
+            "Retry-After",
+            "Content-Disposition",
+            "X-Export-Rows",
+            "X-Export-Truncated",
+            "X-Export-SHA256",
+        ],
     )
     app.add_middleware(AuditMiddleware, sink_getter=lambda: getattr(app.state, "audit_sink", None))
     app.add_middleware(RequestIdMiddleware)

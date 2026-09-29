@@ -64,6 +64,8 @@ from sqlalchemy.exc import DBAPIError, IntegrityError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
 from app import __version__
+from app.analysis.entities import RAW_PATHS as ENTITY_RAW_PATHS
+from app.analysis.entities import EntityAccumulator
 from app.config import Settings
 from app.core.exceptions import AppError, InvalidStateError, NotFoundError
 from app.core.permissions import Permission, Principal
@@ -88,6 +90,7 @@ from app.detection.ioc import IocEntry, IocIndex
 from app.detection.scoring import alert_risk
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import load_case_access
+from app.services.entities import write_resolution
 from app.services.processing import (
     JobCancelledError,
     JobFencedError,
@@ -418,11 +421,14 @@ class DetectionService:
                 "max_events_per_group": limits.max_events_per_group,
             }
             engine = DetectionEngine(rules, iocs, limits)
-            self._scan(session, job_id, claim, engine, rules)
+            entities = EntityAccumulator() if self.settings.entity_resolution else None
+            self._scan(session, job_id, claim, engine, rules, entities)
             flushed = self._flush(session, job_id, claim, engine)
             complete = not engine.capped
             if complete:
                 flushed.stale = self._mark_stale(session, job_id, claim, rules)
+            if entities is not None:
+                manifest["entities"] = self._write_entities(session, job_id, claim, entities)
             outcome = "succeeded" if complete else "partial"
             if not complete:
                 error = "engine limits reached; see run manifest warnings"
@@ -513,9 +519,12 @@ class DetectionService:
         claim: _Claim,
         engine: DetectionEngine,
         rules: Sequence[Any],
+        entities: EntityAccumulator | None = None,
     ) -> None:
         raw_paths = {f for r in rules for f in r.fields if f.startswith("raw.")}
         raw_paths |= {"raw.system.channel", "raw.system.provider"}
+        if entities is not None:
+            raw_paths |= set(ENTITY_RAW_PATHS)
         base = [
             Event.id,
             Event.ts,
@@ -537,6 +546,8 @@ class DetectionService:
         seen = 0
         for event in self._stream(stmt):
             engine.feed(event)
+            if entities is not None:
+                entities.feed(event)
             seen += 1
             if seen % batch == 0:
                 self._beat(session, job_id, claim.token, seen / denominator)
@@ -592,6 +603,24 @@ class DetectionService:
         self._beat(session, job_id, claim.token, seen / denominator)
 
     # ------------------------------------------------------------------ writing
+
+    def _write_entities(
+        self, session: Session, job_id: uuid.UUID, claim: _Claim, acc: EntityAccumulator
+    ) -> dict[str, Any]:
+        """Entity resolution (guide 12.3) from the same pass-1 stream; fenced like alerts."""
+        resolution = acc.result()
+        try:
+            ProcessingService.lock_running(session, job_id, claim.token)
+            counts = write_resolution(session, claim.case_id, job_id, resolution)
+            session.execute(update(Job).where(Job.id == job_id).values(heartbeat_at=func.now()))
+            session.commit()
+        except (JobCancelledError, JobFencedError):
+            session.rollback()
+            raise
+        except OperationalError as exc:
+            session.rollback()
+            raise TransientJobError(f"database unavailable: {type(exc).__name__}") from exc
+        return {**counts, "events": resolution.events, "capped": resolution.capped}
 
     def _flush(
         self, session: Session, job_id: uuid.UUID, claim: _Claim, engine: DetectionEngine

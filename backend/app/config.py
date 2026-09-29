@@ -125,6 +125,15 @@ class Settings(BaseSettings):
     detect_max_alerts: int = Field(default=20000, ge=1, le=1_000_000)  # drafts per run
     detect_max_links_per_alert: int = Field(default=500, ge=1, le=100_000)  # alert_events rows
 
+    # Analysis (Phase 4, guide 12)
+    search_timeout_ms: int = Field(default=15000, ge=100, le=120000)  # per search/facet/histogram
+    export_max_rows: int = Field(default=10000, ge=1, le=100000)
+    entity_resolution: bool = True  # detection runs also resolve entities (guide 12.3)
+    # Browser refresh-token cookie (HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth).
+    # Browsers accept Secure cookies from http://localhost; set false only for plain-HTTP dev hosts.
+    auth_cookie_secure: bool = True
+    auth_cookie_name: str = Field(default="dfir_refresh", pattern=r"^[A-Za-z0-9_\-]{1,64}$")
+
     # AI (Phase 7)
     enable_ai: bool = False
     ai_local_only: bool = False

@@ -37,12 +37,16 @@ from app.services.authz import require_global
 from app.services.cases import CaseService
 from app.services.custody import CustodyService
 from app.services.detection import DetectionJobs
+from app.services.entities import EntityService
 from app.services.events import EventService
 from app.services.evidence import EvidenceService
 from app.services.iam import IAMService
 from app.services.iocs import IocService
 from app.services.jobs import JobService
+from app.services.notes import BookmarkService, NoteService
+from app.services.proctree import ProcessTreeService, SummaryService
 from app.services.rules import RuleService
+from app.services.search import SearchService
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
@@ -162,6 +166,36 @@ def get_ioc_service(db: DbSession, settings: AppSettings) -> IocService:
     return IocService(db, settings)
 
 
+def get_search_service(db: DbSession, settings: AppSettings) -> SearchService:
+    return SearchService(db, settings)
+
+
+def get_note_service(db: DbSession, settings: AppSettings) -> NoteService:
+    return NoteService(db, settings)
+
+
+def get_bookmark_service(db: DbSession, settings: AppSettings) -> BookmarkService:
+    return BookmarkService(db, settings)
+
+
+def get_entity_service(db: DbSession, settings: AppSettings) -> EntityService:
+    return EntityService(db, settings)
+
+
+def get_process_tree_service(db: DbSession, settings: AppSettings) -> ProcessTreeService:
+    return ProcessTreeService(db, settings)
+
+
+def get_summary_service(db: DbSession, settings: AppSettings) -> SummaryService:
+    return SummaryService(db, settings)
+
+
+Search = Annotated[SearchService, Depends(get_search_service)]
+Notes = Annotated[NoteService, Depends(get_note_service)]
+Bookmarks = Annotated[BookmarkService, Depends(get_bookmark_service)]
+EntitiesSvc = Annotated[EntityService, Depends(get_entity_service)]
+ProcTrees = Annotated[ProcessTreeService, Depends(get_process_tree_service)]
+Summaries = Annotated[SummaryService, Depends(get_summary_service)]
 Cases = Annotated[CaseService, Depends(get_case_service)]
 Detections = Annotated[DetectionJobs, Depends(get_detection_jobs)]
 Alerts = Annotated[AlertService, Depends(get_alert_service)]
