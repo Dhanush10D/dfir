@@ -116,7 +116,12 @@ class _Decoder:
     def network(self, buf: bytes) -> Any:
         lt = self.linktype
         if lt == dpkt.pcap.DLT_EN10MB:
-            return dpkt.ethernet.Ethernet(buf).data
+            frame = dpkt.ethernet.Ethernet(buf)
+            if frame.type in (0x0800, 0x86DD) and not isinstance(
+                frame.data, dpkt.ip.IP | dpkt.ip6.IP6
+            ):
+                raise ValueError("IP frame whose IP header does not decode")
+            return frame.data
         if lt in (dpkt.pcap.DLT_RAW, 12, 14, 101):
             version = buf[0] >> 4 if buf else 0
             return dpkt.ip.IP(buf) if version == 4 else dpkt.ip6.IP6(buf)

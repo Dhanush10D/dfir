@@ -146,6 +146,10 @@ class WtmpParser:
             message = f"Logout on {line_s}"
         elif ut_type == 2:
             message = f"System boot ({host_s})" if host_s else "System boot"
+        elif code == "shutdown":
+            message = f"System shutdown ({host_s})" if host_s else "System shutdown"
+        elif ut_type == 1:
+            message = f"Runlevel change {user_s} ({line_s})"
         else:
             message = f"{code} {user_s} {line_s}".strip()
         raw: dict[str, Any] = {

@@ -1,0 +1,59 @@
+{
+ "assumptions": {
+  "kind": "btmp",
+  "layout": "glibc x86-64",
+  "timezone": "UTC (Unix time)"
+ },
+ "counts": {
+  "errors": 0,
+  "events_emitted": 1,
+  "records_read": 1,
+  "skipped": 0
+ },
+ "error_samples": [],
+ "events": [
+  {
+   "action": "logon",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "authentication",
+   "event_code": "user_process",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "05a81737-a9fa-5b3b-91bd-88d34a44d6b3",
+   "message": "Failed login for admin on ssh:notty from 203.0.113.66",
+   "outcome": "failure",
+   "parser_name": "wtmp",
+   "parser_version": "1.0.0",
+   "pid": 5000,
+   "ppid": null,
+   "process_name": null,
+   "protocol": null,
+   "raw": {
+    "addr": "203.0.113.66",
+    "host": "203.0.113.66",
+    "id": "otty",
+    "line": "ssh:notty",
+    "pid": 5000,
+    "session": 0,
+    "type": 7,
+    "user": "admin"
+   },
+   "registry_key": null,
+   "source_file": "evidence/btmp",
+   "source_record_id": "0",
+   "source_type": "btmp",
+   "src_ip": "203.0.113.66",
+   "src_port": null,
+   "tags": [],
+   "ts": "2026-01-02T08:53:20+00:00",
+   "ts_original": "unix:1767344000",
+   "user": "admin"
+  }
+ ],
+ "parser": "wtmp",
+ "parser_version": "1.0.0",
+ "warnings": {}
+}

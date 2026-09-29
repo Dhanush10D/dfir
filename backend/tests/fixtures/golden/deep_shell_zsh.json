@@ -1,0 +1,64 @@
+{
+ "assumptions": {
+  "compression": "none",
+  "shell": "zsh",
+  "undated": "reference:test",
+  "user_from_path": null
+ },
+ "counts": {
+  "errors": 1,
+  "events_emitted": 1,
+  "records_read": 2,
+  "skipped": 0
+ },
+ "error_samples": [
+  {
+   "detail": "unix value out of range: 99999999999999; ': 99999999999999:0;bad'",
+   "location": "line 2",
+   "reason": "bad_timestamp"
+  }
+ ],
+ "events": [
+  {
+   "action": "command",
+   "cmdline": "curl -s http://evil.example/",
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "process",
+   "event_code": "shell_command",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "c80b4dd5-8db4-5c93-b8a8-de46003b406b",
+   "message": "zsh: curl -s http://evil.example/",
+   "outcome": null,
+   "parser_name": "shell_history",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": "zsh",
+   "protocol": null,
+   "raw": {
+    "elapsed_s": 0,
+    "line_no": 1,
+    "shell": "zsh",
+    "ts_source": "history_timestamp"
+   },
+   "registry_key": null,
+   "source_file": "evidence/.zsh_history",
+   "source_record_id": "1",
+   "source_type": "shell_history",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "command"
+   ],
+   "ts": "2026-01-02T09:55:00+00:00",
+   "ts_original": "unix:1767347700",
+   "user": null
+  }
+ ],
+ "parser": "shell_history",
+ "parser_version": "1.0.0",
+ "warnings": {}
+}

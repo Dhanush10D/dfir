@@ -1,0 +1,97 @@
+{
+ "assumptions": {
+  "machine": "x86",
+  "timezone": "UTC (TimeDateStamp)"
+ },
+ "counts": {
+  "errors": 0,
+  "events_emitted": 1,
+  "records_read": 1,
+  "skipped": 0
+ },
+ "error_samples": [],
+ "events": [
+  {
+   "action": "static_analysis",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "file",
+   "event_code": "pe_triage",
+   "file_hash": "a07c589f06905b4c58c14a8dd5f6daba0b87a7a954fcaa7411988ae014fde45e",
+   "file_path": "evidence/sample.exe",
+   "host": null,
+   "id": "ea55f3f8-164f-5569-9763-2906bfe91ba6",
+   "message": "PE executable evidence/sample.exe (x86, 2 sections, 3 imports, packed, suspicious: CreateRemoteThread, VirtualAllocEx, WriteProcessMemory)",
+   "outcome": null,
+   "parser_name": "pe_static",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": null,
+   "raw": {
+    "authenticode_present": false,
+    "compile_time": "2023-11-14T22:13:20+00:00",
+    "compile_time_raw": 1700000000,
+    "dll": false,
+    "exports": 0,
+    "imphash": "0ce8e138c0c3273b9f840ecec87451df",
+    "imports": [
+     "kernel32.dll!VirtualAllocEx",
+     "kernel32.dll!WriteProcessMemory",
+     "kernel32.dll!CreateRemoteThread"
+    ],
+    "imports_truncated": false,
+    "machine": "x86",
+    "md5": "a0edd33a6bfc0708c94f9e0f1417586c",
+    "overlay_bytes": 0,
+    "overlay_offset": null,
+    "sections": [
+     {
+      "characteristics": 3758096512,
+      "entropy": 0.0,
+      "name": "UPX0",
+      "raw_size": 0,
+      "virtual_size": 4096
+     },
+     {
+      "characteristics": 3758096448,
+      "entropy": 1.359,
+      "name": "UPX1",
+      "raw_size": 512,
+      "virtual_size": 4096
+     }
+    ],
+    "sha1": "7934283cd85c848df93f1e55600534095316806b",
+    "sha256": "a07c589f06905b4c58c14a8dd5f6daba0b87a7a954fcaa7411988ae014fde45e",
+    "size": 1024,
+    "subsystem": 3,
+    "suspicious_imports": [
+     "CreateRemoteThread",
+     "VirtualAllocEx",
+     "WriteProcessMemory"
+    ],
+    "ts_source": "pe_timedatestamp"
+   },
+   "registry_key": null,
+   "source_file": "evidence/sample.exe",
+   "source_record_id": "a07c589f06905b4c58c14a8dd5f6daba0b87a7a954fcaa7411988ae014fde45e",
+   "source_type": "pe",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "packed",
+    "suspicious_imports"
+   ],
+   "ts": "2023-11-14T22:13:20+00:00",
+   "ts_original": "pe_timedatestamp:1700000000",
+   "user": null
+  }
+ ],
+ "parser": "pe_static",
+ "parser_version": "1.0.0",
+ "warnings": {
+  "pefile_warning": 2
+ }
+}

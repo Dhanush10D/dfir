@@ -1,0 +1,289 @@
+{
+ "assumptions": {
+  "incomplete": "plugin_failed",
+  "offline": true,
+  "os": "windows",
+  "plugins": [
+   "info",
+   "pslist",
+   "cmdline",
+   "netscan",
+   "malfind"
+  ],
+  "plugins_failed": [
+   "windows.malfind: exit 1 'Unsatisfied requirement plugins.Malfind.kernel.symbol_table_name'"
+  ],
+  "symbols_dir": false
+ },
+ "counts": {
+  "errors": 0,
+  "events_emitted": 6,
+  "records_read": 6,
+  "skipped": 0
+ },
+ "error_samples": [],
+ "events": [
+  {
+   "action": "image_info",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "host",
+   "event_code": "windows.info",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "e9b7dedf-5c44-5e36-86c5-37564325acc2",
+   "message": "Memory image info: Kernel Base = 0xf80000000000",
+   "outcome": null,
+   "parser_name": "volatility",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": null,
+   "raw": {
+    "plugin": "windows.info",
+    "row": {
+     "Value": "0xf80000000000",
+     "Variable": "Kernel Base"
+    },
+    "ts_source": "reference:test"
+   },
+   "registry_key": null,
+   "source_file": "fat12.img",
+   "source_record_id": "windows.info:0",
+   "source_type": "memory",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "memory",
+    "time_inferred"
+   ],
+   "ts": "2026-01-03T00:00:00+00:00",
+   "ts_original": null,
+   "user": null
+  },
+  {
+   "action": "image_info",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "host",
+   "event_code": "windows.info",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "2c1efb8b-7eb1-5a72-b478-be1dcfec8b85",
+   "message": "Memory image info: SystemTime = 2026-01-02 10:30:00+00:00",
+   "outcome": null,
+   "parser_name": "volatility",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": null,
+   "raw": {
+    "plugin": "windows.info",
+    "row": {
+     "Value": "2026-01-02 10:30:00+00:00",
+     "Variable": "SystemTime"
+    },
+    "ts_source": "SystemTime"
+   },
+   "registry_key": null,
+   "source_file": "fat12.img",
+   "source_record_id": "windows.info:1",
+   "source_type": "memory",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "memory"
+   ],
+   "ts": "2026-01-02T10:30:00+00:00",
+   "ts_original": "2026-01-02T10:30:00+00:00",
+   "user": null
+  },
+  {
+   "action": "process_start",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "process",
+   "event_code": "windows.pslist",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "3cbd961e-dd6c-55c9-9f4f-c73987e4992b",
+   "message": "Process System (pid 4, ppid 0)",
+   "outcome": null,
+   "parser_name": "volatility",
+   "parser_version": "1.0.0",
+   "pid": 4,
+   "ppid": 0,
+   "process_name": "System",
+   "protocol": null,
+   "raw": {
+    "plugin": "windows.pslist",
+    "row": {
+     "CreateTime": "2026-01-02T08:00:00+00:00",
+     "ExitTime": null,
+     "ImageFileName": "System",
+     "PID": 4,
+     "PPID": 0
+    },
+    "ts_source": "CreateTime"
+   },
+   "registry_key": null,
+   "source_file": "fat12.img",
+   "source_record_id": "windows.pslist:0",
+   "source_type": "memory",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "memory"
+   ],
+   "ts": "2026-01-02T08:00:00+00:00",
+   "ts_original": "2026-01-02T08:00:00+00:00",
+   "user": null
+  },
+  {
+   "action": "process_start",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "process",
+   "event_code": "windows.pslist",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "1c106ba6-871d-5fa4-90e7-8826f49448fe",
+   "message": "Process evil.exe (pid 666, ppid 4)",
+   "outcome": null,
+   "parser_name": "volatility",
+   "parser_version": "1.0.0",
+   "pid": 666,
+   "ppid": 4,
+   "process_name": "evil.exe",
+   "protocol": null,
+   "raw": {
+    "plugin": "windows.pslist",
+    "row": {
+     "CreateTime": "2026-01-02T10:00:30+00:00",
+     "ExitTime": null,
+     "ImageFileName": "evil.exe",
+     "PID": 666,
+     "PPID": 4
+    },
+    "ts_source": "CreateTime"
+   },
+   "registry_key": null,
+   "source_file": "fat12.img",
+   "source_record_id": "windows.pslist:1",
+   "source_type": "memory",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "memory"
+   ],
+   "ts": "2026-01-02T10:00:30+00:00",
+   "ts_original": "2026-01-02T10:00:30+00:00",
+   "user": null
+  },
+  {
+   "action": "command",
+   "cmdline": "evil.exe -k -c 203.0.113.50",
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "process",
+   "event_code": "windows.cmdline",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "18468b56-b7b9-5390-bdd8-eecd7bb0eb93",
+   "message": "evil.exe (pid 666): evil.exe -k -c 203.0.113.50",
+   "outcome": null,
+   "parser_name": "volatility",
+   "parser_version": "1.0.0",
+   "pid": 666,
+   "ppid": null,
+   "process_name": "evil.exe",
+   "protocol": null,
+   "raw": {
+    "plugin": "windows.cmdline",
+    "row": {
+     "Args": "evil.exe -k -c 203.0.113.50",
+     "PID": 666,
+     "Process": "evil.exe"
+    },
+    "ts_source": "reference:test"
+   },
+   "registry_key": null,
+   "source_file": "fat12.img",
+   "source_record_id": "windows.cmdline:0",
+   "source_type": "memory",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "memory",
+    "time_inferred"
+   ],
+   "ts": "2026-01-03T00:00:00+00:00",
+   "ts_original": null,
+   "user": null
+  },
+  {
+   "action": "connection",
+   "cmdline": null,
+   "dst_ip": "203.0.113.50",
+   "dst_port": 443,
+   "event_category": "network",
+   "event_code": "windows.netscan",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "aece58b9-664f-5e1e-8bde-c85f72905e80",
+   "message": "TCPv4 192.0.2.10:49160 -> 203.0.113.50:443 ESTABLISHED (pid 666 evil.exe)",
+   "outcome": null,
+   "parser_name": "volatility",
+   "parser_version": "1.0.0",
+   "pid": 666,
+   "ppid": null,
+   "process_name": "evil.exe",
+   "protocol": "TCPv4",
+   "raw": {
+    "plugin": "windows.netscan",
+    "row": {
+     "Created": "2026-01-02T10:00:40+00:00",
+     "ForeignAddr": "203.0.113.50",
+     "ForeignPort": 443,
+     "LocalAddr": "192.0.2.10",
+     "LocalPort": 49160,
+     "Offset": 1,
+     "Owner": "evil.exe",
+     "PID": 666,
+     "Proto": "TCPv4",
+     "State": "ESTABLISHED"
+    },
+    "ts_source": "Created"
+   },
+   "registry_key": null,
+   "source_file": "fat12.img",
+   "source_record_id": "windows.netscan:0",
+   "source_type": "memory",
+   "src_ip": "192.0.2.10",
+   "src_port": 49160,
+   "tags": [
+    "memory"
+   ],
+   "ts": "2026-01-02T10:00:40+00:00",
+   "ts_original": "2026-01-02T10:00:40+00:00",
+   "user": null
+  }
+ ],
+ "parser": "volatility",
+ "parser_version": "1.0.0",
+ "warnings": {
+  "plugin_failed": 1
+ }
+}

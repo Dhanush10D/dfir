@@ -1,0 +1,132 @@
+{
+ "assumptions": {
+  "browser": "firefox",
+  "timezone": "UTC (WebKit/PRTime)",
+  "wal_replayed": false
+ },
+ "counts": {
+  "errors": 0,
+  "events_emitted": 3,
+  "records_read": 3,
+  "skipped": 0
+ },
+ "error_samples": [],
+ "events": [
+  {
+   "action": "visit",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "web",
+   "event_code": null,
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "cf63b871-c4f1-5d71-8568-5303cdfbcdd7",
+   "message": "Visited https://docs.example/",
+   "outcome": null,
+   "parser_name": "browser",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": null,
+   "raw": {
+    "browser": "firefox",
+    "title": "Docs",
+    "transition": "typed",
+    "url": "https://docs.example/",
+    "visit_count": 3
+   },
+   "registry_key": null,
+   "source_file": "evidence/places.sqlite",
+   "source_record_id": "visit:1",
+   "source_type": "browser",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "typed_url"
+   ],
+   "ts": "2026-01-02T09:40:00+00:00",
+   "ts_original": "prtime:1767346800000000",
+   "user": null
+  },
+  {
+   "action": "visit",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "web",
+   "event_code": null,
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "6ede9de2-6af3-5377-a682-c5058fa997c6",
+   "message": "Visited http://evil.example/tool.zip",
+   "outcome": null,
+   "parser_name": "browser",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": null,
+   "raw": {
+    "browser": "firefox",
+    "title": "tool",
+    "transition": "link",
+    "url": "http://evil.example/tool.zip",
+    "visit_count": 1
+   },
+   "registry_key": null,
+   "source_file": "evidence/places.sqlite",
+   "source_record_id": "visit:2",
+   "source_type": "browser",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [],
+   "ts": "2026-01-02T09:41:40+00:00",
+   "ts_original": "prtime:1767346900000000",
+   "user": null
+  },
+  {
+   "action": "download",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "web",
+   "event_code": null,
+   "file_hash": null,
+   "file_path": "file:///home/bob/Downloads/tool.zip",
+   "host": null,
+   "id": "cfbe97ee-d1d7-5c74-80c7-15d2ddddd82a",
+   "message": "Downloaded http://evil.example/tool.zip to file:///home/bob/Downloads/tool.zip",
+   "outcome": null,
+   "parser_name": "browser",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": null,
+   "raw": {
+    "browser": "firefox",
+    "target_path": "file:///home/bob/Downloads/tool.zip",
+    "url": "http://evil.example/tool.zip"
+   },
+   "registry_key": null,
+   "source_file": "evidence/places.sqlite",
+   "source_record_id": "download:1",
+   "source_type": "browser",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "download"
+   ],
+   "ts": "2026-01-02T09:41:50+00:00",
+   "ts_original": "prtime:1767346910000000",
+   "user": null
+  }
+ ],
+ "parser": "browser",
+ "parser_version": "1.0.0",
+ "warnings": {}
+}

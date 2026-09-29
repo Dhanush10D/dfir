@@ -1,0 +1,4 @@
+{"__REALTIME_TIMESTAMP": "1767347950000000", "_HOSTNAME": "web01", "SYSLOG_IDENTIFIER": "sshd", "_PID": "812", "MESSAGE": "Accepted publickey for alice from 198.51.100.7 port 50022 ssh2: ED25519 SHA256:x", "_SYSTEMD_UNIT": "ssh.service"}
+{"__REALTIME_TIMESTAMP": "1767347960000000", "_HOSTNAME": "web01", "SYSLOG_IDENTIFIER": "kernel", "MESSAGE": [117, 115, 98, 32, 49, 45, 49, 58, 32, 110, 101, 119, 32, 104, 105, 103, 104, 45, 115, 112, 101, 101, 100, 32, 85, 83, 66, 32, 100, 101, 118, 105, 99, 101]}
+{not json
+{"_HOSTNAME": "web01", "MESSAGE": "no time"}

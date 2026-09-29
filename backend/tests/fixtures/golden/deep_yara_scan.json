@@ -1,0 +1,141 @@
+{
+ "assumptions": {
+  "rule_files": [
+   "pack_dfirbench_starter"
+  ],
+  "rule_pack_sha256": "fdf8475feb2f158f6d1d4e67412cf396f656d1401527117211686562ccfaa28c",
+  "rules": 5,
+  "timeout_s": 600
+ },
+ "counts": {
+  "errors": 0,
+  "events_emitted": 2,
+  "records_read": 2,
+  "skipped": 0
+ },
+ "error_samples": [],
+ "events": [
+  {
+   "action": "yara_match",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "malware",
+   "event_code": "EICAR_Test_File",
+   "file_hash": null,
+   "file_path": "evidence/eicar_mimikatz.txt",
+   "host": null,
+   "id": "1f8e5064-e959-5f26-88dc-5b8a387c0e44",
+   "message": "YARA rule EICAR_Test_File matched evidence/eicar_mimikatz.txt: EICAR anti-malware test string",
+   "outcome": "match",
+   "parser_name": "yara_scan",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": null,
+   "raw": {
+    "meta": {
+     "description": "EICAR anti-malware test string",
+     "reference": "https://www.eicar.org/download-anti-malware-testfile/",
+     "severity": "info"
+    },
+    "namespace": "pack_dfirbench_starter",
+    "rule": "EICAR_Test_File",
+    "rule_pack_sha256": "fdf8475feb2f158f6d1d4e67412cf396f656d1401527117211686562ccfaa28c",
+    "strings": [
+     {
+      "data_hex": "58354f2150254041505b345c505a58353428505e2937434329377d2445494341522d5354414e444152442d414e544956495255532d544553542d46494c452124",
+      "identifier": "$eicar",
+      "length": 68,
+      "offset": 0
+     }
+    ],
+    "ts_source": "reference:test"
+   },
+   "registry_key": null,
+   "source_file": "evidence/eicar_mimikatz.txt",
+   "source_record_id": "pack_dfirbench_starter:EICAR_Test_File",
+   "source_type": "yara",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "yara",
+    "test",
+    "time_inferred"
+   ],
+   "ts": "2026-01-03T00:00:00+00:00",
+   "ts_original": null,
+   "user": null
+  },
+  {
+   "action": "yara_match",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "malware",
+   "event_code": "Mimikatz_Strings",
+   "file_hash": null,
+   "file_path": "evidence/eicar_mimikatz.txt",
+   "host": null,
+   "id": "13451a39-a15b-52d4-beea-8c0f69294f3f",
+   "message": "YARA rule Mimikatz_Strings matched evidence/eicar_mimikatz.txt: Strings of the Mimikatz credential dumping tool",
+   "outcome": "match",
+   "parser_name": "yara_scan",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": null,
+   "raw": {
+    "meta": {
+     "attack": "T1003.001",
+     "description": "Strings of the Mimikatz credential dumping tool",
+     "severity": "high"
+    },
+    "namespace": "pack_dfirbench_starter",
+    "rule": "Mimikatz_Strings",
+    "rule_pack_sha256": "fdf8475feb2f158f6d1d4e67412cf396f656d1401527117211686562ccfaa28c",
+    "strings": [
+     {
+      "data_hex": "73656b75726c73613a3a6c6f676f6e70617373776f726473",
+      "identifier": "$a",
+      "length": 24,
+      "offset": 80
+     },
+     {
+      "data_hex": "67656e74696c6b697769",
+      "identifier": "$b",
+      "length": 10,
+      "offset": 108
+     },
+     {
+      "data_hex": "6d696d696b61747a",
+      "identifier": "$c",
+      "length": 8,
+      "offset": 69
+     }
+    ],
+    "ts_source": "reference:test"
+   },
+   "registry_key": null,
+   "source_file": "evidence/eicar_mimikatz.txt",
+   "source_record_id": "pack_dfirbench_starter:Mimikatz_Strings",
+   "source_type": "yara",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "yara",
+    "credential_access",
+    "time_inferred",
+    "attack.t1003.001"
+   ],
+   "ts": "2026-01-03T00:00:00+00:00",
+   "ts_original": null,
+   "user": null
+  }
+ ],
+ "parser": "yara_scan",
+ "parser_version": "1.0.0",
+ "warnings": {}
+}

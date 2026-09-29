@@ -233,7 +233,7 @@ def main() -> None:
     encrypted_and_overlap()
     manifest_problems()
     for path in sorted(HERE.glob("*.zip")):
-        print(f"{path.name:28} {path.stat().st_size:>9} bytes")  # noqa: T201
+        print(f"{path.name:28} {path.stat().st_size:>9} bytes")
 
 
 if __name__ == "__main__":

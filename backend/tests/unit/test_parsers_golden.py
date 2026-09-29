@@ -95,8 +95,9 @@ def test_golden_output(parser_name: str, fixture: str, golden: str, params: dict
 
 def test_golden_files_cover_every_registered_parser() -> None:
     from app.parsers.registry import all_parsers
+    from tests.unit.test_parsers_deep_golden import ALL_PARSERS
 
-    assert {c[0] for c in CASES} == set(all_parsers())
+    assert {c[0] for c in CASES} | ALL_PARSERS == set(all_parsers())
 
 
 def test_ids_are_stable_across_runs_and_independent_of_params() -> None:

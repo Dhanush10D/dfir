@@ -30,7 +30,7 @@ NAMES = {
     "consolehost_history.txt": "powershell",
 }
 BASH_TS = re.compile(r"^#(\d{9,11})$")
-ZSH_EXT = re.compile(r"^: (\d{9,11}):(\d+);(.*)$", re.S)
+ZSH_EXT = re.compile(r"^: (\d{1,20}):(\d+);(.*)$", re.S)
 USER_RE = re.compile(r"(?:^|/)(?:home|users)/([^/]{1,64})/", re.I)
 
 

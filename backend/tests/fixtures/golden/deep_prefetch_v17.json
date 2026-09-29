@@ -1,0 +1,71 @@
+{
+ "assumptions": {
+  "container": "none",
+  "format_version": 17,
+  "info_size": 68,
+  "timezone": "UTC (FILETIME)"
+ },
+ "counts": {
+  "errors": 0,
+  "events_emitted": 1,
+  "records_read": 1,
+  "skipped": 0
+ },
+ "error_samples": [],
+ "events": [
+  {
+   "action": "process_start",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "process",
+   "event_code": "prefetch_run",
+   "file_hash": null,
+   "file_path": "\\VOLUME{01dc0000aaaabbbb}\\USERS\\PUBLIC\\XPTOOL.EXE",
+   "host": null,
+   "id": "a73699fc-8512-53e4-b0f2-77be7030f3b2",
+   "message": "Prefetch: XPTOOL.EXE executed (run 1 of the last 1, count 7)",
+   "outcome": null,
+   "parser_name": "prefetch",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": "XPTOOL.EXE",
+   "protocol": null,
+   "raw": {
+    "executable": "XPTOOL.EXE",
+    "format_version": 17,
+    "loaded_files": [
+     "\\VOLUME{01dc0000aaaabbbb}\\WINDOWS\\SYSTEM32\\NTDLL.DLL",
+     "\\VOLUME{01dc0000aaaabbbb}\\USERS\\PUBLIC\\XPTOOL.EXE"
+    ],
+    "loaded_files_truncated": false,
+    "prefetch_hash": "1A2B3C4D",
+    "run_count": 7,
+    "slot": 0,
+    "volumes": [
+     {
+      "created": "2025-12-21T20:13:20+00:00",
+      "device_path": "\\VOLUME{01dc0000aaaabbbb}",
+      "serial": "1234ABCD"
+     }
+    ]
+   },
+   "registry_key": null,
+   "source_file": "evidence/XPTOOL.EXE-0BADF00D.pf",
+   "source_record_id": "1A2B3C4D:0",
+   "source_type": "prefetch",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "execution"
+   ],
+   "ts": "2026-01-01T10:00:00+00:00",
+   "ts_original": "filetime:134117352000000000",
+   "user": null
+  }
+ ],
+ "parser": "prefetch",
+ "parser_version": "1.0.0",
+ "warnings": {}
+}

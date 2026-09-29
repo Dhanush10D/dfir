@@ -1,0 +1,124 @@
+{
+ "assumptions": {
+  "container": "none",
+  "format_version": 30,
+  "info_size": 224,
+  "timezone": "UTC (FILETIME)"
+ },
+ "counts": {
+  "errors": 0,
+  "events_emitted": 2,
+  "records_read": 8,
+  "skipped": 6
+ },
+ "error_samples": [],
+ "events": [
+  {
+   "action": "process_start",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "process",
+   "event_code": "prefetch_run",
+   "file_hash": null,
+   "file_path": "\\VOLUME{01dc0000aaaabbbb}\\USERS\\PUBLIC\\EVIL.EXE",
+   "host": null,
+   "id": "c82e1677-0a48-5dea-8cf8-b5980c9a1e5d",
+   "message": "Prefetch: EVIL.EXE executed (run 1 of the last 8, count 2)",
+   "outcome": null,
+   "parser_name": "prefetch",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": "EVIL.EXE",
+   "protocol": null,
+   "raw": {
+    "executable": "EVIL.EXE",
+    "format_version": 30,
+    "loaded_files": [
+     "\\VOLUME{01dc0000aaaabbbb}\\WINDOWS\\SYSTEM32\\NTDLL.DLL",
+     "\\VOLUME{01dc0000aaaabbbb}\\USERS\\PUBLIC\\EVIL.EXE"
+    ],
+    "loaded_files_truncated": false,
+    "prefetch_hash": "1A2B3C4D",
+    "run_count": 2,
+    "slot": 0,
+    "volumes": [
+     {
+      "created": "2025-12-21T20:13:20+00:00",
+      "device_path": "\\VOLUME{01dc0000aaaabbbb}",
+      "serial": "1234ABCD"
+     }
+    ]
+   },
+   "registry_key": null,
+   "source_file": "evidence/EVIL.EXE-1A2B3C4D.pf",
+   "source_record_id": "1A2B3C4D:0",
+   "source_type": "prefetch",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "execution"
+   ],
+   "ts": "2026-01-02T10:00:30+00:00",
+   "ts_original": "filetime:134118216300000000",
+   "user": null
+  },
+  {
+   "action": "process_start",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "process",
+   "event_code": "prefetch_run",
+   "file_hash": null,
+   "file_path": "\\VOLUME{01dc0000aaaabbbb}\\USERS\\PUBLIC\\EVIL.EXE",
+   "host": null,
+   "id": "61892293-9acb-51c8-a609-8ea4787d9356",
+   "message": "Prefetch: EVIL.EXE executed (run 2 of the last 8, count 2)",
+   "outcome": null,
+   "parser_name": "prefetch",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": "EVIL.EXE",
+   "protocol": null,
+   "raw": {
+    "executable": "EVIL.EXE",
+    "format_version": 30,
+    "loaded_files": [
+     "\\VOLUME{01dc0000aaaabbbb}\\WINDOWS\\SYSTEM32\\NTDLL.DLL",
+     "\\VOLUME{01dc0000aaaabbbb}\\USERS\\PUBLIC\\EVIL.EXE"
+    ],
+    "loaded_files_truncated": false,
+    "prefetch_hash": "1A2B3C4D",
+    "run_count": 2,
+    "slot": 1,
+    "volumes": [
+     {
+      "created": "2025-12-21T20:13:20+00:00",
+      "device_path": "\\VOLUME{01dc0000aaaabbbb}",
+      "serial": "1234ABCD"
+     }
+    ]
+   },
+   "registry_key": null,
+   "source_file": "evidence/EVIL.EXE-1A2B3C4D.pf",
+   "source_record_id": "1A2B3C4D:1",
+   "source_type": "prefetch",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [
+    "execution"
+   ],
+   "ts": "2026-01-02T09:00:00+00:00",
+   "ts_original": "filetime:134118180000000000",
+   "user": null
+  }
+ ],
+ "parser": "prefetch",
+ "parser_version": "1.0.0",
+ "warnings": {
+  "skipped:empty_slot": 6
+ }
+}

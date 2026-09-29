@@ -76,6 +76,7 @@ known-third-party = ["alembic"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S", "DTZ001"]
+"tests/fixtures/**" = ["T201", "E501"]  # fixture generators and fake engines
 "alembic/**" = ["E501", "S608"]  # DDL built from module constants
 "app/parsers/browser.py" = ["S608"]  # SQL built only from module constants (no evidence data)
 

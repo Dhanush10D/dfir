@@ -1,0 +1,116 @@
+{
+ "assumptions": {
+  "compression": "none",
+  "timezone": "UTC (__REALTIME_TIMESTAMP)"
+ },
+ "counts": {
+  "errors": 2,
+  "events_emitted": 2,
+  "records_read": 4,
+  "skipped": 0
+ },
+ "error_samples": [
+  {
+   "detail": "b'{not json'",
+   "location": "line 3",
+   "reason": "invalid_json"
+  },
+  {
+   "detail": "no __REALTIME_TIMESTAMP",
+   "location": "line 4",
+   "reason": "bad_timestamp"
+  }
+ ],
+ "events": [
+  {
+   "action": "logon",
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": "authentication",
+   "event_code": "ssh_accepted",
+   "file_hash": null,
+   "file_path": null,
+   "host": "web01",
+   "id": "6bc9ec71-0089-552a-9a85-dafaa5461f17",
+   "message": "SSH login accepted for alice from 198.51.100.7 (publickey)",
+   "outcome": "success",
+   "parser_name": "journal_json",
+   "parser_version": "1.0.0",
+   "pid": 812,
+   "ppid": null,
+   "process_name": "sshd",
+   "protocol": null,
+   "raw": {
+    "auth": {
+     "method": "publickey"
+    },
+    "byte_offset": 0,
+    "format": "journal_json",
+    "journal": {
+     "SYSLOG_IDENTIFIER": "sshd",
+     "_HOSTNAME": "web01",
+     "_PID": "812",
+     "_SYSTEMD_UNIT": "ssh.service"
+    },
+    "line_no": 1,
+    "pid": 812,
+    "program": "sshd"
+   },
+   "registry_key": null,
+   "source_file": "evidence/journal.json",
+   "source_record_id": "1",
+   "source_type": "journal",
+   "src_ip": "198.51.100.7",
+   "src_port": 50022,
+   "tags": [],
+   "ts": "2026-01-02T09:59:10+00:00",
+   "ts_original": "unix_us:1767347950000000",
+   "user": "alice"
+  },
+  {
+   "action": null,
+   "cmdline": null,
+   "dst_ip": null,
+   "dst_port": null,
+   "event_category": null,
+   "event_code": "journal_entry",
+   "file_hash": null,
+   "file_path": null,
+   "host": "web01",
+   "id": "2bc2ab2c-b6ff-59c3-971a-c4444cf3724e",
+   "message": "usb 1-1: new high-speed USB device",
+   "outcome": null,
+   "parser_name": "journal_json",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": "kernel",
+   "protocol": null,
+   "raw": {
+    "byte_offset": 238,
+    "format": "journal_json",
+    "journal": {
+     "SYSLOG_IDENTIFIER": "kernel",
+     "_HOSTNAME": "web01"
+    },
+    "line_no": 2,
+    "pid": null,
+    "program": "kernel"
+   },
+   "registry_key": null,
+   "source_file": "evidence/journal.json",
+   "source_record_id": "2",
+   "source_type": "journal",
+   "src_ip": null,
+   "src_port": null,
+   "tags": [],
+   "ts": "2026-01-02T09:59:20+00:00",
+   "ts_original": "unix_us:1767347960000000",
+   "user": null
+  }
+ ],
+ "parser": "journal_json",
+ "parser_version": "1.0.0",
+ "warnings": {}
+}

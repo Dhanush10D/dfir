@@ -5,3 +5,4 @@
 *.evtx binary
 *.pcap binary
 *.zip binary
+backend/tests/fixtures/deep/bin/** binary

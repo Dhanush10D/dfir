@@ -9,8 +9,8 @@ Body file line: ``MD5|name|inode|mode|UID|GID|size|atime|mtime|ctime|crtime`` (U
 UTC). One record per distinct non-zero time of a line, emitted as one event whose ``event_code``
 is the MACB string (``m.cb`` style, as ``mactime`` prints it); a line without any time is one
 skipped record; an unparseable line is an error. Names marked ``(deleted)`` get the ``deleted``
-tag. A partition fls cannot read is a warning; if none can be read the job fails with fls's
-message.
+tag. A partition fls cannot read (swap, unknown or encrypted file system) is a warning listed in
+the manifest; if none can be read the job fails with fls's message.
 """
 
 from __future__ import annotations
@@ -128,8 +128,7 @@ class TskFsParser:
                 return
         if readable == 0:
             raise ToolFailedError("fls could not read a file system: " + "; ".join(errors)[:900])
-        if errors:
-            stats.assumptions["incomplete"] = "partition_unreadable"
+        stats.assumptions["partitions_unreadable"] = errors[:MAX_PARTITIONS]
         ctx.progress(1.0)
 
     def _body(self, ctx: ParseContext, body: Path, slot: int) -> Iterator[Event]:
