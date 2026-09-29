@@ -143,7 +143,8 @@ class _ThresholdGroup:
 
     def add(self, entry: _Entry, rule: CompiledRule, limits: EngineLimits) -> list[_Entry]:
         spec = rule.threshold
-        assert spec is not None
+        if spec is None:
+            raise RuntimeError("internal: spec missing")
         entry.seq = self.next_seq
         self.next_seq += 1
         self.last_t = entry.t
@@ -321,7 +322,8 @@ class DetectionEngine:
 
     def _threshold(self, rule: CompiledRule, ev: EventView) -> None:
         spec = rule.threshold
-        assert spec is not None
+        if spec is None:
+            raise RuntimeError("internal: spec missing")
         found = self._key(rule, ev, rule.group_by) if rule.group_by else ()
         if found is None:
             return
@@ -360,7 +362,8 @@ class DetectionEngine:
 
     def _sequence(self, rule: CompiledRule, ev: EventView) -> None:
         spec = rule.sequence
-        assert spec is not None
+        if spec is None:
+            raise RuntimeError("internal: spec missing")
         matched = [i for i, step in enumerate(spec.steps) if step.selection.match(ev)]
         if not matched:
             return
@@ -423,7 +426,8 @@ class DetectionEngine:
 
     def _complete(self, rule: CompiledRule, key: tuple[Any, ...], run: _Run) -> None:
         spec = rule.sequence
-        assert spec is not None
+        if spec is None:
+            raise RuntimeError("internal: spec missing")
         self.matches[rule.id] += 1
         entries = run.all()
         start = datetime.fromtimestamp(entries[0].t, UTC)
@@ -478,7 +482,8 @@ class DetectionEngine:
         states = []
         for rule in self.source_rules:
             spec = DETECTORS[rule.detector or ""]
-            assert spec.state is not None
+            if spec.state is None:
+                raise RuntimeError("internal: spec.state missing")
             states.append((rule, spec.state(rule.params, source)))
         for event in events:
             self.source_events_seen += 1

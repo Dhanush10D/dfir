@@ -622,7 +622,8 @@ class DetectionService:
         counts: _FlushCounts,
     ) -> None:
         rule = draft.rule
-        assert draft.first_seen is not None and draft.last_seen is not None
+        if draft.first_seen is None or draft.last_seen is None:
+            raise RuntimeError("internal: draft.first_seen missing")
         values = {
             "case_id": claim.case_id,
             "rule_id": rule.id,
@@ -743,6 +744,16 @@ class DetectionService:
                 .values(stale=True, updated_at=func.now())
                 .returning(Alert.id)
             ).all()
+            # Links of alerts this run did not touch (stale ones) may still carry the old
+            # timestamp of an event that a reprocess moved: realign every link of the case.
+            session.execute(
+                text(
+                    "UPDATE alert_events ae SET event_ts = e.ts FROM alerts a, events e "
+                    "WHERE a.id = ae.alert_id AND a.case_id = :case_id AND e.case_id = :case_id "
+                    "AND e.id = ae.event_id AND ae.event_ts <> e.ts"
+                ),
+                {"case_id": claim.case_id},
+            )
             session.commit()
         except (JobCancelledError, JobFencedError):
             session.rollback()

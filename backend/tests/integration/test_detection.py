@@ -108,9 +108,9 @@ def test_detection_end_to_end(world: World, db_engine: Engine) -> None:
     assert manifest["counts"]["events_scanned"] == 26  # 22 auth + 4 evtx
     assert manifest["counts"]["alerts_created"] == len(EXPECTED)
     ids = {r["id"] for r in manifest["rules"]}
-    assert EXPECTED <= ids and all(
+    assert ids >= EXPECTED and all(
         r["version"] >= 1 and len(r["sha256"]) == 64 for r in manifest["rules"]
-    )  # noqa: E501
+    )
     alerts = world.alerts()
     assert {a["rule_id"] for a in alerts} == EXPECTED
     by_rule = {a["rule_id"]: a for a in alerts}
@@ -136,7 +136,7 @@ def test_detection_end_to_end(world: World, db_engine: Engine) -> None:
     assert (
         _count(db_engine, "SELECT count(*) FROM audit_log WHERE action = 'detection.completed'")
         >= 1
-    )  # noqa: E501
+    )
 
 
 def test_rerun_is_idempotent_and_reprocess_keeps_links(world: World, db_engine: Engine) -> None:
@@ -212,10 +212,9 @@ def test_concurrent_runs_never_duplicate_alerts(world: World, db_engine: Engine)
     assert outcomes == ["succeeded", "succeeded"]
     assert _count(db_engine, "SELECT count(*) FROM alerts WHERE case_id = :c", c=world.cid) == len(
         EXPECTED
-    )  # noqa: E501
-    assert _count(db_engine, "SELECT count(DISTINCT dedup_key) FROM alerts") == _count(
-        db_engine, "SELECT count(*) FROM alerts"
     )
+    distinct = "SELECT count(DISTINCT dedup_key) FROM alerts WHERE case_id = :c"
+    assert _count(db_engine, distinct, c=world.cid) == len(EXPECTED)
     # The database itself refuses a duplicate (case_id, dedup_key).
     with pytest.raises(IntegrityError), db_engine.begin() as conn:
         conn.execute(
@@ -331,7 +330,8 @@ def test_alert_lifecycle_rbac_and_audit(world: World, db_engine: Engine) -> None
     assert (
         _count(
             db_engine,
-            "SELECT count(*) FROM audit_log WHERE action = 'alert.status_changed' AND object_id = :a",
+            "SELECT count(*) FROM audit_log "
+            "WHERE action = 'alert.status_changed' AND object_id = :a",
             a=alert["id"],
         )
         == 2
