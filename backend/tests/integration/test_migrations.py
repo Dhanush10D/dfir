@@ -53,7 +53,7 @@ def test_all_core_tables_exist(db_engine: Engine) -> None:
     assert "events_default" in tables
     with db_engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0007"
+    assert version == "0008"
 
 
 def test_app_role_privileges(db_engine: Engine) -> None:
@@ -73,7 +73,9 @@ def test_app_role_privileges(db_engine: Engine) -> None:
     assert privileges("custody_log") == {"SELECT", "INSERT"}
     assert privileges("audit_log") == {"SELECT", "INSERT"}
     assert privileges("alembic_version") == {"SELECT"}
-    assert privileges("evidence") == {"SELECT", "INSERT", "UPDATE", "DELETE"}
+    # 0008: evidence rows are never deleted; UPDATE only on the upload/finalize columns.
+    assert privileges("evidence") == {"SELECT", "INSERT"}
+    assert privileges("bundle_members") == {"SELECT", "INSERT"}
     assert privileges("refresh_tokens") == {"SELECT", "INSERT", "UPDATE", "DELETE"}
     # 0003: the published key copy cannot be rewritten or deleted by the app.
     assert privileges("signing_keys") == {"SELECT", "INSERT"}

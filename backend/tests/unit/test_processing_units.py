@@ -255,3 +255,28 @@ def test_processing_settings_defaults(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("INGEST_BATCH_SIZE", "5000")
     with pytest.raises(ValueError):
         Settings(_env_file=None)  # type: ignore[call-arg]
+
+
+def test_bundle_task_follows_the_parse_retry_policy(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.workers.tasks import bundle as bundle_task
+
+    for var in ("JOB_MAX_AUTO_RETRIES", "JOB_LEASE_S"):
+        monkeypatch.delenv(var, raising=False)
+    monkeypatch.setattr(bundle_task, "get_settings", lambda: Settings(_env_file=None))  # type: ignore[call-arg]
+
+    def install(outcome: str | Exception) -> FakeRunner:
+        fake = FakeRunner(outcome)
+        monkeypatch.setattr(bundle_task, "service_factory", lambda: fake)
+        return fake
+
+    fake = install("partial")
+    assert bundle_task.ingest_bundle(str(uuid.uuid4()))["outcome"] == "partial"
+    assert fake.calls[0]["allow_retry"] is True
+    assert bundle_task.ingest_bundle("nope")["outcome"] == "skipped"
+    for outcome in ("retry", "busy"):
+        install(outcome)
+        with pytest.raises(Retry):
+            bundle_task.ingest_bundle(str(uuid.uuid4()))
+    install(RuntimeError("boom"))
+    with pytest.raises(RuntimeError):
+        bundle_task.ingest_bundle(str(uuid.uuid4()))
