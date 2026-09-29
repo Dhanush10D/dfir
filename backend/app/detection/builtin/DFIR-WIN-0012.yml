@@ -1,0 +1,12 @@
+id: DFIR-WIN-0012
+title: Encoded PowerShell command
+status: stable
+level: medium
+attack: [T1059.001]
+description: PowerShell started with -EncodedCommand (or an abbreviation) and a base64 payload.
+detection:
+  powershell: { cmdline|contains: [powershell, pwsh] }
+  encoded:
+    cmdline|re: '(?i)\s[-/]e(c|n(c(o(d(e(d(c(o(m(m(a(n(d)?)?)?)?)?)?)?)?)?)?)?)?)?\s+[A-Za-z0-9+/=]{16,}'
+  condition: powershell and encoded
+false_positives: ["Management tools that pass scripts encoded"]

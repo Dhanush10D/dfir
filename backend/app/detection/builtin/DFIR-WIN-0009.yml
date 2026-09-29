@@ -1,0 +1,13 @@
+id: DFIR-WIN-0009
+title: Account added to a privileged group
+status: stable
+level: high
+attack: [T1098]
+description: A member was added (4728/4732/4756) to an administrative group.
+logsource: { source_type: evtx, channel: Security }
+detection:
+  added: { event_code: ["4728", "4732", "4756"] }
+  privileged:
+    raw.normalized.group|re: '(?i)(^|\\)(administrators|domain admins|enterprise admins|schema admins|backup operators|account operators|server operators|remote desktop users|dnsadmins)$'
+  condition: added and privileged
+false_positives: ["Planned administrative changes"]

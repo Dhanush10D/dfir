@@ -2,10 +2,10 @@
 
 from fastapi import APIRouter
 
-from app.api.v1 import audit, auth, cases, events, evidence, health, jobs, users
+from app.api.v1 import audit, auth, cases, detection, events, evidence, health, jobs, users
 
 router = APIRouter()
-for module in (health, auth, users, cases, evidence, jobs, events, audit):
+for module in (health, auth, users, cases, evidence, jobs, events, detection, audit):
     router.include_router(module.router)
 
 __all__ = ["router"]

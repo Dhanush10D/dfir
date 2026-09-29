@@ -28,7 +28,9 @@ CORE_TABLES = {
 }  # fmt: skip
 # Phase 1 (migration 0002): server-side refresh tokens and hashed MFA recovery codes.
 PHASE1_TABLES = {"refresh_tokens", "mfa_recovery_codes"}
-ALL_TABLES = CORE_TABLES | PHASE1_TABLES
+# Phase 3 (migration 0006): rule version history and alert lifecycle history (append-only).
+PHASE3_TABLES = {"rule_versions", "alert_history"}
+ALL_TABLES = CORE_TABLES | PHASE1_TABLES | PHASE3_TABLES
 
 
 def test_metadata_has_every_core_table() -> None:
@@ -61,7 +63,12 @@ def test_event_chunks_embedding_dimension() -> None:
 
 
 def test_append_only_tables_declared() -> None:
-    assert models.APPEND_ONLY_TABLES == ("custody_log", "audit_log")
+    assert models.APPEND_ONLY_TABLES == (
+        "custody_log",
+        "audit_log",
+        "rule_versions",
+        "alert_history",
+    )
 
 
 def test_baseline_migration_has_integrity_ddl() -> None:

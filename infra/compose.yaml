@@ -148,7 +148,7 @@ services:
     build:
       context: ../backend
       dockerfile: ../infra/docker/worker.Dockerfile
-    command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "default,parse,ai,reports", "-c", "2", "-n", "worker@%h", "--loglevel", "INFO"]
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "default,parse,detect,ai,reports", "-c", "2", "-n", "worker@%h", "--loglevel", "INFO"]
     environment:
       <<: *backend-env
       # Per-job scratch copies of evidence (0400, deleted after each job): a disk volume, not tmpfs.

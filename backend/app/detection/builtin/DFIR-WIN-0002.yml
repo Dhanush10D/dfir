@@ -1,0 +1,14 @@
+id: DFIR-WIN-0002
+title: Windows System event log cleared
+status: stable
+level: high
+attack: [T1070.001]
+description: An event log was cleared (System 104 from the Eventlog provider).
+logsource: { source_type: evtx, channel: System }
+detection:
+  selection:
+    event_code: "104"
+    raw.system.provider: Microsoft-Windows-Eventlog
+  condition: selection
+false_positives: ["Planned log maintenance by administrators"]
+response: { playbook: log-tampering }

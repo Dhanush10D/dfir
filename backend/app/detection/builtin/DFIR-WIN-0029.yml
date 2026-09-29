@@ -1,0 +1,13 @@
+id: DFIR-WIN-0029
+title: Audit policy changed
+status: stable
+level: high
+attack: [T1562.002]
+description: >-
+  The system or per-user audit policy was changed (4719, 4906 CrashOnAuditFail, 4912), which can
+  disable logging.
+logsource: { source_type: evtx, channel: Security }
+detection:
+  selection: { event_code: ["4719", "4906", "4912"] }
+  condition: selection
+false_positives: ["Group Policy updates by administrators"]

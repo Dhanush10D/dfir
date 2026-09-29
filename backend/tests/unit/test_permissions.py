@@ -41,6 +41,7 @@ TABLE: dict[Permission, set[UserRole]] = {
     P.APPROVE: {A, L},
     P.AUDIT_VIEW: {A, U},
     P.AI_USE: {A, L, N},
+    P.RULES_MANAGE: {A, L},
 }
 
 CELLS = [(perm, role) for perm in Permission for role in UserRole]

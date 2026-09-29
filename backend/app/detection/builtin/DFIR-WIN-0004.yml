@@ -1,0 +1,16 @@
+id: DFIR-WIN-0004
+title: Successful logon after repeated failures
+status: stable
+level: high
+attack: [T1110]
+description: >-
+  At least 5 failed logons (4625) followed by a successful logon (4624) from the same source IP
+  within 10 minutes.
+logsource: { source_type: evtx, channel: Security }
+detection:
+  sequence:
+    - { name: fails, match: { event_code: "4625" }, min_count: 5 }
+    - { name: success, match: { event_code: "4624" } }
+  join_on: [src_ip]
+  within: 10m
+false_positives: ["User mistyping a password several times"]

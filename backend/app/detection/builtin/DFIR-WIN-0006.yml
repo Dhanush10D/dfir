@@ -1,0 +1,23 @@
+id: DFIR-WIN-0006
+title: Service installed from an unusual path
+status: stable
+level: high
+attack: [T1543.003]
+description: >-
+  A service (System 7045 or Security 4697) whose binary lives in a temp, user or other writable
+  directory.
+logsource: { source_type: evtx }
+detection:
+  service: { event_code: ["7045", "4697"] }
+  unusual_path:
+    file_path|contains:
+      - '\temp\'
+      - '\tmp\'
+      - '\appdata\'
+      - '\users\public\'
+      - '\programdata\'
+      - '\perflogs\'
+      - '\downloads\'
+      - '%temp%'
+  condition: service and unusual_path
+false_positives: ["Installers that stage services under ProgramData"]

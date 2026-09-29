@@ -1,0 +1,11 @@
+id: DFIR-WIN-0008
+title: User account created
+status: stable
+level: medium
+attack: [T1136.001]
+description: A local or domain user account was created (4720).
+logsource: { source_type: evtx, channel: Security }
+detection:
+  selection: { event_code: "4720" }
+  condition: selection
+false_positives: ["Onboarding by administrators"]

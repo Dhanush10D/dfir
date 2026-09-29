@@ -42,4 +42,4 @@ WORKDIR /work
 USER dfir:dfir
 HEALTHCHECK --interval=20s --timeout=15s --retries=6 --start-period=20s \
   CMD ["sh", "-c", "celery -A app.workers.celery_app inspect ping -d worker@$HOSTNAME --timeout 5 | grep -q pong"]
-CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "default,parse,ai,reports", "-c", "2", "-n", "worker@%h", "--loglevel", "INFO"]
+CMD ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "default,parse,detect,ai,reports", "-c", "2", "-n", "worker@%h", "--loglevel", "INFO"]

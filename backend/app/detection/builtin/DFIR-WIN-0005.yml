@@ -1,0 +1,13 @@
+id: DFIR-WIN-0005
+title: Password spray from one source
+status: stable
+level: high
+attack: [T1110.003]
+description: Failed logons (4625) for at least 5 different accounts from one source IP within 30 minutes.
+logsource: { source_type: evtx, channel: Security }
+detection:
+  selection: { event_code: "4625" }
+  group_by: [src_ip]
+  threshold: { count: 5, window: 30m, distinct: user }
+  condition: selection
+false_positives: ["Shared jump host or NAT gateway with many users mistyping passwords"]

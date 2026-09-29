@@ -4,7 +4,7 @@ from app.db.models.ai import AiInteraction, EventChunk
 from app.db.models.audit import Anchor, AuditLog, SigningKey
 from app.db.models.cases import Case, CaseMember
 from app.db.models.collaboration import Bookmark, Note, Notification, SavedQuery
-from app.db.models.detection import Alert, AlertEvent, Ioc, Rule
+from app.db.models.detection import Alert, AlertEvent, AlertHistory, Ioc, Rule, RuleVersion
 from app.db.models.entities import Entity, EntityAlias, EntityLink
 from app.db.models.enums import AlertStatus, CaseStatus, JobStatus, Severity, UserRole
 from app.db.models.events import Event
@@ -15,7 +15,7 @@ from app.db.models.reports import Report
 from app.db.models.users import ApiKey, MfaRecoveryCode, RefreshToken, User
 
 # Tables whose rows may never be updated, deleted or truncated (enforced by DB triggers).
-APPEND_ONLY_TABLES = ("custody_log", "audit_log")
+APPEND_ONLY_TABLES = ("custody_log", "audit_log", "rule_versions", "alert_history")
 
 __all__ = [
     "APPEND_ONLY_TABLES",
@@ -24,6 +24,7 @@ __all__ = [
     "AiInteraction",
     "Alert",
     "AlertEvent",
+    "AlertHistory",
     "AlertStatus",
     "Anchor",
     "ApiKey",
@@ -51,6 +52,7 @@ __all__ = [
     "RefreshToken",
     "Report",
     "Rule",
+    "RuleVersion",
     "SavedQuery",
     "Setting",
     "Severity",

@@ -1,0 +1,14 @@
+id: DFIR-LNX-0002
+title: SSH success after failures
+status: stable
+level: high
+attack: [T1110]
+description: At least 5 failed SSH logins followed by an accepted login from the same source IP within 30 minutes.
+logsource: { source_type: [auth_log, syslog] }
+detection:
+  sequence:
+    - { name: fails, match: { event_code: ssh_failed }, min_count: 5 }
+    - { name: success, match: { event_code: ssh_accepted } }
+  join_on: [src_ip]
+  within: 30m
+false_positives: ["User mistyping a password several times"]

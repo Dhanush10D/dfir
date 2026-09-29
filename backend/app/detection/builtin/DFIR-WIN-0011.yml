@@ -1,0 +1,12 @@
+id: DFIR-WIN-0011
+title: Windows recovery disabled with bcdedit
+status: stable
+level: high
+attack: [T1490]
+description: bcdedit turns off recovery or ignores boot failures.
+detection:
+  bcdedit: { cmdline|contains: bcdedit }
+  option:
+    cmdline|re: '(?i)recoveryenabled\s+(no|false|0)\b|bootstatuspolicy\s+ignoreallfailures'
+  condition: bcdedit and option
+false_positives: ["Kiosk or lab machine hardening"]

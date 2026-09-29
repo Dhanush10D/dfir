@@ -1,0 +1,14 @@
+id: DFIR-AF-0003
+title: Log ends long before acquisition
+status: experimental
+level: low
+attack: [T1070.002]
+description: >-
+  The last record of an auth/syslog file is at least 24 hours older than the evidence acquisition
+  time (truncated or rotated-away tail, or logging stopped).
+logsource: { source_type: [auth_log, syslog] }
+detection:
+  detector: log_truncation
+  params: { min_gap: 24h }
+dedup_window: 30d
+false_positives: ["Rotated log files collected alongside the current one", "Idle hosts"]

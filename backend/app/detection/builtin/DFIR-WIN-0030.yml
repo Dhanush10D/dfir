@@ -1,0 +1,11 @@
+id: DFIR-WIN-0030
+title: Event log cleared from the command line
+status: stable
+level: high
+attack: [T1070.001]
+description: wevtutil cl, Clear-EventLog, Remove-EventLog or Limit-EventLog in a command line.
+detection:
+  selection:
+    cmdline|re: '(?i)wevtutil(\.exe)?["\s]+(cl|clear-log)\b|clear-eventlog|remove-eventlog|limit-eventlog'
+  condition: selection
+false_positives: ["Planned log maintenance scripts"]

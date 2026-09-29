@@ -1,0 +1,11 @@
+id: DFIR-LNX-0003
+title: Root login over SSH
+status: stable
+level: high
+attack: [T1078]
+description: SSH accepted a login for root.
+logsource: { source_type: [auth_log, syslog] }
+detection:
+  selection: { event_code: ssh_accepted, user: root }
+  condition: selection
+false_positives: ["Hosts where direct root login is the documented practice"]

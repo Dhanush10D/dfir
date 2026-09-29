@@ -1,0 +1,16 @@
+id: DFIR-WIN-0007
+title: Scheduled task created
+status: stable
+level: medium
+attack: [T1053.005]
+description: A scheduled task was registered (Security 4698 or Task Scheduler 106).
+logsource: { source_type: evtx }
+detection:
+  sel_security:
+    event_code: "4698"
+    raw.system.channel: Security
+  sel_task_scheduler:
+    event_code: "106"
+    raw.system.provider: Microsoft-Windows-TaskScheduler
+  condition: 1 of sel_*
+false_positives: ["Software updaters and management agents"]

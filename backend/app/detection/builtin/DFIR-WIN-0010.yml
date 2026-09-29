@@ -1,0 +1,12 @@
+id: DFIR-WIN-0010
+title: Volume shadow copies deleted
+status: stable
+level: critical
+attack: [T1490]
+description: Command lines that delete shadow copies or the backup catalog (common before ransomware encryption).
+detection:
+  sel_vssadmin: { cmdline|contains|all: [vssadmin, delete, shadows] }
+  sel_wmic: { cmdline|contains|all: [wmic, shadowcopy, delete] }
+  sel_wbadmin: { cmdline|contains|all: [wbadmin, delete, catalog] }
+  condition: 1 of sel_*
+false_positives: ["Backup software housekeeping"]

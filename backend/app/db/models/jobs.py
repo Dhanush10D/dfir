@@ -35,6 +35,13 @@ class Job(Base):
             unique=True,
             postgresql_where=text("kind = 'parse' AND status IN ('queued', 'running')"),
         ),
+        # Phase 3: at most one *queued* detection job per case; later requests coalesce into it.
+        Index(
+            "uq_jobs_queued_detect",
+            "case_id",
+            unique=True,
+            postgresql_where=text("kind = 'detect' AND status = 'queued'"),
+        ),
     )
 
     id: Mapped[uuid.UUID] = uuid_pk()

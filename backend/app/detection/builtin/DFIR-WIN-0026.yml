@@ -1,0 +1,11 @@
+id: DFIR-WIN-0026
+title: System time changed
+status: test
+level: low
+attack: [T1070.006]
+description: The system time was changed (4616); this can invalidate timelines. Review the delta in the event data.
+logsource: { source_type: evtx, channel: Security }
+detection:
+  selection: { event_code: "4616" }
+  condition: selection
+false_positives: ["Time synchronization corrections (usually small deltas)"]

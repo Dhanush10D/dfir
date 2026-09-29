@@ -119,6 +119,12 @@ class Settings(BaseSettings):
     parser_max_decompression_ratio: int = Field(default=200, ge=2)  # gz bomb guard (ratio)
     max_new_partitions_per_job: int = Field(default=48, ge=1)  # hostile timestamps -> default
 
+    # Detection (Phase 3, guide 11)
+    detect_after_parse: bool = True  # queue a case detection run when a parse job ends ok/partial
+    detect_batch_size: int = Field(default=2000, ge=100, le=20000)  # events per fetch/heartbeat
+    detect_max_alerts: int = Field(default=20000, ge=1, le=1_000_000)  # drafts per run
+    detect_max_links_per_alert: int = Field(default=500, ge=1, le=100_000)  # alert_events rows
+
     # AI (Phase 7)
     enable_ai: bool = False
     ai_local_only: bool = False

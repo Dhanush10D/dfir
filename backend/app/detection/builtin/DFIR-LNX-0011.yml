@@ -1,0 +1,12 @@
+id: DFIR-LNX-0011
+title: Linux user added to a privileged group
+status: stable
+level: high
+attack: [T1098]
+description: An account was added to sudo, wheel, admin, root, adm, docker or lxd.
+logsource: { source_type: [auth_log, syslog] }
+detection:
+  added: { event_code: group_member_added }
+  privileged: { raw.auth.group: [sudo, wheel, admin, root, adm, docker, lxd] }
+  condition: added and privileged
+false_positives: ["Planned administrative changes"]

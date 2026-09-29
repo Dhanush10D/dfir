@@ -111,3 +111,10 @@ def get_job_dispatcher() -> Callable[[uuid.UUID], None]:
     from app.workers.dispatch import dispatch_parse
 
     return dispatch_parse
+
+
+def get_detect_dispatcher() -> Callable[[uuid.UUID], None]:
+    """Enqueues detection jobs on the Celery ``detect`` queue (tests override it)."""
+    from app.workers.dispatch import dispatch_detect
+
+    return dispatch_detect

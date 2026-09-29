@@ -1,0 +1,12 @@
+id: DFIR-WIN-0001
+title: Windows Security event log cleared
+status: stable
+level: high
+attack: [T1070.001]
+description: The Security log was cleared (event 1102), often to hide activity.
+logsource: { source_type: evtx, channel: Security }
+detection:
+  selection: { event_code: "1102" }
+  condition: selection
+false_positives: ["Planned log maintenance by administrators"]
+response: { playbook: log-tampering }

@@ -25,19 +25,24 @@ from app.deps import (
     get_app_settings,
     get_custody_signer,
     get_db,
+    get_detect_dispatcher,
     get_job_dispatcher,
     get_trusted_keys,
     get_vault,
 )
 from app.repositories.vault import VaultStore
+from app.services.alerts import AlertService
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import require_global
 from app.services.cases import CaseService
 from app.services.custody import CustodyService
+from app.services.detection import DetectionJobs
 from app.services.events import EventService
 from app.services.evidence import EvidenceService
 from app.services.iam import IAMService
+from app.services.iocs import IocService
 from app.services.jobs import JobService
+from app.services.rules import RuleService
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
@@ -126,15 +131,42 @@ def get_job_service(
     settings: AppSettings,
     vault: Annotated[VaultStore | None, Depends(get_vault)],
     dispatcher: Annotated[Callable[[uuid.UUID], None], Depends(get_job_dispatcher)],
+    detect_dispatcher: Annotated[Callable[[uuid.UUID], None], Depends(get_detect_dispatcher)],
 ) -> JobService:
-    return JobService(db, settings, vault=vault, dispatcher=dispatcher)
+    return JobService(
+        db, settings, vault=vault, dispatcher=dispatcher, detect_dispatcher=detect_dispatcher
+    )
 
 
 def get_event_service(db: DbSession, settings: AppSettings) -> EventService:
     return EventService(db, settings)
 
 
+def get_detection_jobs(
+    db: DbSession,
+    settings: AppSettings,
+    dispatcher: Annotated[Callable[[uuid.UUID], None], Depends(get_detect_dispatcher)],
+) -> DetectionJobs:
+    return DetectionJobs(db, settings, dispatcher=dispatcher)
+
+
+def get_alert_service(db: DbSession, settings: AppSettings) -> AlertService:
+    return AlertService(db, settings)
+
+
+def get_rule_service(db: DbSession) -> RuleService:
+    return RuleService(db)
+
+
+def get_ioc_service(db: DbSession, settings: AppSettings) -> IocService:
+    return IocService(db, settings)
+
+
 Cases = Annotated[CaseService, Depends(get_case_service)]
+Detections = Annotated[DetectionJobs, Depends(get_detection_jobs)]
+Alerts = Annotated[AlertService, Depends(get_alert_service)]
+Rules = Annotated[RuleService, Depends(get_rule_service)]
+Iocs = Annotated[IocService, Depends(get_ioc_service)]
 Jobs = Annotated[JobService, Depends(get_job_service)]
 Events = Annotated[EventService, Depends(get_event_service)]
 EvidenceSvc = Annotated[EvidenceService, Depends(get_evidence_service)]

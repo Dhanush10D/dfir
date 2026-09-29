@@ -29,13 +29,15 @@ class Permission(enum.StrEnum):
     APPROVE = "approve"  # approve reports, destructive actions
     AUDIT_VIEW = "audit:view"
     AI_USE = "ai:use"
+    RULES_MANAGE = "rules:manage"  # create/update/enable/disable/import detection rules (global)
 
 
 P = Permission
 
-# Guide 16.1, with two documented choices (docs/specs/PHASE-1.md):
+# Guide 16.1, with documented choices (docs/specs/PHASE-1.md, PHASE-3.md):
 # - AUDIT_VIEW (the global /audit log) follows endpoint table 15.2: admin + auditor.
 # - CUSTODY_VIEW includes analysts, who add and verify evidence and need to see its chain.
+# - RULES_MANAGE (global) follows endpoint table 15.2 (/rules writes: lead + admin).
 ROLE_PERMISSIONS: dict[UserRole, frozenset[Permission]] = {
     UserRole.admin: frozenset(Permission),
     UserRole.lead: frozenset(
@@ -52,6 +54,7 @@ ROLE_PERMISSIONS: dict[UserRole, frozenset[Permission]] = {
             P.ALERT_UPDATE,
             P.APPROVE,
             P.AI_USE,
+            P.RULES_MANAGE,
         }
     ),
     UserRole.analyst: frozenset(
@@ -73,7 +76,7 @@ ROLE_PERMISSIONS: dict[UserRole, frozenset[Permission]] = {
     ),
 }
 
-GLOBAL_PERMISSIONS = frozenset({P.USERS_MANAGE, P.CASE_CREATE, P.AUDIT_VIEW})
+GLOBAL_PERMISSIONS = frozenset({P.USERS_MANAGE, P.CASE_CREATE, P.AUDIT_VIEW, P.RULES_MANAGE})
 
 
 def permissions_for(role: UserRole) -> frozenset[Permission]:

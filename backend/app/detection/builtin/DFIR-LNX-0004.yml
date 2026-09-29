@@ -1,0 +1,11 @@
+id: DFIR-LNX-0004
+title: New Linux user created
+status: stable
+level: medium
+attack: [T1136.001]
+description: useradd/adduser created an account.
+logsource: { source_type: [auth_log, syslog] }
+detection:
+  selection: { event_code: user_created }
+  condition: selection
+false_positives: ["Provisioning by configuration management"]

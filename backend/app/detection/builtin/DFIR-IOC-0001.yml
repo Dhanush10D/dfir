@@ -1,0 +1,8 @@
+id: DFIR-IOC-0001
+title: IOC match
+status: stable
+level: high
+description: An event contains an indicator from the case IOC list (IP, domain, URL, hash, e-mail or file name).
+detection:
+  detector: ioc_match
+false_positives: ["Stale or over-broad indicators"]

@@ -1,0 +1,13 @@
+id: DFIR-AF-0002
+title: Logging gap within a source
+status: experimental
+level: low
+attack: [T1070]
+description: >-
+  A gap of at least 12 hours that is also 50x the source's median gap between records (logging
+  stopped or records removed).
+detection:
+  detector: time_gap
+  params: { min_gap: 12h, factor: 50, min_events: 10 }
+dedup_window: 30d
+false_positives: ["Hosts that were powered off", "Quiet logs on idle systems"]

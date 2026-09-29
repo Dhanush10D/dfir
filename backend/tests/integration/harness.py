@@ -22,12 +22,14 @@ from app.deps import (
     get_app_settings,
     get_custody_signer,
     get_db,
+    get_detect_dispatcher,
     get_job_dispatcher,
     get_trusted_keys,
     get_vault,
 )
 from app.main import create_app
 from app.services.audit import DbAuditSink
+from app.services.detection import DetectionService
 from app.services.iam import IAMService
 from app.services.processing import ProcessingService, RunResult
 from tests.fakes import FakeVault
@@ -73,12 +75,31 @@ class Harness:
         self.dispatched: list[uuid.UUID] = []
         self.dispatch_error: Exception | None = None
         self.app.dependency_overrides[get_job_dispatcher] = lambda: self._dispatch
+        # Detection jobs likewise; run them with run_detect()/run_detect_pending().
+        self.detect_dispatched: list[uuid.UUID] = []
+        self.app.dependency_overrides[get_detect_dispatcher] = lambda: self._dispatch_detect
         self.client = TestClient(self.app, raise_server_exceptions=False, client=(CLIENT_IP, 50000))
 
     def _dispatch(self, job_id: uuid.UUID) -> None:
         if self.dispatch_error is not None:
             raise self.dispatch_error
         self.dispatched.append(job_id)
+
+    def _dispatch_detect(self, job_id: uuid.UUID) -> None:
+        if self.dispatch_error is not None:
+            raise self.dispatch_error
+        self.detect_dispatched.append(job_id)
+
+    def detection(self, **overrides: Any) -> DetectionService:
+        settings = self.settings.model_copy(update=overrides) if overrides else self.settings
+        return DetectionService(self.sessions, settings, worker_name="test-worker")
+
+    def run_detect(self, job_id: uuid.UUID | str, **kw: Any) -> RunResult:
+        return self.detection().run(uuid.UUID(str(job_id)), **kw)
+
+    def run_detect_pending(self) -> list[RunResult]:
+        pending, self.detect_dispatched = self.detect_dispatched, []
+        return [self.run_detect(job_id) for job_id in pending]
 
     def processing(self, **overrides: Any) -> ProcessingService:
         settings = self.settings.model_copy(update=overrides) if overrides else self.settings

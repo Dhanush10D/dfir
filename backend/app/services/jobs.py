@@ -48,6 +48,7 @@ from app.services.custody import canonical
 log = structlog.stdlib.get_logger("dfirbench.jobs")
 
 PARSE = "parse"
+DETECT = "detect"
 ACTIVE = (JobStatus.queued, JobStatus.running)
 TERMINAL = (JobStatus.succeeded, JobStatus.partial, JobStatus.failed, JobStatus.cancelled)
 RETRYABLE = (JobStatus.failed, JobStatus.partial, JobStatus.cancelled)
@@ -133,11 +134,13 @@ class JobService:
         *,
         vault: VaultStore | None = None,
         dispatcher: Dispatcher | None = None,
+        detect_dispatcher: Dispatcher | None = None,
     ) -> None:
         self.session = session
         self.settings = settings
         self.vault = vault
         self.dispatcher = dispatcher
+        self.detect_dispatcher = detect_dispatcher
         self.audit = AuditService(session)
 
     # ------------------------------------------------------------------ access helpers
@@ -383,10 +386,11 @@ class JobService:
         return Submitted(job, True)
 
     def _dispatch(self, job: Job) -> None:
-        if self.dispatcher is None:
+        dispatcher = self.detect_dispatcher if job.kind == DETECT else self.dispatcher
+        if dispatcher is None:
             return
         try:
-            self.dispatcher(job.id)
+            dispatcher(job.id)
         except Exception as exc:
             log.error("job_dispatch_failed", job_id=str(job.id), exc_type=type(exc).__name__)
             self.session.execute(
@@ -439,8 +443,10 @@ class JobService:
         job, access = self._load_job(principal, job_id)
         access.require(Permission.EVIDENCE_ADD)
         self._require_open(access)
+        if job.kind == DETECT:
+            return self._retry_detect(principal, job, meta)
         if job.kind != PARSE or job.evidence_id is None or job.parser is None:
-            raise InvalidStateError("Only parse jobs can be retried.")
+            raise InvalidStateError("Only parse and detection jobs can be retried.")
         ev = self.session.get(Evidence, job.evidence_id)
         if ev is None:
             raise NotFoundError("Evidence not found.")
@@ -490,6 +496,44 @@ class JobService:
         job = self._reload(job_id)
         self._dispatch(job)
         return job
+
+    def _retry_detect(self, principal: Principal, job: Job, meta: RequestMeta) -> Job:
+        """Re-queue a failed/partial/cancelled detection job; 409 while another is queued."""
+        self._lock_case_open(job.case_id)
+        try:
+            with self.session.begin_nested():
+                done = self.session.execute(
+                    update(Job)
+                    .where(Job.id == job.id, Job.status.in_(RETRYABLE))
+                    .values(
+                        status=JobStatus.queued,
+                        progress=0,
+                        error=None,
+                        started_at=None,
+                        finished_at=None,
+                        heartbeat_at=None,
+                        run_manifest=None,
+                        queued_at=func.now(),
+                    )
+                    .returning(Job.id)
+                ).scalar_one_or_none()
+        except IntegrityError as exc:  # uq_jobs_queued_detect
+            raise ConflictError(
+                "A detection job for this case is already queued.", "job_active"
+            ) from exc
+        if done is None:
+            self.session.rollback()
+            current = self.session.execute(select(Job.status).where(Job.id == job.id)).scalar_one()
+            raise InvalidStateError(
+                "Only failed, partial or cancelled jobs can be retried.", status=current
+            )
+        self.audit.record(
+            "job.retried", user_id=principal.user_id, meta=meta, object_type="job", object_id=job.id
+        )
+        self.session.commit()
+        reloaded = self._reload(job.id)
+        self._dispatch(reloaded)
+        return reloaded
 
     def reprocess(
         self,

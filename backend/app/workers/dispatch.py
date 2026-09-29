@@ -20,3 +20,19 @@ def dispatch_parse(job_id: uuid.UUID) -> None:
         retry=True,
         retry_policy=RETRY_POLICY,
     )
+
+
+DETECT_TASK = "dfirbench.detect_case"
+DETECT_QUEUE = "detect"
+
+
+def dispatch_detect(job_id: uuid.UUID) -> None:
+    from app.workers.celery_app import celery_app
+
+    celery_app.send_task(
+        DETECT_TASK,
+        args=[str(job_id)],
+        queue=DETECT_QUEUE,
+        retry=True,
+        retry_policy=RETRY_POLICY,
+    )

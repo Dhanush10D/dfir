@@ -1,0 +1,13 @@
+id: DFIR-AF-0001
+title: Timestamps out of order within a log
+status: test
+level: medium
+attack: [T1070.006]
+description: >-
+  In record order, a source's timestamps step backwards by more than 10 minutes (clock change,
+  tampering, or merged logs).
+detection:
+  detector: out_of_order
+  params: { tolerance: 10m }
+dedup_window: 30d
+false_positives: ["DST fall-back in logs written in local time", "Time synchronization after a long offline period"]

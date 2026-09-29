@@ -72,6 +72,36 @@ def build_service() -> ProcessingService:
 service_factory: Callable[[], Runner] = build_service
 
 
+def queue_detection(job_id: uuid.UUID) -> None:
+    """After a parse job ends succeeded/partial, queue (or coalesce into) its case's detection."""
+    from sqlalchemy import select
+
+    from app.db.models import Job
+    from app.db.session import get_sessionmaker
+    from app.services.detection import DetectionJobs
+    from app.workers.dispatch import dispatch_detect
+
+    with get_sessionmaker()() as session:
+        case_id = session.execute(select(Job.case_id).where(Job.id == job_id)).scalar_one()
+        session.commit()
+        DetectionJobs(session, get_settings(), dispatcher=dispatch_detect).submit(
+            None, case_id, rules=None, trigger={"type": "parse", "job_id": str(job_id)}
+        )
+
+
+# Tests replace this to observe (or disable) the post-parse detection trigger.
+after_parse: Callable[[uuid.UUID], None] = queue_detection
+
+
+def _trigger_detection(result: RunResult) -> None:
+    if result.outcome not in ("succeeded", "partial") or not get_settings().detect_after_parse:
+        return
+    try:
+        after_parse(result.job_id)
+    except Exception:
+        log.exception("detect_trigger_failed", job_id=str(result.job_id))
+
+
 @celery_app.task(
     bind=True,
     name=PARSE_TASK,
@@ -107,4 +137,5 @@ def parse_evidence(self: Task[[str], dict[str, Any]], job_id: str) -> dict[str, 
         )
     if result.outcome == "busy" and can_retry:
         raise self.retry(countdown=lease_wait, max_retries=settings.job_max_auto_retries)
+    _trigger_detection(result)
     return result.as_dict()

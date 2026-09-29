@@ -1,0 +1,12 @@
+id: DFIR-WIN-0027
+title: EVTX record id gap
+status: test
+level: medium
+attack: [T1070.001]
+description: EventRecordID values are missing inside one event log file, suggesting deleted or unreadable records.
+logsource: { source_type: evtx }
+detection:
+  detector: record_gap
+  params: { min_missing: 1 }
+dedup_window: 30d
+false_positives: ["Corrupt chunks (see the parse job's run manifest)", "Exports filtered to selected records"]

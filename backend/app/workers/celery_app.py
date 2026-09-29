@@ -1,9 +1,10 @@
 """Celery application (guide 14.5).
 
-Queues: ``default``, ``parse`` (CPU/IO heavy), ``ai``, ``reports``. Long forensic tasks use late
+Queues: ``default``, ``parse`` (CPU/IO heavy), ``detect`` (rule engine), ``ai``, ``reports``.
+Long forensic tasks use late
 acks, reject-on-worker-lost and prefetch 1 so a crashed worker never silently drops a job.
 
-Run: ``celery -A app.workers.celery_app worker -Q default,parse,ai,reports -n worker@%h``
+Run: ``celery -A app.workers.celery_app worker -Q default,parse,detect,ai,reports -n worker@%h``
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from kombu import Queue
 
 from app.config import get_settings
 
-QUEUES = ("default", "parse", "ai", "reports")
+QUEUES = ("default", "parse", "detect", "ai", "reports")
 
 
 def make_celery() -> Celery:
@@ -23,7 +24,11 @@ def make_celery() -> Celery:
         "dfirbench",
         broker=settings.redis_url,
         backend=settings.redis_url,
-        include=["app.workers.tasks.system", "app.workers.tasks.parse"],
+        include=[
+            "app.workers.tasks.system",
+            "app.workers.tasks.parse",
+            "app.workers.tasks.detect",
+        ],
     )
     app.conf.update(
         task_default_queue="default",
