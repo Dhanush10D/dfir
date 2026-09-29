@@ -1,4 +1,10 @@
-"""jobs (guide 7.2)."""
+"""jobs (guide 7.2, 10.6). Lifecycle: queued -> running -> succeeded | partial | failed | cancelled.
+
+``attempts`` is incremented atomically when a worker claims the job and doubles as a fencing token:
+every write a worker makes re-checks ``(status, attempts)`` under a row lock, so a worker whose
+lease was taken over (``heartbeat_at`` older than ``JOB_LEASE_S``) cannot write any more. The app
+role has no DELETE on this table (migration 0004): run manifests are provenance records.
+"""
 
 from __future__ import annotations
 
@@ -6,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import REAL, ForeignKey, Integer, Text, text
+from sqlalchemy import REAL, CheckConstraint, ForeignKey, Index, Integer, Text, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -17,6 +23,19 @@ from app.db.models.enums import JobStatus, job_status_enum
 
 class Job(Base):
     __tablename__ = "jobs"
+    __table_args__ = (
+        CheckConstraint("progress >= 0 AND progress <= 1", name="progress_range"),
+        Index("ix_jobs_case_id_queued_at", "case_id", "queued_at"),
+        Index("ix_jobs_evidence_id", "evidence_id"),
+        # One active parse job per (evidence, parser): reprocess never interleaves with a run.
+        Index(
+            "uq_jobs_active_parse",
+            "evidence_id",
+            "parser",
+            unique=True,
+            postgresql_where=text("kind = 'parse' AND status IN ('queued', 'running')"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     case_id: Mapped[uuid.UUID] = mapped_column(UUID_T, ForeignKey("cases.id"), nullable=False)
@@ -37,3 +56,6 @@ class Job(Base):
     started_at: Mapped[datetime | None] = mapped_column(TSTZ)
     finished_at: Mapped[datetime | None] = mapped_column(TSTZ)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID_T, ForeignKey("users.id"))
+    # Phase 2 (migration 0004)
+    heartbeat_at: Mapped[datetime | None] = mapped_column(TSTZ)
+    superseded_by: Mapped[uuid.UUID | None] = mapped_column(UUID_T, ForeignKey("jobs.id"))

@@ -2,7 +2,11 @@
 
 Range-partitioned by month on ``ts`` (Standard profile). The baseline migration creates the
 partitioned parent, a DEFAULT partition, and ``dfir_ensure_events_partition(ts)`` which ingest must
-call for each month before bulk insert. Retention drops whole partitions, never rows (guide 7.6).
+call for each month before bulk insert (SECURITY DEFINER since migration 0004; it also moves stray
+rows out of ``events_default``). Retention drops whole partitions, never rows (guide 7.6).
+
+Event ids are deterministic (``app.parsers.normalize.event_id``) so a retried or reprocessed job
+can never duplicate rows; the app role may SELECT, INSERT and DELETE (reprocess), never UPDATE.
 """
 
 from __future__ import annotations
@@ -25,6 +29,7 @@ class Event(Base):
         Index("ix_events_case_id_ts", "case_id", "ts"),
         Index("ix_events_case_id_event_code", "case_id", "event_code"),
         Index("ix_events_case_id_host", "case_id", "host"),
+        Index("ix_events_evidence_id_parser_name", "evidence_id", "parser_name"),
         Index("ix_events_attack_tags", "attack_tags", postgresql_using="gin"),
         # Full-text index over message + cmdline (guide 7.2).
         Index(

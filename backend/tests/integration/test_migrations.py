@@ -53,7 +53,7 @@ def test_all_core_tables_exist(db_engine: Engine) -> None:
     assert "events_default" in tables
     with db_engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0003"
+    assert version == "0004"
 
 
 def test_app_role_privileges(db_engine: Engine) -> None:
@@ -77,6 +77,10 @@ def test_app_role_privileges(db_engine: Engine) -> None:
     assert privileges("refresh_tokens") == {"SELECT", "INSERT", "UPDATE", "DELETE"}
     # 0003: the published key copy cannot be rewritten or deleted by the app.
     assert privileges("signing_keys") == {"SELECT", "INSERT"}
+    # 0004: events are never rewritten (reprocess deletes and re-inserts); run manifests stay.
+    assert privileges("events") == {"SELECT", "INSERT", "DELETE"}
+    assert privileges("jobs") == {"SELECT", "INSERT", "UPDATE"}
+    assert privileges("events_default") == set()
     with db_engine.connect() as conn:
         # 0003: the migrating role can SET ROLE to the app role even without superuser.
         assert conn.execute(
@@ -279,3 +283,56 @@ def test_emails_are_stored_lower_case(db_engine: Engine) -> None:
         conn.execute(
             text("INSERT INTO users (email, display_name) VALUES ('LOWER@case.test', 'x')")
         )
+
+
+def test_partition_function_as_app_role_moves_default_rows(db_engine: Engine) -> None:
+    """0004: the app role creates partitions only through the SECURITY DEFINER function; rows
+    that already sit in events_default for that month are moved into the new partition."""
+    with db_engine.begin() as conn:
+        case_id = conn.execute(
+            text("INSERT INTO cases (case_number, title) VALUES ('IR-PART-2', 't') RETURNING id")
+        ).scalar_one()
+        conn.execute(
+            text(
+                "INSERT INTO events (case_id, ts, source_type) "
+                "VALUES (:c, '2031-07-15T10:00:00Z', 'test')"
+            ),
+            {"c": case_id},
+        )
+        assert (
+            conn.execute(
+                text("SELECT tableoid::regclass::text FROM events WHERE case_id = :c"),
+                {"c": case_id},
+            ).scalar_one()
+            == "events_default"
+        )
+    with db_engine.begin() as conn:
+        conn.execute(text("SET LOCAL ROLE dfirbench_app"))
+        with pytest.raises(DBAPIError, match="permission denied"), conn.begin_nested():
+            conn.execute(
+                text(
+                    "CREATE TABLE events_y2031m08 PARTITION OF events "
+                    "FOR VALUES FROM ('2031-08-01') TO ('2031-09-01')"
+                )
+            )
+        part = conn.execute(
+            text("SELECT dfir_ensure_events_partition('2031-07-01T00:00:00Z')")
+        ).scalar_one()
+        assert part == "events_y2031m07"
+        where = conn.execute(
+            text("SELECT tableoid::regclass::text FROM events WHERE case_id = :c"), {"c": case_id}
+        ).scalar_one()
+        assert where == "events_y2031m07"
+        with pytest.raises(DBAPIError, match="permission denied"), conn.begin_nested():
+            conn.execute(text("SELECT 1 FROM events_y2031m07"))
+    with db_engine.connect() as conn:
+        prosecdef = conn.execute(
+            text("SELECT prosecdef FROM pg_proc WHERE proname = 'dfir_ensure_events_partition'")
+        ).scalar_one()
+        public_exec = conn.execute(
+            text(
+                "SELECT has_function_privilege('public', "
+                "'dfir_ensure_events_partition(timestamptz)', 'EXECUTE')"
+            )
+        ).scalar_one()
+    assert prosecdef is True and public_exec is False
