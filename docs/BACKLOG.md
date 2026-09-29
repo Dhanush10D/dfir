@@ -87,3 +87,4 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | MFA enrolment UI and admin screens (users, rules, IOCs) | Login with TOTP works; enrolment/admin via API | Phase 10 |
 | Export as a background job (larger than `EXPORT_MAX_ROWS`) | Synchronous capped export (10 000 rows) is audited with its hash | Phase 8 |
 | Serve the CSP / security headers from one nginx include file instead of repeating them per location | Single-file config copied into the image; `phase4-smoke.py` checks every location | Phase 10 |
+| DB trigger on `notes` requiring `version = OLD.version + 1` with a matching `note_versions` row, so history can't be skipped by the app role | The service layer writes history under a row lock; the app role can't delete or alter versions | Phase 11 |

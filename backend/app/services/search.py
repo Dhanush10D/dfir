@@ -74,7 +74,9 @@ EXPORT_COLUMNS = (
     "registry_key", "message", "attack_tags", "tags", "evidence_id", "parser_name",
     "parser_version",
 )  # fmt: skip
-FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r")
+# Full-width forms too: some spreadsheets treat them as formula starts.
+FULLWIDTH_FORMULA_PREFIXES = tuple(chr(c) for c in (0xFF1D, 0xFF0B, 0xFF0D, 0xFF20))
+FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n", *FULLWIDTH_FORMULA_PREFIXES)
 MAX_CONTEXT_MINUTES = 1440
 
 
@@ -126,7 +128,7 @@ def csv_cell(value: Any) -> str:
         text = _iso(value) or ""
     else:
         text = str(value)
-    if text.startswith(FORMULA_PREFIXES):
+    if text.startswith(FORMULA_PREFIXES) or text.lstrip().startswith(FORMULA_PREFIXES):
         text = "'" + text
     return text
 

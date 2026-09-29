@@ -182,6 +182,9 @@ def test_csv_cell_neutralises_formulas() -> None:
     assert csv_cell("+1") == "'+1" and csv_cell("-1") == "'-1" and csv_cell("@x") == "'@x"
     assert csv_cell("\tx") == "'\tx" and csv_cell("ok") == "ok" and csv_cell(None) == ""
     assert csv_cell(["T1", "T2"]) == "T1;T2"
+    assert csv_cell("\n=1") == "'\n=1" and csv_cell("  =1") == "'  =1"
+    fullwidth_eq = chr(0xFF1D) + "1"
+    assert csv_cell(fullwidth_eq) == "'" + fullwidth_eq and csv_cell(" ok") == " ok"
 
 
 def test_histogram_interval_ladder() -> None:

@@ -19,7 +19,7 @@ export function Link({ to, children, onClick, ...rest }: LinkProps) {
     const href = safeHref(to)
     if (!href) return <span {...rest}>{children}</span>
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer nofollow" {...rest}>
+      <a {...rest} href={href} target="_blank" rel="noopener noreferrer nofollow">
         {children}
       </a>
     )
