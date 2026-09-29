@@ -12,10 +12,10 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Reverse proxy with TLS (Caddy) in compose | Dev stack binds to 127.0.0.1 only | Phase 10 |
 | `/metrics` (Prometheus), OpenTelemetry traces | Observability hardening | Phase 10 |
 | pip-audit, Trivy image scan, gitleaks, SBOM (Syft), cosign signing in CI | Security pipeline | Phase 10 |
-| Forensic binaries in the worker image (Plaso, TSK, Volatility 3, Hayabusa, Zeek, tshark, YARA, libewf) with pinned versions in `/opt/dfir/tool-versions.txt` | Phase scope | Phase 6 |
+| ~~Forensic binaries in the worker image~~ **Partly done in Phase 6**: Sleuth Kit (with Debian's libewf), Volatility 3 (own venv), YARA (yara-python) and the tool version file. Remaining: Plaso, Hayabusa, tshark, Suricata (image size / RAM), Zeek (optional engine, wrapper exists) | Image size on the 7.6 GB dev host | Phase 10 |
 | Per-job sandbox containers (`--network none`, read-only evidence mount) | Phase scope | Phase 10 |
 | ~~Router~~ (done in Phase 4: own History-API router). Remaining: generated TypeScript API client (`openapi-typescript`) and shadcn/ui; Phase 4 hand-writes `frontend/src/api/types.ts` | No new npm dependencies in Phase 4 | Phase 10 |
-| Split worker images (`worker-parse`, `worker-ai`) per guide 21.2 | Only one worker needed now | Phase 6/7 |
+| Split worker images (`worker-parse`, `worker-ai`) per guide 21.2 | Only one worker needed now; Phase 6 kept one image (engines add ~250 MB) | Phase 7/10 |
 | Evaluate replacing the `pgsty/minio` community image if upstream images return, or pin by digest | Upstream `minio/minio` images are no longer published on Docker Hub/quay | Phase 10 |
 | `EMBEDDING_DIM` != 384 requires a migration of `event_chunks.embedding` | Model not chosen yet | Phase 7 |
 | ~~`dfir_ensure_events_partition` fails if `events_default` already holds rows for that month~~ | Done in Phase 2 (migration 0004) | - |
@@ -53,8 +53,8 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Evidence status `processing` / `processed` / `partial` (guide 4.4) derived from its jobs | Job state carries progress today (the UI shows jobs per evidence); needs a rule for multiple parsers per item and for bundles with derived children. Phase 5 also narrowed the app role's UPDATE on `evidence` to the upload/finalize columns, so this needs a grant | Phase 10 |
 | Reprocess swaps events in separate short transactions (delete, then batches), so a reader can briefly see a partial timeline for that evidence. Option: build into a staging `job_id` and swap visibility at finish | Final state is always correct (deterministic ids); cost/benefit | Phase 10 |
 | Backpressure: pause parsing when inserts lag (guide 10.6); batches are synchronous today, which bounds memory but not DB load across many workers | Single worker in dev | Phase 10 |
-| More `linux_auth` inputs: `journalctl -o json` exports, wtmp/btmp/lastlog, bash/zsh history (guide 10.3 catalogue). Phase 5 collectors already gather them; a new parser plus a bundle reprocess will derive them | Scope | Phase 6 |
-| Hayabusa enrichment of EVTX events; richer EVTX mappings (e.g. 4611/4673/4616 get only a generic message; 4616 time delta) | Phase 3 shipped its own rule engine + Sigma subset | Phase 6 |
+| ~~More `linux_auth` inputs~~ **Done in Phase 6** (`journal_json`, `wtmp`, `shell_history`). Remaining: `lastlog` (sparse per-UID file) | Low value | Later |
+| Hayabusa enrichment of EVTX events; richer EVTX mappings (e.g. 4611/4673/4616 get only a generic message; 4616 time delta) | Phase 6 focused on new artifact types; Hayabusa is another large binary | Phase 10 |
 | Per-job sandbox containers for parsers (`--network none`, read-only evidence mount, CPU/memory/pids limits); today the parser runs in the worker process on a 0400 scratch copy | Phase scope (already listed above) | Phase 10 |
 | `container_image_digest` in run manifests: set `DFIR_IMAGE_DIGEST` in the worker image at build/deploy time | Needs the release pipeline (cosign) | Phase 10 |
 | The app role has DELETE on `events` (reprocess). Option: route deletes through a `SECURITY DEFINER` function keyed by job so ad-hoc deletes are impossible | Defense in depth | Phase 10 |
@@ -67,7 +67,7 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Suppressions (`POST /alerts/{id}/suppress`: rule + entity + expiry + reason) and incident grouping of alerts by host/user/time | Out of Phase 4 scope (analysis UI first) | Phase 9 |
 | SQL push-down of rule predicates (prefilter by event_code/source_type) and streaming single-event detection at ingest; today every run rescans the case in Python | Correct and bounded; performance work | Phase 10 |
 | Detection runs are full-case rescans; incremental runs over new events only | Simplicity/idempotency first | Phase 10 |
-| Statistical analytics (beaconing, DGA, rare parent-child, IsolationForest), YARA, remaining Appendix B rules (WIN-0013..0025, 0028, LNX-0005..0010, NET-*) that need data sources not parsed yet | Needs Sysmon/PowerShell/DNS/PCAP/MFT/history parsers | Phases 6/7 |
+| Statistical analytics (beaconing, DGA, rare parent-child, IsolationForest), ~~YARA~~ (Phase 6 `yara_scan`), remaining Appendix B rules (WIN-0013..0025, 0028, LNX-0005..0010, NET-*) that need data sources not parsed yet | Needs Sysmon/PowerShell/DNS/PCAP/MFT/history parsers | Phases 6/7 |
 | MISP import, VirusTotal/MISP enrichment, global (case_id NULL) IOC management API; IOC CIDR ranges | Integrations phase | Phase 9 |
 | Asset inventory for `asset_criticality` in the risk score (1.0 today) | Phase 4 entities exist; criticality needs an admin/asset UI | Phase 9 |
 | ATT&CK tags on events are only added; a tag from an alert that later goes stale stays on the event | Needs per-event tag provenance (out of Phase 4 scope) | Phase 10 |
@@ -82,7 +82,7 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Virtualized event table | Server keyset paging + "load more" keeps the DOM bounded | Phase 10 |
 | ECharts / Cytoscape for charts and the graph | Small hand-written SVG components; no new npm dependencies | Later |
 | Entity merge suggestions + analyst approval; time-scoped IP-to-host mapping; domain and file entities; alert nodes in the graph; shortest path | Deterministic resolution first | Phase 7/10 |
-| File browser (TSK listing) | Needs the Phase 6 disk parsers | Phase 6 |
+| File browser (TSK listing) and file extraction (`icat`) | Phase 6 ships the TSK timeline (`tsk_fs`); a browsable listing needs an API + UI | Phase 10 |
 | Playwright end-to-end tests of the UI | Vitest + Testing Library cover components; live API smoke covers the backend | Phase 11 |
 | MFA enrolment UI and admin screens (users, rules, IOCs) | Login with TOTP works; enrolment/admin via API | Phase 10 |
 | Export as a background job (larger than `EXPORT_MAX_ROWS`) | Synchronous capped export (10 000 rows) is audited with its hash | Phase 8 |
@@ -93,14 +93,31 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 
 | Item | Why deferred | Target |
 |---|---|---|
-| Parsers for the other artifacts the collectors gather: registry hives, Prefetch, Amcache, LNK/Jump Lists, browser history, SRUM, journal JSON, wtmp/btmp, shell histories, the volatile JSON listings. A bundle reprocess then derives them (members are already verified and listed as `verified`) | Phase scope (deep parsers) | Phase 6 |
+| ~~Parsers for the other collected artifacts~~ **Done in Phase 6**: registry hives, Prefetch, Amcache, LNK, browser history, journal JSON, wtmp/btmp, shell histories (a bundle reprocess derives them). Remaining: Jump Lists, SRUM, the volatile JSON listings (see From Phase 6) | - | - |
 | Raw NTFS / VSS reads in the Windows collector for locked files (`$MFT`, `$UsnJrnl:$J`, loaded `Amcache.hve`/`SRUDB.dat`, other users' loaded hives): recorded as collection errors today | Needs a raw-volume reader shipped with the collector; the Standard profile collects them from disk images instead | Phase 10 |
 | Signed collector releases (Authenticode for the PowerShell script, minisign for the Python/bash scripts) with signature checks at ingest; today trust = SHA-256 list outside the DB | Needs the release pipeline and key management | Phase 10 |
-| Multi-segment evidence sets (E01 `.E02...`, split raw `.001/.002`) as one evidence item with a combined manifest (guide 8.5) | The evidence model is one object per item; the docs say to use single-segment images | Phase 6 |
-| Import of `*.acquisition.json` (memory/disk wrappers) to prefill evidence fields and check memory image size against RAM | Analysts copy the values by hand today | Phase 6 |
+| Multi-segment evidence sets (E01 `.E02...`, split raw `.001/.002`) as one evidence item with a combined manifest (guide 8.5) | The evidence model is one object per item; `tsk_fs` reads single-segment raw/E01 images | Phase 10 |
+| Import of `*.acquisition.json` (memory/disk wrappers) to prefill evidence fields and check memory image size against RAM | Analysts copy the values by hand today; not a parser concern | Phase 10 |
 | Bundle formats other than ZIP (tar.gz, 7z), a bash-only Linux collector for hosts without Python 3, a Windows disk-imaging wrapper, a macOS collector | ZIP-only is a deliberate hostile-input decision; Python 3 is on practically every server; FTK Imager/ewfacquire procedure documented | Later |
 | Reaper for vault objects written by a bundle job whose DB commit then failed (derived bytes without an evidence row); same class as the Phase 1 orphaned-version item | Rare, detectable (key prefix `{case}/{bundle}/derived/` without a row); needs the scheduler | Phase 10 |
 | UI view of per-member bundle verdicts (`GET /evidence/{id}/bundle`); the Evidence tab shows derived items and their parent only | API complete; UI polish | Phase 10 |
 | Windows collector: recurse directories manually and skip ones with the `ReparsePoint` attribute (PS 5.1 `Get-ChildItem -Recurse` follows junctions under `System32\Tasks`) | Still read-only and bounded by byte caps | Phase 10 |
 | Bundle job crash mid-derivation: `_finish_bundle` should add `bundle_members` rows for candidates never processed in that attempt | Run is already marked failed; reprocess re-derives | Phase 10 |
 | Remote agent (guide 9.4), cloud/SaaS collectors (9.5), mobile/email ingest (9.6) | P2 in the guide | Later |
+
+## From Phase 6
+
+| Item | Why deferred | Target |
+|---|---|---|
+| Plaso super-timeline, Hayabusa, tshark, Suricata, capa/FLOSS, ssdeep/TLSH in the worker image | Image size and RAM on the dev host; each needs its own wrapper + fake-binary tests | Phase 10 |
+| Zeek in an optional derived worker image (`worker-net`) with a CI job that runs the real engine on `capture.pcap` | Zeek is hundreds of MB from a third-party repo; the wrapper is tested with a fake binary only | Phase 10 |
+| Volatility 3 symbol packs (Windows ISF / Linux kernel ISF) provisioning and a real-memory-image test in CI | Packs are hundreds of MB; no redistributable test image; the live smoke only proves a clean failure | Phase 10 |
+| MFT / `$UsnJrnl:$J` parsers (MFTECmd-style) and `$SI` vs `$FN` timestomp checks | Needs raw NTFS reads (collector) or `icat` extraction from images | Phase 10 |
+| Jump Lists (OLE CFB AutomaticDestinations: DestList + embedded LNK), ShellBags (UsrClass/NTUSER), SRUM (ESE database) | Need an OLE and an ESE reader; collected already, re-derived by a bundle reprocess once parsers exist | Phase 10 |
+| Firefox `places.sqlite-wal` replay (open a copy with the WAL applied) | `immutable=1` read-only open ignores the WAL by design; replay needs a writable scratch copy | Phase 10 |
+| The collectors' volatile JSON listings (processes, connections, services) as snapshot events | Not time-series data; needs a "snapshot" event convention | Phase 7/10 |
+| User-supplied YARA rules through the API (validation, size caps, compile in a sandbox, versioned rule packs) and YARA over files extracted from images / memory regions (Volatility yarascan) | Rules are trusted configuration only in Phase 6 | Phase 9/10 |
+| Detection rules for the new sources (Run key persistence, IFEO debugger, BAM/Prefetch of rare binaries, DNS to IOC domains, YARA-match alerts) | Phase 3 engine works on any field; rule content is a separate review | Phase 7/9 |
+| Win8.x and Win7 x86 ShimCache layouts; UserAssist focus-time decoding checks against real hives; registry transaction-log replay for dirty hives | Synthetic fixtures only (no redistributable real hives); dirty hives are parsed as-is with a warning | Phase 10 |
+| Windows: `run_tool` kills only the launcher of a `.bat` test double (no process-group kill on Windows) | Workers run on Linux (process-group kill); Windows only runs unit tests | Later |
+| TCP reassembly for HTTP/TLS in the `pcap` parser (today single-segment only) | Zeek covers it when installed | Later |

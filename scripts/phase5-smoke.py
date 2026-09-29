@@ -120,7 +120,8 @@ def main() -> int:
     manifest = job.get("run_manifest") or {}
     counts = manifest.get("counts", {})
     expect(
-        job["status"] == "succeeded" and counts.get("ingested") == 1 and counts.get("flagged") == 0,
+        # Phase 6: the shell_history parser also derives the collected .bash_history
+        job["status"] == "succeeded" and counts.get("ingested") == 2 and counts.get("flagged") == 0,
         f"bundle ingested: {counts}",
         job,
     )
@@ -129,13 +130,17 @@ def main() -> int:
     status, body, _ = api.call("POST", f"/evidence/{bundle_id}/process", analyst, {})
     expect(status == 202 and body["created"] == [], "second Process returns the same job", body)
     status, items, _ = api.call("GET", f"/cases/{cid}/evidence", analyst)
-    derived = [e for e in items["items"] if e["parent_evidence_id"] == bundle_id]
+    derived = {
+        e["original_name"]: e for e in items["items"] if e["parent_evidence_id"] == bundle_id
+    }
     expect(
-        len(derived) == 1 and derived[0]["original_name"] == "logs/var/log/auth.log",
-        "auth.log became derived evidence linked to the bundle",
-        items,
+        len(derived) == 2
+        and "logs/var/log/auth.log" in derived
+        and any(n.endswith("/.bash_history") for n in derived),
+        "auth.log (and, since Phase 6, .bash_history) became derived evidence of the bundle",
+        sorted(derived),
     )
-    did = derived[0]["id"]
+    did = derived["logs/var/log/auth.log"]["id"]
     status, summary, _ = api.call("GET", f"/evidence/{bundle_id}/bundle", viewer)
     expect(status == 200 and summary["outcome"] == "succeeded", "viewer reads the bundle", summary)
     paths = {m["member_path"] for m in summary["members"]}

@@ -117,11 +117,13 @@ JSON listings from the collectors (process/network snapshots), per-job sandbox c
 | `backend/app/parsers/browser.py`, `registry_hive.py`, `amcache.py`, `prefetch.py`, `lnk.py`, `pe_static.py`, `yara_scan.py`, `pcap.py`, `zeek.py`, `tsk_fs.py`, `volatility.py`, `wtmp.py`, `shell_history.py`, `journal_json.py` | the parsers (registered in `registry.BUILTIN_MODULES`) |
 | `backend/app/detection/yara/*.yar` | reviewed starter rule pack (EICAR, webshell, credential-tool strings, encoded PowerShell, UPX) |
 | `backend/app/services/processing.py` | builds `ToolConfig` + `work_dir` for the context; manifest `limits` extended |
-| `backend/app/services/jobs.py` | `PARSER_PARAMS` for new parsers; validation of `os`/`plugins` (volatility) and `timezone` (tsk_fs) |
+| `backend/app/services/jobs.py`, `app/schemas/jobs.py` | `PARSER_PARAMS` for new parsers; `ProcessParams.os`/`plugins`; validation of `os`/`plugins` (volatility) and `timezone` (tsk_fs) |
+| `backend/app/services/bundles.py` | `DERIVED_KIND` for the new log-like parsers (`log`) and `pcap` |
+| `scripts/phase5-smoke.py` | expects the collected `.bash_history` to be derived too (Phase 6 behaviour change) |
 | `backend/app/config.py`, `.env.example` | settings below |
 | `infra/docker/worker.Dockerfile` | `tools` stage: `sleuthkit` + `tzdata` (pinned apt), Volatility 3 venv, `/opt/dfir/tool-versions.txt` |
 | `backend/tests/fixtures/deep/make_fixtures.py` + committed outputs | synthetic hive (SYSTEM/SOFTWARE/NTUSER/Amcache), Prefetch v17/v30 + MAM, LNK, Chrome History, Firefox places, pcap, pcapng, PE, YARA sample, wtmp, histories, journal JSON, tiny FAT12 image |
-| `backend/tests/unit/test_parsers_deep_golden.py`, `test_parsers_deep_hostile.py`, `test_tool_wrappers.py`, `test_regf_xpress.py`, `test_timeconv.py` | unit tests (no Docker) |
+| `backend/tests/unit/test_parsers_deep_golden.py`, `test_parsers_deep_hostile.py` (also timeconv, xpress, regf), `test_tool_wrappers.py`, `deep_helpers.py`; `tests/fixtures/deep/fake_tools/fake_engines.py`, `regwriter.py` | unit tests (no Docker) |
 | `backend/tests/integration/test_deep_parsers.py` | bundle reprocess derives the new artifacts; parse jobs through the pipeline |
 | `docs/parsers.md` | catalogue, inputs, event mapping, limits, engines, licences |
 | `scripts/phase6-smoke.py`, `scripts/verify-phase6.sh` | live smoke and verification |
@@ -201,7 +203,7 @@ JSON listings from the collectors (process/network snapshots), per-job sandbox c
 
 ## Acceptance criteria (executable)
 1. `pytest tests/unit/test_parsers_deep_golden.py tests/unit/test_parsers_deep_hostile.py
-   tests/unit/test_tool_wrappers.py tests/unit/test_regf_xpress.py tests/unit/test_timeconv.py`
+   tests/unit/test_tool_wrappers.py`
 2. `pytest tests/integration/test_deep_parsers.py`
 3. Worker image: `fls -V`, `mmls -V`, `vol --help`, `python -c "import yara, pefile, dpkt,
    LnkParse3"`, `/opt/dfir/tool-versions.txt` lists sleuthkit and volatility3.
