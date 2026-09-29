@@ -45,14 +45,14 @@ done
 
 step "alembic upgrade head + drift check (host -> compose Postgres)"
 "$BIN/alembic" upgrade head
-"$BIN/alembic" current | grep -q '0004 (head)'
+"$BIN/alembic" current | grep -q '(head)'
 "$BIN/alembic" check
 
-step "alembic round trip of migration 0004 (downgrade 0003 -> upgrade head)"
+step "alembic round trip of migrations 0004-0005 (downgrade 0003 -> upgrade head)"
 "$BIN/alembic" downgrade 0003
 "$BIN/alembic" current | grep -q '0003'
 "$BIN/alembic" upgrade head
-"$BIN/alembic" current | grep -q '0004 (head)'
+"$BIN/alembic" current | grep -q '(head)'
 "$BIN/alembic" check
 
 step "live smoke + tamper demo through the running API"

@@ -455,6 +455,8 @@ class ProcessingService:
                 except NormalizationError as exc:
                     stats.error(event.record_key or "?", "normalize_failed", str(exc))
                     continue
+                if row["raw"].get("_truncated") is True:
+                    stats.warn("raw_truncated", event.record_key)
                 stats.events_emitted += 1
                 sink.add(row, size)
             sink.flush()
@@ -642,6 +644,8 @@ class ProcessingService:
             )
             if outcome == "succeeded":
                 outcome, error = "partial", "record accounting mismatch (parser bug)"
+        if outcome == "succeeded" and stats.warnings.get("duplicate_event_id"):
+            outcome, error = "partial", "duplicate event ids: fewer events inserted than emitted"
         counts = stats.counts()
         manifest.update(
             finished_at=_iso(finished),
@@ -706,6 +710,7 @@ class ProcessingService:
                         "version_id": manifest.get("evidence_version_id"),
                         "requested_by": str(claim.created_by) if claim.created_by else None,
                         "manifest_sha256": digest,
+                        "replaced_previous_events": manifest.get("replaced_previous_events", 0),
                         **counts,
                     },
                 )

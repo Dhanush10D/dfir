@@ -53,7 +53,7 @@ def test_all_core_tables_exist(db_engine: Engine) -> None:
     assert "events_default" in tables
     with db_engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0004"
+    assert version == "0005"
 
 
 def test_app_role_privileges(db_engine: Engine) -> None:
@@ -295,7 +295,7 @@ def test_partition_function_as_app_role_moves_default_rows(db_engine: Engine) ->
         conn.execute(
             text(
                 "INSERT INTO events (case_id, ts, source_type) "
-                "VALUES (:c, '2031-07-15T10:00:00Z', 'test')"
+                "VALUES (:c, '1985-07-15T10:00:00Z', 'test')"
             ),
             {"c": case_id},
         )
@@ -311,20 +311,20 @@ def test_partition_function_as_app_role_moves_default_rows(db_engine: Engine) ->
         with pytest.raises(DBAPIError, match="permission denied"), conn.begin_nested():
             conn.execute(
                 text(
-                    "CREATE TABLE events_y2031m08 PARTITION OF events "
-                    "FOR VALUES FROM ('2031-08-01') TO ('2031-09-01')"
+                    "CREATE TABLE events_y1985m08 PARTITION OF events "
+                    "FOR VALUES FROM ('1985-08-01') TO ('1985-09-01')"
                 )
             )
         part = conn.execute(
-            text("SELECT dfir_ensure_events_partition('2031-07-01T00:00:00Z')")
+            text("SELECT dfir_ensure_events_partition('1985-07-01T00:00:00Z')")
         ).scalar_one()
-        assert part == "events_y2031m07"
+        assert part == "events_y1985m07"
         where = conn.execute(
             text("SELECT tableoid::regclass::text FROM events WHERE case_id = :c"), {"c": case_id}
         ).scalar_one()
-        assert where == "events_y2031m07"
+        assert where == "events_y1985m07"
         with pytest.raises(DBAPIError, match="permission denied"), conn.begin_nested():
-            conn.execute(text("SELECT 1 FROM events_y2031m07"))
+            conn.execute(text("SELECT 1 FROM events_y1985m07"))
     with db_engine.connect() as conn:
         prosecdef = conn.execute(
             text("SELECT prosecdef FROM pg_proc WHERE proname = 'dfir_ensure_events_partition'")
@@ -336,3 +336,14 @@ def test_partition_function_as_app_role_moves_default_rows(db_engine: Engine) ->
             )
         ).scalar_one()
     assert prosecdef is True and public_exec is False
+
+
+@pytest.mark.parametrize(
+    "ts", ["1969-12-31T23:59:59Z", "2000-01-01T00:00:00Z BC", "9999-01-01T00:00:00Z"]
+)
+def test_partition_function_rejects_outside_window(db_engine: Engine, ts: str) -> None:
+    """0005: a direct call by the app role cannot create partitions outside the worker window."""
+    with db_engine.begin() as conn:
+        conn.execute(text("SET LOCAL ROLE dfirbench_app"))
+        with pytest.raises(DBAPIError, match="outside partition window"):
+            conn.execute(text("SELECT dfir_ensure_events_partition(:ts)"), {"ts": ts})

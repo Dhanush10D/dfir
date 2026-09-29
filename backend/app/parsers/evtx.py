@@ -33,6 +33,7 @@ from datetime import UTC, datetime
 from pathlib import Path, PureWindowsPath
 from typing import TYPE_CHECKING, Any
 
+from defusedxml import DefusedXmlException
 from defusedxml.ElementTree import ParseError
 from defusedxml.ElementTree import fromstring as safe_fromstring
 from Evtx.Evtx import Evtx
@@ -505,8 +506,9 @@ class EvtxParser:
             return None
         try:
             root = _record_xml(xml, stats, loc)
-        except ParseError as exc:
-            stats.error(loc, "xml_invalid", str(exc)[:200])
+        except (ParseError, DefusedXmlException) as exc:
+            # DTD/entity rejections are not ParseErrors; count them per record, don't fail the job.
+            stats.error(loc, "xml_invalid", str(exc)[:200] or type(exc).__name__)
             return None
         system = _system(root)
         data_el = next((c for c in root if _local(c.tag) == "EventData"), None)
