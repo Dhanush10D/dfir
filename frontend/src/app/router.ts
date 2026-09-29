@@ -4,6 +4,8 @@
  */
 import { useSyncExternalStore } from 'react'
 
+import { isSameOriginPath } from '@/lib/safeHref'
+
 const EVENT = 'dfirbench:navigate'
 
 function subscribe(cb: () => void): () => void {
@@ -20,7 +22,7 @@ function snapshot(): string {
 }
 
 export function navigate(to: string, opts: { replace?: boolean } = {}): void {
-  if (!to.startsWith('/') || to.startsWith('//')) return // same-origin paths only
+  if (!isSameOriginPath(to)) return // same-origin paths only (no //host or /\host)
   if (opts.replace) window.history.replaceState(null, '', to)
   else window.history.pushState(null, '', to)
   window.dispatchEvent(new Event(EVENT))
