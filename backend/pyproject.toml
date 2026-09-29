@@ -25,6 +25,11 @@ dependencies = [
   "PyJWT==2.15.0",
   "pyotp==2.10.0",
   "cryptography==50.0.1",
+  # Phase 2 parsers: pure-Python EVTX reader (Apache-2.0) + its dependency, safe XML, tz database.
+  "python-evtx==0.8.1",
+  "hexdump==3.3",
+  "defusedxml==0.7.1",
+  "tzdata==2026.4",
 ]
 
 [project.optional-dependencies]
@@ -37,6 +42,7 @@ dev = [
   "celery-types==0.26.0",
   "bandit==1.9.4",
   "hypothesis==6.168.3",
+  "types-defusedxml==0.7.0.20260504",
 ]
 
 [tool.setuptools.packages.find]
@@ -70,7 +76,7 @@ warn_unused_ignores = true
 exclude = ["alembic/", "tests/"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*"]
+module = ["pgvector.*", "Evtx.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

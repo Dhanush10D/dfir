@@ -1,0 +1,24 @@
+Dec 30 23:58:01 web01 sshd[1021]: Accepted publickey for deploy from 198.51.100.20 port 50122 ssh2: ED25519 SHA256:q2wD0bXaYh8ex0FJhsDk2ByGdq2v9zU0O7iu4NRnJ1c
+Dec 30 23:58:01 web01 sshd[1021]: pam_unix(sshd:session): session opened for user deploy(uid=1001) by (uid=0)
+Dec 30 23:59:40 web01 sudo:   deploy : TTY=pts/0 ; PWD=/home/deploy ; USER=root ; COMMAND=/usr/bin/systemctl restart nginx
+Dec 31 02:14:07 web01 sshd[2200]: Invalid user admin from 203.0.113.50 port 41022
+Dec 31 02:14:09 web01 sshd[2200]: Failed password for invalid user admin from 203.0.113.50 port 41022 ssh2
+Dec 31 02:14:15 web01 sshd[2204]: Failed password for root from 203.0.113.50 port 41030 ssh2
+Dec 31 02:14:15 web01 sshd[2204]: pam_unix(sshd:auth): authentication failure; logname= uid=0 euid=0 tty=ssh ruser= rhost=203.0.113.50  user=root
+
+Jan  1 00:00:02 web01 CRON[3301]: pam_unix(cron:session): session opened for user root(uid=0) by (uid=0)
+Jan  1 00:00:03 web01 CRON[3301]: pam_unix(cron:session): session closed for user root
+Jan  2 09:12:44 web01 sshd[4410]: Accepted password for alice from 203.0.113.50 port 51515 ssh2
+Jan  2 09:12:44 web01 systemd-logind[612]: New session 42 of user alice.
+Jan  2 09:13:02 web01 sudo:    alice : 3 incorrect password attempts ; TTY=pts/1 ; PWD=/home/alice ; USER=root ; COMMAND=/bin/bash
+Jan  2 09:15:30 web01 useradd[4521]: new group: name=backdoor, GID=1002
+Jan  2 09:15:30 web01 useradd[4521]: new user: name=backdoor, UID=1002, GID=1002, home=/home/backdoor, shell=/bin/bash, from=/dev/pts/1
+Jan  2 09:15:41 web01 usermod[4530]: add 'backdoor' to group 'sudo'
+Jan  2 09:15:55 web01 passwd[4533]: pam_unix(passwd:chauthtok): password changed for backdoor
+Jan  2 09:16:10 web01 su[4540]: (to root) alice on pts/1
+Jan  2 09:20:00 web01 sshd[4410]: Disconnected from user alice 203.0.113.50 port 51515
+Jan  2 09:21:13 web01 kernel: [812345.123456] audit: type=1400 apparmor="DENIED" operation="open"
+this line is not syslog at all
+2026-01-02T09:22:00.123456+05:30 web01 sshd[4600]: Accepted publickey for bob from 2001:db8::7 port 60000 ssh2
+<38>1 2026-01-02T04:23:00Z web01 sshd 4601 - - Failed password for bob from 2001:db8::7 port 60001 ssh2
+Jan  2 09:24:00 web01 userdel[4700]: delete user 'backdoor'
