@@ -381,10 +381,10 @@ class Collector:
             self.skip(" ".join(argv), "command_unavailable:" + type(exc).__name__)
             return
         try:
-            out, err = proc.communicate(timeout=COMMAND_TIMEOUT)
+            out, _err = proc.communicate(timeout=COMMAND_TIMEOUT)
         except subprocess.TimeoutExpired:
             proc.kill()
-            out, err = proc.communicate()
+            out, _err = proc.communicate()
             self.error(" ".join(argv), TimeoutError("timeout"))
         if proc.returncode not in (0, None) and not out:
             self.skip(" ".join(argv), "exit_%s" % proc.returncode)
@@ -620,7 +620,7 @@ class Collector:
             self.add_json(self.arcname("volatile", directory + "_listing.json"), rows,
                           "volatile", "listing of " + directory)
         seen = set()
-        for user, home in self.users() + [("root", "/root")]:
+        for _user, home in self.users() + [("root", "/root")]:
             if home in seen or home in ("/", "/nonexistent") or home.startswith("/proc"):
                 continue
             seen.add(home)
@@ -636,14 +636,21 @@ class Collector:
         info = {"source": None, "synchronized": None, "ntp_offset_s": None}
         if self.live:
             try:
-                out = subprocess.Popen(
+                proc = subprocess.Popen(
                     ["timedatectl", "show", "-p", "NTPSynchronized", "--value"],
                     stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL,
                     env={"LC_ALL": "C", "PATH": "/usr/bin:/bin"},
-                ).communicate(timeout=10)[0].decode("ascii", "replace").strip()
+                )
+                try:
+                    raw = proc.communicate(timeout=10)[0]
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.communicate()
+                    raw = b""
+                out = raw.decode("ascii", "replace").strip()
                 info["source"] = "timedatectl"
                 info["synchronized"] = {"yes": True, "no": False}.get(out)
-            except (OSError, subprocess.TimeoutExpired):
+            except OSError:
                 pass
         if self.args.ntp_server:
             offset = sntp_offset(self.args.ntp_server)
