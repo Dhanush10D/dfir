@@ -520,6 +520,8 @@ class Collector:
             try:
                 with os.scandir(self.host(current)) as it:
                     items = list(it)
+            except FileNotFoundError:
+                continue
             except OSError as exc:
                 self.error(current, exc)
                 continue
@@ -612,6 +614,8 @@ class Collector:
         self.add_json("persistence/systemd_listing.json", systemd, "persistence",
                       "listing of " + ", ".join(SYSTEMD_DIRS))
         for directory in LISTING_DIRS:
+            if not os.path.isdir(self.host(directory)):
+                continue
             rows = self.listing(directory)
             self.add_json(self.arcname("volatile", directory + "_listing.json"), rows,
                           "volatile", "listing of " + directory)
