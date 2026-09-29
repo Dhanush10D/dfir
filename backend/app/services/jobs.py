@@ -41,6 +41,7 @@ from app.core.permissions import Permission, Principal
 from app.db.models import Case, CaseStatus, Evidence, Job, JobStatus
 from app.parsers.base import Parser
 from app.parsers.registry import UnknownParserError, all_parsers, detect, get_parser
+from app.parsers.volatility import VOLATILITY_PLUGINS
 from app.repositories.vault import VaultStore
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import CaseAccess, load_case_access
@@ -60,6 +61,8 @@ HEAD_BYTES = 8192
 PARSER_PARAMS: dict[str, frozenset[str]] = {
     "linux_auth": frozenset({"timezone", "year"}),
     "evtx": frozenset(),
+    "tsk_fs": frozenset({"timezone"}),
+    "volatility": frozenset({"os", "plugins"}),
 }
 YEAR_RANGE = (1970, 2100)
 
@@ -97,9 +100,35 @@ def validate_params(parser: str, params: Mapping[str, Any]) -> dict[str, Any]:
             ):
                 raise AppError("invalid_params", "year must be an integer 1970-2100.", 422)
             clean[key] = value
+        elif key == "os":
+            if not isinstance(value, str) or value not in VOLATILITY_PLUGINS:
+                raise AppError(
+                    "invalid_params", f"os must be one of {sorted(VOLATILITY_PLUGINS)}.", 422
+                )
+            clean[key] = value
+        elif key == "plugins":
+            clean[key] = _validate_plugins(params, value)
     if "timezone" in accepted:
         clean.setdefault("timezone", "UTC")
     return clean
+
+
+def _validate_plugins(params: Mapping[str, Any], value: Any) -> list[str]:
+    given = params.get("os")
+    os_name = given if isinstance(given, str) else "windows"
+    allowed = VOLATILITY_PLUGINS.get(os_name, frozenset())
+    if (
+        not isinstance(value, list)
+        or not 1 <= len(value) <= len(allowed)
+        or not all(isinstance(v, str) and v in allowed for v in value)
+    ):
+        raise AppError(
+            "invalid_params",
+            "plugins must be a non-empty list from the allowlist for this os.",
+            422,
+            details={"os": os_name, "allowed": sorted(allowed)},
+        )
+    return sorted(set(value))
 
 
 def idempotency_key(

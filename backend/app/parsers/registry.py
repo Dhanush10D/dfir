@@ -8,7 +8,13 @@ from pathlib import Path
 from app.parsers.base import Parser
 
 REGISTRY: dict[str, Parser] = {}
-BUILTIN_MODULES = ("app.parsers.evtx", "app.parsers.linux_auth")
+BUILTIN_MODULES = (
+    "app.parsers.evtx",
+    "app.parsers.linux_auth",
+    "app.parsers.registry_hive",
+    "app.parsers.amcache",
+    "app.parsers.prefetch",
+)
 AUTO_THRESHOLD = 0.5
 
 

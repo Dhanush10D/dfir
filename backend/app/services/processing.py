@@ -54,7 +54,7 @@ from app.core.hashing import MultiHasher
 from app.core.signing import CustodySigner
 from app.db.models import Case, CaseStatus, Evidence, Job, JobStatus
 from app.db.models import Event as EventRow
-from app.parsers.base import ParseContext, ParseLimits, ParserInputError, ParseStats
+from app.parsers.base import ParseContext, ParseLimits, ParserInputError, ParseStats, ToolConfig
 from app.parsers.normalize import NormalizationError, to_row
 from app.parsers.registry import UnknownParserError, get_parser
 from app.repositories.vault import VaultObjectMissingError, VaultStore
@@ -140,6 +140,32 @@ def _version(dist: str) -> str | None:
 
 def manifest_sha256(manifest: Mapping[str, Any]) -> str:
     return hashlib.sha256(canonical(dict(manifest))).hexdigest()
+
+
+def parse_limits(settings: Settings) -> ParseLimits:
+    mib = 1024 * 1024
+    return ParseLimits(
+        max_line_bytes=settings.parser_max_line_kb * 1024,
+        max_decompressed_bytes=settings.parser_max_decompressed_mb * mib,
+        max_decompression_ratio=settings.parser_max_decompression_ratio,
+        max_structured_bytes=settings.parser_max_structured_mb * mib,
+        max_records=settings.parser_max_records,
+    )
+
+
+def tool_config(settings: Settings) -> ToolConfig:
+    """Trusted engine/rule configuration for parsers (never taken from job params)."""
+    mib = 1024 * 1024
+    return ToolConfig(
+        search_path=settings.tool_search_path or None,
+        timeout_s=settings.tool_timeout_s,
+        max_output_bytes=settings.tool_max_output_mb * mib,
+        yara_rules_dirs=(settings.yara_rules_dir,) if settings.yara_rules_dir else (),
+        yara_timeout_s=settings.yara_timeout_s,
+        yara_max_file_bytes=settings.yara_max_file_mb * mib,
+        volatility_symbols_dir=settings.volatility_symbols_dir or None,
+        sqlite_timeout_s=settings.parser_sqlite_timeout_s,
+    )
 
 
 class EventSink:
@@ -420,6 +446,8 @@ class ProcessingService:
                 else (ev.created_at, "uploaded_at")
             )
             sink = EventSink(self, session, job_id, claim.token, stats)
+            work_dir = scratch / "work"  # external engines write only here (0700, removed after)
+            work_dir.mkdir(mode=0o700)
             ctx = ParseContext(
                 path=path,
                 evidence_id=str(ev.id),
@@ -432,18 +460,20 @@ class ProcessingService:
                 reference_source=ref_source,
                 params=claim.params,
                 stats=stats,
-                limits=ParseLimits(
-                    max_line_bytes=self.settings.parser_max_line_kb * 1024,
-                    max_decompressed_bytes=self.settings.parser_max_decompressed_mb * 1024 * 1024,
-                    max_decompression_ratio=self.settings.parser_max_decompression_ratio,
-                ),
+                limits=parse_limits(self.settings),
+                tools=tool_config(self.settings),
+                work_dir=work_dir,
                 progress=sink.tick,
             )
             manifest["limits"] = {
                 "max_line_bytes": ctx.limits.max_line_bytes,
                 "max_decompressed_bytes": ctx.limits.max_decompressed_bytes,
                 "max_decompression_ratio": ctx.limits.max_decompression_ratio,
+                "max_structured_bytes": ctx.limits.max_structured_bytes,
+                "max_records": ctx.limits.max_records,
                 "max_output_bytes": sink.max_output,
+                "tool_timeout_s": ctx.tools.timeout_s,
+                "tool_max_output_bytes": ctx.tools.max_output_bytes,
             }
             for event in parser.parse(ctx):
                 try:

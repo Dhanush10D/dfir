@@ -144,6 +144,21 @@ class Settings(BaseSettings):
     # a trust anchor: keep it on a read-only mount.
     collector_trusted_hashes_path: str | None = None
 
+    # Deep parsers (Phase 6, guide 10.3): external engines, structured formats, YARA
+    # Engine lookup path (os.pathsep-separated); unset = PATH. Engines get a clean environment.
+    tool_search_path: str | None = None
+    tool_timeout_s: int = Field(default=3600, ge=1)
+    tool_max_output_mb: int = Field(default=1024, ge=1)
+    parser_max_structured_mb: int = Field(default=1024, ge=1)  # hives, SQLite, PE (random access)
+    parser_max_records: int = Field(default=5_000_000, ge=1)
+    parser_sqlite_timeout_s: int = Field(default=600, ge=1)
+    # Extra trusted YARA rule directory (read-only mount); the packaged pack is always loaded.
+    yara_rules_dir: str | None = None
+    yara_timeout_s: int = Field(default=600, ge=1)
+    yara_max_file_mb: int = Field(default=2048, ge=1)
+    # Volatility 3 symbol tables (ISF packs); unset = none (Volatility runs with --offline).
+    volatility_symbols_dir: str | None = None
+
     # AI (Phase 7)
     enable_ai: bool = False
     ai_local_only: bool = False

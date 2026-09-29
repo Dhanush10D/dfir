@@ -135,6 +135,24 @@ class ParseLimits:
     max_decompressed_bytes: int = 4 * 1024**3
     max_decompression_ratio: int = 200
     ratio_check_after_bytes: int = 16 * 1024 * 1024
+    # Phase 6: formats that need random access (hives, SQLite, PE) are refused above this size.
+    max_structured_bytes: int = 1024**3
+    max_records: int = 5_000_000  # per job; parsers stop and report ``incomplete`` beyond it
+    max_depth: int = 64  # recursion depth for nested structures (registry keys, JSON trees)
+
+
+@dataclass(frozen=True)
+class ToolConfig:
+    """Trusted worker configuration for external engines and rule packs (never evidence data)."""
+
+    search_path: str | None = None  # os.pathsep-separated dirs; None = PATH
+    timeout_s: int = 3600
+    max_output_bytes: int = 1024**3
+    yara_rules_dirs: tuple[str, ...] = ()  # extra operator rule dirs (read-only mounts)
+    yara_timeout_s: int = 600
+    yara_max_file_bytes: int = 2 * 1024**3
+    volatility_symbols_dir: str | None = None
+    sqlite_timeout_s: int = 600
 
 
 def _no_progress(_: float) -> None:
@@ -155,9 +173,35 @@ class ParseContext:
     params: Mapping[str, Any] = field(default_factory=dict)
     stats: ParseStats = field(default_factory=ParseStats)
     limits: ParseLimits = field(default_factory=ParseLimits)
+    tools: ToolConfig = field(default_factory=ToolConfig)
+    # Private, initially empty directory inside the job scratch dir for external tool output.
+    work_dir: Path | None = None
     # Called with 0..1 as input is consumed. The runner uses it to flush, heartbeat and check for
     # cancellation, so it may raise (e.g. JobCancelledError) - parsers must let that propagate.
     progress: Callable[[float], None] = _no_progress
+
+
+def reference_ts(ctx: ParseContext) -> tuple[datetime, str]:
+    """Evidence reference time for records without an intrinsic timestamp (decision 10)."""
+    if ctx.reference_time is None or ctx.reference_time.utcoffset() is None:
+        raise ParserInputError("no reference time (acquisition/upload) for undated records")
+    return ctx.reference_time, f"reference:{ctx.reference_source}"
+
+
+def record_cap_reached(ctx: ParseContext) -> bool:
+    """True (and the run marked incomplete) once ``max_records`` records were read."""
+    if ctx.stats.records_read < ctx.limits.max_records:
+        return False
+    if ctx.stats.assumptions.get("incomplete") != "record_cap":
+        ctx.stats.assumptions["incomplete"] = "record_cap"
+        ctx.stats.warn("record_cap_reached", detail=str(ctx.limits.max_records))
+    return True
+
+
+def require_work_dir(ctx: ParseContext) -> Path:
+    if ctx.work_dir is None or not ctx.work_dir.is_dir():
+        raise ParserInputError("no scratch work directory for external tool output")
+    return ctx.work_dir
 
 
 class Parser(Protocol):
