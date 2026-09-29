@@ -121,6 +121,18 @@ class TriageManifest(_Model):
         return self
 
 
+def _clean_tree(value: Any, depth: int = 0) -> Any:
+    """NUL characters and lone surrogates (valid JSON escapes, invalid for PostgreSQL) become
+    U+FFFD before validation, so one odd host path cannot invalidate a whole manifest."""
+    if isinstance(value, str):
+        return clean_text(value, 1_000_000)
+    if isinstance(value, list):
+        return [_clean_tree(v, depth + 1) for v in value]
+    if isinstance(value, dict):
+        return {clean_text(k, 1024): _clean_tree(v, depth + 1) for k, v in value.items()}
+    return value
+
+
 def _no_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, value in pairs:
@@ -145,7 +157,7 @@ def parse_manifest(data: bytes) -> tuple[TriageManifest, str]:
     if not isinstance(raw, dict):
         raise ManifestError("manifest.json must be a JSON object")
     try:
-        return TriageManifest.model_validate(raw), digest
+        return TriageManifest.model_validate(_clean_tree(raw)), digest
     except ValidationError as exc:
         errors = exc.errors()
         where = ".".join(str(p) for p in errors[0]["loc"])[:120] if errors else ""

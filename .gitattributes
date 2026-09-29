@@ -4,3 +4,4 @@
 *.png binary
 *.evtx binary
 *.pcap binary
+*.zip binary

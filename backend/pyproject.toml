@@ -53,7 +53,7 @@ dev = [
 include = ["app*"]
 
 [tool.setuptools.package-data]
-"*" = ["*.yml", "*.yaml", "*.md", "*.j2", "*.txt", "py.typed"]
+"*" = ["*.yml", "*.yaml", "*.md", "*.j2", "*.txt", "*.json", "py.typed"]
 
 [tool.ruff]
 line-length = 100
