@@ -33,7 +33,7 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Breached-password check through a k-anonymity API (HIBP-style); Phase 1 uses a bundled offline list | Needs egress; tests must stay offline | Phase 10 (optional) |
 | OIDC/SSO (Keycloak/Authlib) and WebAuthn | P2 in the guide | Later |
 | Accept several JWT `kid`s at once for zero-downtime JWT key rotation; `TOTP_ENC_KEY` rotation (re-wrap) | Single key per purpose is enough for dev | Phase 10 |
-| Resumable/chunked uploads (tus or presigned S3 multipart) for very large images; Phase 1 streams one `PUT` (multipart to MinIO, bounded memory) | Works for the Standard profile; resumability is a UX improvement | Phase 5/10 |
+| Resumable/chunked uploads (tus or presigned S3 multipart) for very large images; Phase 1 streams one `PUT` (multipart to MinIO, bounded memory) | Works for the Standard profile; resumability is a UX improvement (not needed for Phase 5 bundles) | Phase 10 |
 | Reaper for evidence stuck in `uploaded` (never finalized) and for orphaned object versions left by a failed DB commit after a successful vault write | Rare; detectable (finalize/verify compare versions); needs Celery beat | Phase 10 (scheduler, deferred from 3) |
 | ~~`/cases/{id}/summary`~~ | Done in Phase 4 | - |
 | ~~Workers writing custody entries (`processed`)~~ | Done in Phase 2 (worker signs `processed` / `hash_failed`) | - |
@@ -50,10 +50,10 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Job reaper (Celery beat): re-dispatch `queued` jobs whose broker message was lost (e.g. `self.retry()` could not reach Redis) and `running` jobs whose lease expired with no redelivery pending. Today they are recoverable with `POST /jobs/{id}/retry` after a cancel | Needs the scheduler | Phase 10 (scheduler, deferred from 3) |
 | Progress over Redis pub/sub + WebSocket/SSE (guide 10.6); Phase 2 persists `progress`/`heartbeat_at` on the job row; the Phase 4 UI polls `GET /jobs/{id}` | Polling is enough for the Standard profile | Phase 10 |
 | ~~`POST /cases/{id}/events/search` with the search language, histogram, facets, context, export~~ | Done in Phase 4 | - |
-| Evidence status `processing` / `processed` / `partial` (guide 4.4) derived from its jobs | Job state carries progress today (the UI shows jobs per evidence); needs a rule for multiple parsers per item | Phase 5 |
+| Evidence status `processing` / `processed` / `partial` (guide 4.4) derived from its jobs | Job state carries progress today (the UI shows jobs per evidence); needs a rule for multiple parsers per item and for bundles with derived children. Phase 5 also narrowed the app role's UPDATE on `evidence` to the upload/finalize columns, so this needs a grant | Phase 10 |
 | Reprocess swaps events in separate short transactions (delete, then batches), so a reader can briefly see a partial timeline for that evidence. Option: build into a staging `job_id` and swap visibility at finish | Final state is always correct (deterministic ids); cost/benefit | Phase 10 |
 | Backpressure: pause parsing when inserts lag (guide 10.6); batches are synchronous today, which bounds memory but not DB load across many workers | Single worker in dev | Phase 10 |
-| More `linux_auth` inputs: `journalctl -o json` exports, wtmp/btmp/lastlog, bash/zsh history (guide 10.3 catalogue) | Scope | Phase 5/6 |
+| More `linux_auth` inputs: `journalctl -o json` exports, wtmp/btmp/lastlog, bash/zsh history (guide 10.3 catalogue). Phase 5 collectors already gather them; a new parser plus a bundle reprocess will derive them | Scope | Phase 6 |
 | Hayabusa enrichment of EVTX events; richer EVTX mappings (e.g. 4611/4673/4616 get only a generic message; 4616 time delta) | Phase 3 shipped its own rule engine + Sigma subset | Phase 6 |
 | Per-job sandbox containers for parsers (`--network none`, read-only evidence mount, CPU/memory/pids limits); today the parser runs in the worker process on a 0400 scratch copy | Phase scope (already listed above) | Phase 10 |
 | `container_image_digest` in run manifests: set `DFIR_IMAGE_DIGEST` in the worker image at build/deploy time | Needs the release pipeline (cosign) | Phase 10 |
@@ -88,3 +88,17 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Export as a background job (larger than `EXPORT_MAX_ROWS`) | Synchronous capped export (10 000 rows) is audited with its hash | Phase 8 |
 | Serve the CSP / security headers from one nginx include file instead of repeating them per location | Single-file config copied into the image; `phase4-smoke.py` checks every location | Phase 10 |
 | DB trigger on `notes` requiring `version = OLD.version + 1` with a matching `note_versions` row, so history can't be skipped by the app role | The service layer writes history under a row lock; the app role can't delete or alter versions | Phase 11 |
+
+## From Phase 5
+
+| Item | Why deferred | Target |
+|---|---|---|
+| Parsers for the other artifacts the collectors gather: registry hives, Prefetch, Amcache, LNK/Jump Lists, browser history, SRUM, journal JSON, wtmp/btmp, shell histories, the volatile JSON listings. A bundle reprocess then derives them (members are already verified and listed as `verified`) | Phase scope (deep parsers) | Phase 6 |
+| Raw NTFS / VSS reads in the Windows collector for locked files (`$MFT`, `$UsnJrnl:$J`, loaded `Amcache.hve`/`SRUDB.dat`, other users' loaded hives): recorded as collection errors today | Needs a raw-volume reader shipped with the collector; the Standard profile collects them from disk images instead | Phase 10 |
+| Signed collector releases (Authenticode for the PowerShell script, minisign for the Python/bash scripts) with signature checks at ingest; today trust = SHA-256 list outside the DB | Needs the release pipeline and key management | Phase 10 |
+| Multi-segment evidence sets (E01 `.E02...`, split raw `.001/.002`) as one evidence item with a combined manifest (guide 8.5) | The evidence model is one object per item; the docs say to use single-segment images | Phase 6 |
+| Import of `*.acquisition.json` (memory/disk wrappers) to prefill evidence fields and check memory image size against RAM | Analysts copy the values by hand today | Phase 6 |
+| Bundle formats other than ZIP (tar.gz, 7z), a bash-only Linux collector for hosts without Python 3, a Windows disk-imaging wrapper, a macOS collector | ZIP-only is a deliberate hostile-input decision; Python 3 is on practically every server; FTK Imager/ewfacquire procedure documented | Later |
+| Reaper for vault objects written by a bundle job whose DB commit then failed (derived bytes without an evidence row); same class as the Phase 1 orphaned-version item | Rare, detectable (key prefix `{case}/{bundle}/derived/` without a row); needs the scheduler | Phase 10 |
+| UI view of per-member bundle verdicts (`GET /evidence/{id}/bundle`); the Evidence tab shows derived items and their parent only | API complete; UI polish | Phase 10 |
+| Remote agent (guide 9.4), cloud/SaaS collectors (9.5), mobile/email ingest (9.6) | P2 in the guide | Later |
