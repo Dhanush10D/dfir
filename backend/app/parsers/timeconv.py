@@ -60,7 +60,7 @@ def prtime(value: int) -> Converted | None:
     return _add(EPOCH_1970, value, "prtime", value)
 
 
-def unix_seconds(value: float, *, tag: str = "unix") -> Converted | None:
+def unix_seconds(value: object, *, tag: str = "unix") -> Converted | None:
     """Unix time in seconds (int or float, e.g. Zeek/pcap ``ts``)."""
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise TimestampError(f"{tag} value is not a number")

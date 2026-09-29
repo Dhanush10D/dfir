@@ -21,6 +21,10 @@ BUILTIN_MODULES = (
     "app.parsers.wtmp",
     "app.parsers.shell_history",
     "app.parsers.journal_json",
+    "app.parsers.pcap",
+    "app.parsers.zeek",
+    "app.parsers.tsk_fs",
+    "app.parsers.volatility",
 )
 AUTO_THRESHOLD = 0.5
 
