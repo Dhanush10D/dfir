@@ -85,7 +85,7 @@
     "start_name": "auto",
     "type": 16
    },
-   "registry_key": "HKLM\\SYSTEM\\ROOT\\ControlSet001\\Services\\EvilSvc",
+   "registry_key": "HKLM\\SYSTEM\\ControlSet001\\Services\\EvilSvc",
    "source_file": "evidence/SYSTEM",
    "source_record_id": "service:evilsvc",
    "source_type": "registry",
@@ -129,7 +129,7 @@
     "start_name": "boot",
     "type": 1
    },
-   "registry_key": "HKLM\\SYSTEM\\ROOT\\ControlSet001\\Services\\Tcpip",
+   "registry_key": "HKLM\\SYSTEM\\ControlSet001\\Services\\Tcpip",
    "source_file": "evidence/SYSTEM",
    "source_record_id": "service:tcpip",
    "source_type": "registry",
@@ -168,7 +168,7 @@
     "hive": "HKLM\\SYSTEM",
     "serial": "4C530001"
    },
-   "registry_key": "HKLM\\SYSTEM\\ROOT\\ControlSet001\\Enum\\USBSTOR\\Disk&Ven_SanDisk&Prod_Cruzer&Rev_1.00\\4C530001",
+   "registry_key": "HKLM\\SYSTEM\\ControlSet001\\Enum\\USBSTOR\\Disk&Ven_SanDisk&Prod_Cruzer&Rev_1.00\\4C530001",
    "source_file": "evidence/SYSTEM",
    "source_record_id": "usb:disk&ven_sandisk&prod_cruzer&rev_1.00:4c530001",
    "source_type": "registry",
@@ -206,7 +206,7 @@
     "property": "0064",
     "serial": "4C530001"
    },
-   "registry_key": "HKLM\\SYSTEM\\ROOT\\ControlSet001\\Enum\\USBSTOR\\Disk&Ven_SanDisk&Prod_Cruzer&Rev_1.00\\4C530001\\Properties\\{83da6326-97a6-4088-9453-a1923f573b29}\\0064",
+   "registry_key": "HKLM\\SYSTEM\\ControlSet001\\Enum\\USBSTOR\\Disk&Ven_SanDisk&Prod_Cruzer&Rev_1.00\\4C530001\\Properties\\{83da6326-97a6-4088-9453-a1923f573b29}\\0064",
    "source_file": "evidence/SYSTEM",
    "source_record_id": "usb:disk&ven_sandisk&prod_cruzer&rev_1.00:4c530001:0064",
    "source_type": "registry",
@@ -244,7 +244,7 @@
     "property": "0066",
     "serial": "4C530001"
    },
-   "registry_key": "HKLM\\SYSTEM\\ROOT\\ControlSet001\\Enum\\USBSTOR\\Disk&Ven_SanDisk&Prod_Cruzer&Rev_1.00\\4C530001\\Properties\\{83da6326-97a6-4088-9453-a1923f573b29}\\0066",
+   "registry_key": "HKLM\\SYSTEM\\ControlSet001\\Enum\\USBSTOR\\Disk&Ven_SanDisk&Prod_Cruzer&Rev_1.00\\4C530001\\Properties\\{83da6326-97a6-4088-9453-a1923f573b29}\\0066",
    "source_file": "evidence/SYSTEM",
    "source_record_id": "usb:disk&ven_sandisk&prod_cruzer&rev_1.00:4c530001:0066",
    "source_type": "registry",
@@ -284,7 +284,7 @@
     "position": 1,
     "ts_source": "file_last_modified"
    },
-   "registry_key": "HKLM\\SYSTEM\\ROOT\\ControlSet001\\Control\\Session Manager\\AppCompatCache",
+   "registry_key": "HKLM\\SYSTEM\\ControlSet001\\Control\\Session Manager\\AppCompatCache",
    "source_file": "evidence/SYSTEM",
    "source_record_id": "shimcache:1",
    "source_type": "registry",
@@ -324,7 +324,7 @@
     "position": 2,
     "ts_source": "key_last_written"
    },
-   "registry_key": "HKLM\\SYSTEM\\ROOT\\ControlSet001\\Control\\Session Manager\\AppCompatCache",
+   "registry_key": "HKLM\\SYSTEM\\ControlSet001\\Control\\Session Manager\\AppCompatCache",
    "source_file": "evidence/SYSTEM",
    "source_record_id": "shimcache:2",
    "source_type": "registry",
@@ -363,7 +363,7 @@
     "service": "bam",
     "sid": "S-1-5-21-1111-2222-3333-1001"
    },
-   "registry_key": "HKLM\\SYSTEM\\ROOT\\ControlSet001\\Services\\bam\\State\\UserSettings\\S-1-5-21-1111-2222-3333-1001",
+   "registry_key": "HKLM\\SYSTEM\\ControlSet001\\Services\\bam\\State\\UserSettings\\S-1-5-21-1111-2222-3333-1001",
    "source_file": "evidence/SYSTEM",
    "source_record_id": "bam:s-1-5-21-1111-2222-3333-1001:\\device\\harddiskvolume3\\users\\public\\evil.exe",
    "source_type": "registry",

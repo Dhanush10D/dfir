@@ -143,7 +143,12 @@ class Key:
         self.hive = hive
         self.offset = offset
         self.name = name
-        self.path = f"{parent_path}\\{name}" if parent_path else name
+        # The root key (depth 0) is the empty path: its name ("ROOT", "CMI-CreateHive{...}") is not
+        # part of registry paths.
+        if depth == 0:
+            self.path = ""
+        else:
+            self.path = f"{parent_path}\\{name}" if parent_path else name
         self.depth = depth
         self._ancestors = ancestors | {offset}
         self.last_written_raw = _u64(cell, 4)
@@ -283,6 +288,7 @@ class Hive:
             self.end = size
         if self._mm[BASE_BLOCK : BASE_BLOCK + 4] != b"hbin":
             raise RegfError("first hive bin missing")
+        self._root = Key(self, self.root_offset, "", 0, frozenset())  # unreadable root: refuse
 
     # ------------------------------------------------------------------ context manager
 
@@ -328,7 +334,7 @@ class Hive:
 
     @property
     def root(self) -> Key:
-        return Key(self, self.root_offset, "", 0, frozenset())
+        return self._root
 
     def open(self, path: str) -> Key | None:
         return self.root.open(path)

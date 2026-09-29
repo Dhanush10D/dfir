@@ -25,6 +25,8 @@ from app.parsers.registry import register
 from app.parsers.timeconv import Converted, TimestampError, prtime, webkit
 
 SOURCE = "browser"
+# SQLite reports schema errors with the (hostile, possibly non-UTF-8) schema text in the message.
+SQLITE_ERRORS = (sqlite3.Error, UnicodeDecodeError)
 SQLITE_MAGIC = b"SQLite format 3\x00"
 URL_MAX = 8192
 TITLE_MAX = 1024
@@ -88,7 +90,7 @@ def open_readonly(path: Path, timeout_s: int) -> sqlite3.Connection:
     uri = path.resolve().as_uri() + "?mode=ro&immutable=1"
     try:
         conn = sqlite3.connect(uri, uri=True, isolation_level=None, check_same_thread=True)
-    except sqlite3.Error as exc:
+    except SQLITE_ERRORS as exc:
         raise ParserInputError(f"cannot open SQLite database: {type(exc).__name__}") from exc
     deadline = time.monotonic() + timeout_s
 
@@ -96,6 +98,7 @@ def open_readonly(path: Path, timeout_s: int) -> sqlite3.Connection:
         return 1 if time.monotonic() > deadline else 0
 
     conn.set_progress_handler(guard, 10_000)
+    conn.text_factory = lambda raw: raw.decode("utf-8", "replace")  # hostile text is not UTF-8
     try:
         for pragma in (
             "PRAGMA trusted_schema=OFF",
@@ -104,7 +107,7 @@ def open_readonly(path: Path, timeout_s: int) -> sqlite3.Connection:
             "PRAGMA mmap_size=0",
         ):
             conn.execute(pragma)
-    except sqlite3.Error as exc:
+    except SQLITE_ERRORS as exc:
         conn.close()
         raise ParserInputError(f"SQLite database unusable: {exc}") from exc
     return conn
@@ -115,14 +118,17 @@ def tables(conn: sqlite3.Connection) -> set[str]:
         rows = conn.execute(
             "SELECT name FROM sqlite_master WHERE type = 'table' LIMIT 10000"
         ).fetchall()
-    except sqlite3.Error as exc:
+    except SQLITE_ERRORS as exc:
         raise ParserInputError(f"SQLite schema unreadable: {exc}") from exc
     return {str(r[0]).lower() for r in rows if isinstance(r[0], str)}
 
 
 def columns(conn: sqlite3.Connection, table: str) -> set[str]:
     # ``table`` is one of our constants (never evidence data); PRAGMA takes no parameters.
-    rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    try:
+        rows = conn.execute(f"PRAGMA table_info({table})").fetchall()
+    except SQLITE_ERRORS:
+        return set()
     return {str(r[1]).lower() for r in rows}
 
 
@@ -154,7 +160,7 @@ class _Rows:
         stats = self.ctx.stats
         try:
             cursor = self.conn.execute(sql)
-        except sqlite3.Error as exc:
+        except SQLITE_ERRORS as exc:
             stats.warn("query_failed", label, str(exc)[:200])
             stats.assumptions["incomplete"] = "query_failed"
             return
@@ -162,7 +168,7 @@ class _Rows:
         while True:
             try:
                 row = cursor.fetchone()
-            except sqlite3.Error as exc:
+            except SQLITE_ERRORS as exc:
                 stats.read()
                 stats.error(f"{label} after row {n}", "database_error", str(exc)[:200])
                 stats.assumptions["incomplete"] = "database_error"

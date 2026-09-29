@@ -87,7 +87,7 @@
     "ts_source": "key_last_written",
     "version": "1.0.0.0"
    },
-   "registry_key": "Amcache\\ROOT\\Root\\InventoryApplicationFile\\evil.exe|4a1b2c3d4e5f6a7b",
+   "registry_key": "Amcache\\Root\\InventoryApplicationFile\\evil.exe|4a1b2c3d4e5f6a7b",
    "source_file": "evidence/Amcache.hve",
    "source_record_id": "file:evil.exe|4a1b2c3d4e5f6a7b",
    "source_type": "amcache",
@@ -129,7 +129,7 @@
     "ts_source": "key_last_written",
     "version": "1.0"
    },
-   "registry_key": "Amcache\\ROOT\\Root\\InventoryApplication\\0000f00d",
+   "registry_key": "Amcache\\Root\\InventoryApplication\\0000f00d",
    "source_file": "evidence/Amcache.hve",
    "source_record_id": "program:0000f00d",
    "source_type": "amcache",
@@ -170,7 +170,7 @@
     "signed": 0,
     "ts_source": "key_last_written"
    },
-   "registry_key": "Amcache\\ROOT\\Root\\InventoryDriverBinary\\c:/windows/system32/drivers/evil.sys",
+   "registry_key": "Amcache\\Root\\InventoryDriverBinary\\c:/windows/system32/drivers/evil.sys",
    "source_file": "evidence/Amcache.hve",
    "source_record_id": "driver:c:/windows/system32/drivers/evil.sys",
    "source_type": "amcache",
@@ -211,7 +211,7 @@
     "ts_source": "key_last_written",
     "volume": "{11111111-2222-3333-4444-555555555555}"
    },
-   "registry_key": "Amcache\\ROOT\\Root\\File\\{11111111-2222-3333-4444-555555555555}\\1000000abc",
+   "registry_key": "Amcache\\Root\\File\\{11111111-2222-3333-4444-555555555555}\\1000000abc",
    "source_file": "evidence/Amcache.hve",
    "source_record_id": "legacy:{11111111-2222-3333-4444-555555555555}:1000000abc",
    "source_type": "amcache",

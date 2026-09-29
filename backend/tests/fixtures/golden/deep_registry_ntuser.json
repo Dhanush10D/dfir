@@ -63,7 +63,7 @@
    "file_hash": null,
    "file_path": null,
    "host": null,
-   "id": "7d0784b1-d694-544f-90ff-a024f3af9625",
+   "id": "5c0291c9-6ece-5430-af22-8f79e686b6e4",
    "message": "Run key Run: OneDriveSync = C:\\Users\\alice\\AppData\\Local\\Temp\\sync.exe /background",
    "outcome": null,
    "parser_name": "registry_hive",
@@ -78,9 +78,9 @@
     "ts_source": "key_last_written",
     "value_name": "OneDriveSync"
    },
-   "registry_key": "HKCU\\ROOT\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
+   "registry_key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run",
    "source_file": "evidence/NTUSER.DAT",
-   "source_record_id": "run:root\\software\\microsoft\\windows\\currentversion\\run:onedrivesync",
+   "source_record_id": "run:software\\microsoft\\windows\\currentversion\\run:onedrivesync",
    "source_type": "registry",
    "src_ip": null,
    "src_port": null,
@@ -120,7 +120,7 @@
     "program": "C:\\Users\\Public\\evil.exe",
     "run_count": 3
    },
-   "registry_key": "HKCU\\ROOT\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\UserAssist\\{CEBFF5CD-ACE2-4F4F-9178-9926F41749EA}\\Count",
+   "registry_key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\UserAssist\\{CEBFF5CD-ACE2-4F4F-9178-9926F41749EA}\\Count",
    "source_file": "evidence/NTUSER.DAT",
    "source_record_id": "userassist:{cebff5cd-ace2-4f4f-9178-9926f41749ea}:p:\\hfref\\choyvp\\rivy.rkr",
    "source_type": "registry",
@@ -159,7 +159,7 @@
     "value": "cmd /c whoami",
     "value_name": "a"
    },
-   "registry_key": "HKCU\\ROOT\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RunMRU",
+   "registry_key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RunMRU",
    "source_file": "evidence/NTUSER.DAT",
    "source_record_id": "runmru:a",
    "source_type": "registry",
@@ -199,7 +199,7 @@
     "value": "powershell -nop",
     "value_name": "b"
    },
-   "registry_key": "HKCU\\ROOT\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RunMRU",
+   "registry_key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\RunMRU",
    "source_file": "evidence/NTUSER.DAT",
    "source_record_id": "runmru:b",
    "source_type": "registry",
@@ -238,7 +238,7 @@
     "value": "\\\\198.51.100.20\\share",
     "value_name": "url1"
    },
-   "registry_key": "HKCU\\ROOT\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths",
+   "registry_key": "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths",
    "source_file": "evidence/NTUSER.DAT",
    "source_record_id": "typed_path:url1",
    "source_type": "registry",
@@ -277,7 +277,7 @@
     "value": "http://evil.example/login",
     "value_name": "url1"
    },
-   "registry_key": "HKCU\\ROOT\\Software\\Microsoft\\Internet Explorer\\TypedURLs",
+   "registry_key": "HKCU\\Software\\Microsoft\\Internet Explorer\\TypedURLs",
    "source_file": "evidence/NTUSER.DAT",
    "source_record_id": "typed_url:url1",
    "source_type": "registry",
@@ -316,7 +316,7 @@
     "value": "http://intranet.example/",
     "value_name": "url2"
    },
-   "registry_key": "HKCU\\ROOT\\Software\\Microsoft\\Internet Explorer\\TypedURLs",
+   "registry_key": "HKCU\\Software\\Microsoft\\Internet Explorer\\TypedURLs",
    "source_file": "evidence/NTUSER.DAT",
    "source_record_id": "typed_url:url2",
    "source_type": "registry",
