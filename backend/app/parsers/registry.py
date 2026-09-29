@@ -14,6 +14,13 @@ BUILTIN_MODULES = (
     "app.parsers.registry_hive",
     "app.parsers.amcache",
     "app.parsers.prefetch",
+    "app.parsers.lnk",
+    "app.parsers.browser",
+    "app.parsers.pe_static",
+    "app.parsers.yara_scan",
+    "app.parsers.wtmp",
+    "app.parsers.shell_history",
+    "app.parsers.journal_json",
 )
 AUTO_THRESHOLD = 0.5
 
