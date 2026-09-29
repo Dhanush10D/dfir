@@ -1,22 +1,39 @@
 # syntax=docker/dockerfile:1.7
 # dfirbench worker image (Celery). Build context: backend/
 #
-# Stage layout (guide 5.2, 21.2):
-#   tools   - Linux forensic engines, pinned. EMPTY in Phase 0; Phase 6 adds Plaso, Sleuth Kit,
-#             Volatility 3, Hayabusa, Zeek, tshark, YARA, libewf here and records versions in
-#             /opt/dfir/tool-versions.txt for run manifests.
+# Stage layout (guide 5.2, 21.2; Phase 6 spec decisions 6-8):
+#   tools   - Linux forensic engines, pinned, versions recorded in /opt/dfir/tool-versions.txt
+#             (read by the parsers for run manifests):
+#               * Sleuth Kit (mmls, fls) from Debian bookworm apt; E01 via Debian's libewf build;
+#               * Volatility 3 in its own venv (/opt/dfir/vol3, `vol` on PATH). dfirbench never
+#                 imports it (Volatility Software License); symbol packs are not baked in
+#                 (VOLATILITY_SYMBOLS_DIR mounts them), and the wrapper always runs --offline;
+#               * Zeek is NOT installed (optional engine: hundreds of MB from a third-party repo).
+#                 The `zeek` parser fails the job with a clear "not installed" error; add it in a
+#                 derived image or via TOOL_SEARCH_PATH if needed.
+#             YARA (yara-python wheel with libyara), pefile, dpkt and LnkParse3 are Python deps.
 #   build   - Python venv with the dfirbench package.
 #   runtime - tools + venv, non-root.
-# Python wrappers must detect a missing binary and fail the job with a clear error.
+# Python wrappers detect a missing binary and fail the job with a clear error.
 
 ARG PYTHON_IMAGE=python:3.12-slim-bookworm
 
 FROM ${PYTHON_IMAGE} AS tools
-# Phase 6: pinned apt packages / release downloads go here, e.g.
-#   ARG SLEUTHKIT_VERSION=...
-#   RUN apt-get update && apt-get install -y --no-install-recommends sleuthkit=${SLEUTHKIT_VERSION} ...
-RUN mkdir -p /opt/dfir/bin \
- && printf 'dfirbench worker toolchain\nphase0: no forensic binaries installed\n' > /opt/dfir/tool-versions.txt
+ARG SLEUTHKIT_VERSION=4.11.1+dfsg-1+b1
+ARG VOLATILITY3_VERSION=2.28.2
+ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1
+RUN apt-get update \
+ && apt-get install -y --no-install-recommends "sleuthkit=${SLEUTHKIT_VERSION}" \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /opt/dfir/bin \
+ && python -m venv /opt/dfir/vol3 \
+ && /opt/dfir/vol3/bin/pip install "volatility3==${VOLATILITY3_VERSION}" \
+ && ln -s /opt/dfir/vol3/bin/vol /opt/dfir/bin/vol \
+ && { echo "dfirbench worker toolchain"; \
+      echo "sleuthkit $(dpkg-query -W -f='${Version}' sleuthkit)"; \
+      echo "volatility3 $(/opt/dfir/vol3/bin/pip show volatility3 | sed -n 's/^Version: //p')"; \
+      echo "zeek not-installed"; } > /opt/dfir/tool-versions.txt \
+ && cat /opt/dfir/tool-versions.txt
 
 FROM ${PYTHON_IMAGE} AS build
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1
