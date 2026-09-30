@@ -348,7 +348,9 @@ def test_verify_trusts_only_keys_outside_the_database(
     rid = signed["id"]
     h = world.h
     # An attacker with DB write access re-signs a changed manifest with their own key.
-    attacker = CustodySigner("attacker-key", Ed25519PrivateKey.generate())
+    attacker = CustodySigner(
+        f"report-attacker-{uuid.uuid4().hex[:8]}", Ed25519PrivateKey.generate()
+    )
     manifest = dict(signed["manifest"])
     manifest["key_id"] = attacker.key_id
     from app.reports.seal import manifest_sha256
