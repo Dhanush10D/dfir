@@ -25,9 +25,9 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Item | Why deferred | Target |
 |---|---|---|
 | ~~`dfir_ensure_events_partition()` as `SECURITY DEFINER`~~ | Done in Phase 2 (0004; the app role has no privileges on partitions) | - |
-| Custody anchors: periodic signed Merkle root over recent `entry_hash` values into `anchors`, optional RFC 3161 time stamp. Without anchors, deleting the *newest* custody entries of an item (tail truncation) is not detectable by the chain alone | Needs a scheduler (Celery beat); not added in Phase 2 | Phase 10 (scheduler, deferred from 3) / Phase 8 |
+| Custody anchors: periodic signed Merkle root over recent `entry_hash` values into `anchors`, optional RFC 3161 time stamp. Without anchors, deleting the *newest* custody entries of an item (tail truncation) is not detectable by the chain alone. Phase 8 reports and export packages record each chain's head seq/hash, which makes later truncation visible against a signed report | Needs a scheduler (Celery beat) | Phase 10 (scheduler) |
 | Scheduled re-verification of all originals (`nightly_verify_all`, guide 8.1 step 6). Phase 2 re-hashes every original before parsing it | Needs Celery beat | Phase 10 (scheduler, deferred from 3) |
-| Evidence export package (`manifest.json`, `custody.json`, `manifest.sig`, guide 8.4) | Reporting/export phase | Phase 8 |
+| ~~Evidence export package (`manifest.json`, `custody.json`, `manifest.sig`, guide 8.4)~~ **Done in Phase 8** (`POST /evidence/{id}/export-package`, offline `python -m app.reports.verify package`). Remaining: optional `original/` and `derived/` members when policy allows (streamed ZIP for multi-GB originals) | Originals can be many GB; `GET /evidence/{id}/download` covers them | Phase 10 |
 | ~~Browser token delivery via `HttpOnly; Secure; SameSite=Strict` cookies + CSRF~~ | Done in Phase 4 (`X-Token-Delivery: cookie`; the custom header is the CSRF defence) | - |
 | Per-IP rate limiting on `/auth/*` (guide 14.3) and alerting on suspicious login patterns | Account lockout covers brute force per account for now | Phase 10 |
 | Breached-password check through a k-anonymity API (HIBP-style); Phase 1 uses a bundled offline list | Needs egress; tests must stay offline | Phase 10 (optional) |
@@ -85,7 +85,7 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | File browser (TSK listing) and file extraction (`icat`) | Phase 6 ships the TSK timeline (`tsk_fs`); a browsable listing needs an API + UI | Phase 10 |
 | Playwright end-to-end tests of the UI | Vitest + Testing Library cover components; live API smoke covers the backend | Phase 11 |
 | MFA enrolment UI and admin screens (users, rules, IOCs) | Login with TOTP works; enrolment/admin via API | Phase 10 |
-| Export as a background job (larger than `EXPORT_MAX_ROWS`) | Synchronous capped export (10 000 rows) is audited with its hash | Phase 8 |
+| Export as a background job (larger than `EXPORT_MAX_ROWS`) | Synchronous capped export (10 000 rows) is audited with its hash; Phase 8 reports are also synchronous and capped | Phase 10 (with background render jobs) |
 | Serve the CSP / security headers from one nginx include file instead of repeating them per location | Single-file config copied into the image; `phase4-smoke.py` checks every location | Phase 10 |
 | DB trigger on `notes` requiring `version = OLD.version + 1` with a matching `note_versions` row, so history can't be skipped by the app role | The service layer writes history under a row lock; the app role can't delete or alter versions | Phase 11 |
 
@@ -127,7 +127,7 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 
 | Item | Why deferred | Target |
 |---|---|---|
-| A4 report drafting ("AI-drafted" sections with approval) and A14 report QA | Reports do not exist yet; the review/provenance model of Phase 7 is ready for them | Phase 8 |
+| ~~A4 report drafting~~ **Done in Phase 8** (`report_draft`, accepted-only apply, labelled). Remaining: A14 AI report QA (the deterministic QA gate is done) | Deterministic QA covers the court-readiness checks; AI QA needs an eval set | Phase 10 |
 | A9 analytics with scikit-learn: IsolationForest on per-host time buckets, beaconing, rare parent-child, DGA scoring, DBSCAN over command lines (guide 11.5, 13.13); `scikit-learn` pin and a labeled sample set | P2 in the guide and not in the Phase 7 roadmap row; adds numpy/scipy (~100 MB) to the images on the 7.6 GB host | Phase 10 |
 | A6 IOC/entity extraction from free text, A8 standalone ATT&CK mapping suggestions (A2/A7 already return candidates), A10 similar cases, A12 log-format helper, A13 next-step suggestions | Not in the Phase 7 roadmap row | Later |
 | A11 playbook recommendation; one-click IOC creation from A7 indicators | Playbooks and IOC workflows are Phase 9 | Phase 9 |
@@ -139,3 +139,18 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | A live-model evaluation run (`python -m app.ai.eval --provider live --record ...`) with the report stored next to the prompt versions | Needs an API key and network; the offline suites run in CI | Phase 11 (AI-eval report) |
 | Citation links to alerts open the Alerts tab, not the specific alert; deep links for alerts | UI polish | Phase 10 |
 | Run `scripts/phase7-smoke.py` in the CI compose-smoke job (stack started with `ENABLE_AI=true LLM_PROVIDER=fake`) | CI smoke covers Phases 1-3 today; verify-phase7.sh runs it locally | Phase 10 |
+
+## From Phase 8
+
+| Item | Why deferred | Target |
+|---|---|---|
+| Charts in reports (timeline histogram, ATT&CK heatmap, entity/attack-path graph images, guide 18.2 item 10 and 18.3 step 2) | Needs a deterministic PNG/SVG renderer (matplotlib adds ~60 MB); tables carry the same data | Phase 10 |
+| DOCX output, per-organisation templates, examiner qualification block as a configurable section | Standard profile ships HTML/PDF/JSON/STIX/CSV; templates need an admin UI | Later |
+| PDF/A and embedded Unicode fonts (today built-in Helvetica/Courier; non-Windows-1252 characters are replaced in the PDF and kept exactly in HTML/JSON) | Font files in the image and PDF/A validation | Phase 10 |
+| RFC 3161 time stamps on report signatures and export packages | Needs a TSA (egress) and its trust chain | Phase 10 |
+| Background render jobs (Celery) with progress for large reports; today rendering is synchronous and bounded by the snapshot caps | Caps keep it to seconds on the dev host | Phase 10 |
+| Report comments / review threads, and a diff view between report versions | UI polish; versions and audit rows exist | Later |
+| STIX `observed-data`, `malware` and `relationship` objects (indicator -> attack-pattern needs an analyst mapping); TAXII publishing | Indicators, attack patterns and the report object validate today | Phase 9 |
+| The SPA's own CSP (`style-src 'self'`) also applies to the sandboxed `srcdoc` preview, so the in-app preview is unstyled; the downloaded HTML is styled | Relaxing the SPA CSP for inline styles is not worth it | Later |
+| Signed report artifacts live in the plain `artifacts` bucket (tampering is detected by hash + signature, not prevented); optional Object Lock/retention for signed reports | Detection is enough for the Standard profile; WORM needs its own retention policy | Phase 10 |
+| Reaper for artifacts written by a sign whose DB commit then failed (objects under `reports/.../vN/` for a report that is not signed; a retry overwrites them) | Rare and harmless (never served: downloads check the signed manifest) | Phase 10 |

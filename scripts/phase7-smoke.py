@@ -80,7 +80,8 @@ def main() -> int:
         "AI enabled with the offline provider (ENABLE_AI=true LLM_PROVIDER=fake)",
         body,
     )
-    expect(len(body["prompt_versions"]) == 5, "five versioned prompts", body)
+    phase7 = {"nlq", "alert_explain", "narrative", "chat", "script_explain"}
+    expect(phase7 <= set(body["prompt_versions"]), "Phase 7 prompts are versioned", body)
 
     status, case, _ = api.call("POST", "/cases", lead, {"title": "Phase 7 smoke"})
     expect(status == 201, "lead creates case", case)
