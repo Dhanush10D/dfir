@@ -1,6 +1,6 @@
 """All ORM models. Importing this package registers every table on ``Base.metadata``."""
 
-from app.db.models.ai import AiInteraction, EventChunk
+from app.db.models.ai import AiIndexState, AiInteraction, EventChunk
 from app.db.models.audit import Anchor, AuditLog, SigningKey
 from app.db.models.cases import Case, CaseMember
 from app.db.models.collaboration import Bookmark, Note, NoteVersion, Notification, SavedQuery
@@ -29,6 +29,7 @@ __all__ = [
     "APPEND_ONLY_TABLES",
     "Agent",
     "AgentTask",
+    "AiIndexState",
     "AiInteraction",
     "Alert",
     "AlertEvent",

@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from sqlalchemy import ForeignKey, Index, Text, text
+from sqlalchemy import Boolean, ForeignKey, Index, Text, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.base import Base
@@ -38,6 +38,8 @@ class Case(Base):
     opened_at: Mapped[datetime] = mapped_column(TSTZ, nullable=False, server_default=text("now()"))
     closed_at: Mapped[datetime | None] = mapped_column(TSTZ)
     created_by: Mapped[uuid.UUID | None] = mapped_column(UUID_T, ForeignKey("users.id"))
+    # Phase 7 (migration 0009): AI features can be switched off per case (sensitive matters).
+    ai_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default=text("true"))
 
 
 class CaseMember(Base):

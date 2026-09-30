@@ -32,7 +32,10 @@ PHASE1_TABLES = {"refresh_tokens", "mfa_recovery_codes"}
 PHASE3_TABLES = {"rule_versions", "alert_history"}
 PHASE4_TABLES = {"note_versions"}
 PHASE5_TABLES = {"bundle_members"}
-ALL_TABLES = CORE_TABLES | PHASE1_TABLES | PHASE3_TABLES | PHASE4_TABLES | PHASE5_TABLES
+PHASE7_TABLES = {"ai_index_state"}
+ALL_TABLES = (
+    CORE_TABLES | PHASE1_TABLES | PHASE3_TABLES | PHASE4_TABLES | PHASE5_TABLES | PHASE7_TABLES
+)
 
 
 def test_metadata_has_every_core_table() -> None:

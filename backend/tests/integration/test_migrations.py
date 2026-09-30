@@ -53,7 +53,7 @@ def test_all_core_tables_exist(db_engine: Engine) -> None:
     assert "events_default" in tables
     with db_engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0008"
+    assert version == "0009"
 
 
 def test_app_role_privileges(db_engine: Engine) -> None:
@@ -83,6 +83,33 @@ def test_app_role_privileges(db_engine: Engine) -> None:
     assert privileges("events") == {"SELECT", "INSERT", "DELETE"}
     assert privileges("jobs") == {"SELECT", "INSERT", "UPDATE"}
     assert privileges("events_default") == set()
+    # 0009: the AI audit trail is kept; chunks are rebuilt, never rewritten.
+    assert privileges("ai_interactions") == {"SELECT", "INSERT"}
+    assert privileges("event_chunks") == {"SELECT", "INSERT", "DELETE"}
+    assert privileges("ai_index_state") == {"SELECT", "INSERT", "UPDATE"}
+    with db_engine.connect() as conn:
+        review_cols = {
+            c
+            for c in ("accepted", "reviewed_by", "reviewed_at", "review_note", "feedback")
+            if conn.execute(
+                text(
+                    "SELECT has_column_privilege('dfirbench_app', 'ai_interactions', :c, 'UPDATE')"
+                ),
+                {"c": c},
+            ).scalar_one()
+        }
+        locked_cols = [
+            c
+            for c in ("output", "model", "status", "prompt_text", "citations", "case_id")
+            if conn.execute(
+                text(
+                    "SELECT has_column_privilege('dfirbench_app', 'ai_interactions', :c, 'UPDATE')"
+                ),
+                {"c": c},
+            ).scalar_one()
+        ]
+    assert review_cols == {"accepted", "reviewed_by", "reviewed_at", "review_note", "feedback"}
+    assert locked_cols == []
     with db_engine.connect() as conn:
         # 0003: the migrating role can SET ROLE to the app role even without superuser.
         assert conn.execute(

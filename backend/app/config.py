@@ -17,6 +17,10 @@ S3_MAX_PARTS = 10_000
 AppEnv = Literal["dev", "test", "prod"]
 SandboxMode = Literal["docker", "k8s", "none"]
 LLMProvider = Literal["anthropic", "ollama", "openai_compat", "fake"]
+EmbeddingProvider = Literal["hashing", "ollama", "openai_compat"]
+RedactionPolicy = Literal["none", "standard", "strict"]
+# event_chunks.embedding is vector(384) (migrations 0001/0009); another size needs a migration.
+SCHEMA_EMBEDDING_DIM = 384
 
 # Values shipped in .env.example / compose defaults. Refused when APP_ENV=prod.
 DEV_PLACEHOLDERS = frozenset(
@@ -159,19 +163,36 @@ class Settings(BaseSettings):
     # Volatility 3 symbol tables (ISF packs); unset = none (Volatility runs with --offline).
     volatility_symbols_dir: str | None = None
 
-    # AI (Phase 7)
+    # AI (Phase 7, guide 13). Model ids are configuration; the key is a secret (never logged).
     enable_ai: bool = False
-    ai_local_only: bool = False
-    llm_provider: LLMProvider = "fake"
-    llm_base_url: str | None = None
+    ai_local_only: bool = False  # refuse hosted providers
+    llm_provider: LLMProvider = "anthropic"
+    llm_base_url: str | None = None  # anthropic: API default; ollama/openai_compat: required
     llm_api_key: SecretStr | None = None
-    llm_model_fast: str | None = None
-    llm_model_strong: str | None = None
-    ai_redaction_policy: str = "standard"
-    ai_max_tokens: int = Field(default=2000, ge=1)
-    ai_daily_budget_usd: float = Field(default=10.0, ge=0)
-    embedding_model: str | None = None
+    llm_model_fast: str = Field(default="claude-haiku-4-5-20251001", min_length=1, max_length=128)
+    llm_model_strong: str = Field(default="claude-sonnet-5-5", min_length=1, max_length=128)
+    llm_timeout_s: float = Field(default=120.0, gt=0, le=900)  # per attempt
+    llm_max_retries: int = Field(default=1, ge=0, le=3)  # transient errors, inside one deadline
+    llm_effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None  # Anthropic only
+    llm_anthropic_fallbacks: bool = True  # server-side refusal fallback where supported
+    llm_price_input_per_mtok: float | None = Field(default=None, ge=0)  # USD, for cost_usd
+    llm_price_output_per_mtok: float | None = Field(default=None, ge=0)
+    ai_redaction_policy: RedactionPolicy = "standard"
+    ai_redact_local: bool = False  # also redact for local providers (ollama, local endpoints)
+    ai_max_tokens: int = Field(default=8000, ge=256, le=64000)  # output cap per call
+    ai_max_input_chars: int = Field(default=120_000, ge=1000, le=2_000_000)  # rendered prompt
+    ai_max_field_chars: int = Field(default=512, ge=32, le=8192)  # per evidence field
+    ai_max_pack_records: int = Field(default=150, ge=1, le=1000)
+    ai_rate_limit_per_minute: int = Field(default=10, ge=1)  # per user
+    ai_case_rate_limit_per_hour: int = Field(default=200, ge=1)  # per case
+    ai_daily_token_budget: int = Field(default=2_000_000, ge=1)  # all calls, UTC day
+    ai_daily_budget_usd: float = Field(default=10.0, ge=0)  # enforced when prices are set
+    embedding_provider: EmbeddingProvider = "hashing"
+    embedding_model: str = Field(default="hashing-v1", min_length=1, max_length=128)
     embedding_dim: int = Field(default=384, ge=1)
+    ai_index_max_events: int = Field(default=200_000, ge=1)
+    ai_chat_top_k: int = Field(default=8, ge=1, le=50)
+    ai_chat_max_events: int = Field(default=120, ge=1, le=1000)
 
     # Integrations (Phase 9)
     vt_api_key: SecretStr | None = None
@@ -222,6 +243,17 @@ class Settings(BaseSettings):
         return self
 
     @model_validator(mode="after")
+    def _ai_consistent(self) -> Settings:
+        if self.embedding_dim != SCHEMA_EMBEDDING_DIM:
+            raise ValueError(
+                f"EMBEDDING_DIM={self.embedding_dim} does not match the event_chunks.embedding "
+                f"column (vector({SCHEMA_EMBEDDING_DIM})); another size needs a migration"
+            )
+        if self.embedding_provider == "hashing" and self.embedding_model != "hashing-v1":
+            raise ValueError("EMBEDDING_PROVIDER=hashing only provides EMBEDDING_MODEL=hashing-v1")
+        return self
+
+    @model_validator(mode="after")
     def _prod_fail_fast(self) -> Settings:
         if self.app_env != "prod":
             return self
@@ -250,6 +282,8 @@ class Settings(BaseSettings):
             problems.append("CORS_ORIGINS must not contain '*' in prod")
         if not self.custody_signing_key_path or not self.custody_key_id:
             problems.append("CUSTODY_SIGNING_KEY_PATH and CUSTODY_KEY_ID must be set")
+        if self.enable_ai and self.llm_provider == "fake":
+            problems.append("LLM_PROVIDER=fake is for tests and demos only")
         if problems:
             raise ValueError("invalid prod configuration: " + "; ".join(problems))
         return self

@@ -27,8 +27,12 @@ def test_defaults_are_local_dev() -> None:
     assert s.access_token_minutes == 15
     assert s.refresh_token_days == 7
     assert s.embedding_dim == 384
-    assert s.llm_provider == "fake"
+    assert s.llm_provider == "anthropic"
+    assert s.llm_model_fast == "claude-haiku-4-5-20251001"
+    assert s.llm_model_strong == "claude-sonnet-5-5"
+    assert s.llm_api_key is None
     assert s.enable_ai is False
+    assert s.embedding_provider == "hashing"
     assert s.is_prod is False
 
 
@@ -154,3 +158,42 @@ def test_upload_limit_must_fit_s3_part_count() -> None:
     with pytest.raises(ValidationError, match="UPLOAD_PART_SIZE_MB to at least 11"):
         make(max_upload_gb=100, upload_part_size_mb=8)
     assert make(max_upload_gb=100, upload_part_size_mb=11).upload_part_size_mb == 11
+
+
+def test_embedding_dim_must_match_schema() -> None:
+    with pytest.raises(ValidationError, match="needs a migration"):
+        make(embedding_dim=768)
+    with pytest.raises(ValidationError, match="hashing-v1"):
+        make(embedding_model="bge-small")
+    assert make(embedding_provider="ollama", embedding_model="all-minilm").embedding_dim == 384
+
+
+def test_ai_limits_validated() -> None:
+    with pytest.raises(ValidationError):
+        make(ai_max_tokens=10)
+    with pytest.raises(ValidationError):
+        make(ai_redaction_policy="loose")
+    with pytest.raises(ValidationError):
+        make(llm_effort="extreme")
+
+
+def test_llm_api_key_not_in_repr() -> None:
+    s = make(llm_api_key="sk-ant-very-secret")
+    assert "sk-ant-very-secret" not in repr(s)
+    assert "sk-ant-very-secret" not in str(s.model_dump())
+
+
+def test_prod_refuses_fake_llm_provider() -> None:
+    real = {
+        "app_env": "prod",
+        "jwt_secret": "a-real-secret-0123456789-abcdefghijkl",
+        "totp_enc_key": "another-real-secret-0123456789-abcdef",
+        "s3_secret_key": "real-minio-secret",
+        "database_url": "postgresql+psycopg://dfir:strong@db:5432/dfirbench",
+        "custody_signing_key_path": "/run/secrets/custody.key",
+        "custody_key_id": "custody-2026-01",
+        "cors_origins": ["https://dfir.example"],
+    }
+    with pytest.raises(ValidationError, match="LLM_PROVIDER=fake"):
+        make(**real, enable_ai=True, llm_provider="fake")
+    assert make(**real, enable_ai=True, llm_provider="anthropic").enable_ai
