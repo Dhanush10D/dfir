@@ -339,7 +339,9 @@ def test_downgrade_and_reupgrade_roundtrip(admin_engine: Engine) -> None:
                 )
         finally:
             engine.dispose()
-        # A report row survives the 0011 round trip (the downgrade drops only the new columns).
+        # Report rows survive the 0011 round trip: a draft, one in review and a signed (sealed)
+        # one. The downgrade cannot keep the review trail or the seal, so it returns every report
+        # to an unsealed draft; the upgrade's CHECKs then hold again.
         engine = create_engine(db_url)
         try:
             with engine.begin() as conn:
@@ -349,18 +351,68 @@ def test_downgrade_and_reupgrade_roundtrip(admin_engine: Engine) -> None:
                         "RETURNING id"
                     )
                 ).scalar_one()
+                approver = conn.execute(
+                    text(
+                        "INSERT INTO users (email, display_name) "
+                        "VALUES ('a@x.test', 'a') RETURNING id"
+                    )
+                ).scalar_one()
+                ids = []
+                for _ in range(3):
+                    ids.append(
+                        conn.execute(
+                            text(
+                                "INSERT INTO reports (id, case_id, kind, version, context, "
+                                "family_id, context_sha256) VALUES (gen_random_uuid(), :c, "
+                                "'technical', 1, '{}'::jsonb, gen_random_uuid(), "
+                                "repeat('0', 64)) RETURNING id"
+                            ),
+                            {"c": cid},
+                        ).scalar_one()
+                    )
+                _draft_id, review_id, signed_id = ids
+                for rid in (review_id, signed_id):
+                    conn.execute(
+                        text(
+                            "UPDATE reports SET status = 'in_review', submitted_by = :u, "
+                            "submitted_at = now() WHERE id = :r"
+                        ),
+                        {"u": uid, "r": rid},
+                    )
                 conn.execute(
                     text(
-                        "INSERT INTO reports (id, case_id, kind, version, context, family_id, "
-                        "context_sha256) VALUES (gen_random_uuid(), :c, 'technical', 1, "
-                        "'{}'::jsonb, gen_random_uuid(), repeat('0', 64))"
+                        "UPDATE reports SET status = 'approved', approved_by = :a, "
+                        "approved_at = now() WHERE id = :r"
                     ),
-                    {"c": cid},
+                    {"a": approver, "r": signed_id},
+                )
+                conn.execute(
+                    text(
+                        "UPDATE reports SET status = 'signed', signed_by = :a, signed_at = now(), "
+                        "key_id = 'k1', manifest = '{}'::jsonb, sha256 = repeat('a', 64), "
+                        "signature = 'sig', storage_uri = 's3://artifacts/reports/x/' "
+                        "WHERE id = :r"
+                    ),
+                    {"a": approver, "r": signed_id},
                 )
         finally:
             engine.dispose()
         command.downgrade(cfg, "0010")
         command.upgrade(cfg, "head")
+        engine = create_engine(db_url)
+        try:
+            with engine.connect() as conn:
+                rows = conn.execute(
+                    text(
+                        "SELECT status, approved_by, submitted_by, sha256, signature, "
+                        "storage_uri, manifest, key_id FROM reports WHERE case_id = :c"
+                    ),
+                    {"c": cid},
+                ).all()
+        finally:
+            engine.dispose()
+        assert len(rows) == 3
+        assert all(row == ("draft", None, None, None, None, None, None, None) for row in rows)
         command.downgrade(cfg, "0008")
         command.upgrade(cfg, "head")
     finally:

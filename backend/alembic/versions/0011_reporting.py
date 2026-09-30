@@ -181,6 +181,16 @@ def downgrade() -> None:
     op.execute(f"GRANT UPDATE, DELETE ON reports TO {APP_ROLE}")
     op.execute("DROP TRIGGER IF EXISTS reports_guard ON reports")
     op.execute("DROP FUNCTION IF EXISTS reports_guard()")
+    # Downgrade-only: the review trail (submitter, approval time) and the seal (manifest, key id,
+    # signing time) are dropped below, so a reviewed or signed state cannot be kept. Leaving it
+    # would let a later upgrade fail ``signed_sealed`` or skip the four-eyes check (submitter
+    # unknown), so every report goes back to an unreviewed, unsealed draft. Rendered artifacts
+    # already in object storage are not touched.
+    op.execute(
+        "UPDATE reports SET status = 'draft', approved_by = NULL, storage_uri = NULL, "
+        "sha256 = NULL, signature = NULL WHERE status <> 'draft' OR approved_by IS NOT NULL "
+        "OR storage_uri IS NOT NULL OR sha256 IS NOT NULL OR signature IS NOT NULL"
+    )
     op.drop_index("ix_reports_case_id_created_at", table_name="reports")
     op.drop_constraint(op.f("uq_reports_family_id_version"), "reports", type_="unique")
     op.drop_constraint(op.f("ck_reports_signed_sealed"), "reports", type_="check")
