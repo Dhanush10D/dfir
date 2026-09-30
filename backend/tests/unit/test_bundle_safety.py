@@ -6,7 +6,6 @@ import gzip
 import hashlib
 import io
 import json
-import os
 import posixpath
 import stat
 import struct
@@ -116,10 +115,13 @@ def test_good_bundle_extracts_only_fixed_names(tmp_path: Path) -> None:
     assert counts == {"verified": 3}
     names = sorted(p.name for p in dest.iterdir())
     assert names == ["00000.bin", "00001.bin", "00002.bin"]
-    assert [p for p in tmp_path.rglob("*") if p.is_file()] == sorted(dest.iterdir())
+    # Directory listing order is filesystem-dependent (sorted on NTFS, arbitrary on ext4).
+    assert sorted(p for p in tmp_path.rglob("*") if p.is_file()) == sorted(dest.iterdir())
     assert (dest / "00000.bin").read_bytes() == AUTH_LOG
     for path in dest.iterdir():
-        assert not os.access(path, os.W_OK)  # read-only copies for the parsers
+        # Read-only copies for the parsers. Check the mode bits: os.access is always
+        # True for root, so it depends on which user runs the tests.
+        assert stat.S_IMODE(path.stat().st_mode) & 0o222 == 0
 
 
 def test_mismatches_are_quarantined_not_accepted(tmp_path: Path) -> None:
