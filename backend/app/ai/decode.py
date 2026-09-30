@@ -54,7 +54,9 @@ TLDS = (
 )
 URL_RE = re.compile(r"(?i)\b(?:https?|ftp)://[^\s'\"<>()\[\]{}|\\^`]{3,2000}")
 DOMAIN_RE = re.compile(
-    rf"(?i)(?<![\w.@-])((?:[a-z0-9](?:[a-z0-9-]{{0,61}}[a-z0-9])?\.)+(?:{TLDS}))(?![\w-]|\.\w)"
+    # not after @ (e-mail), / \ : (paths, URLs) or inside a longer dotted name
+    rf"(?i)(?<![\w.@\-\\/:$%])((?:[a-z0-9](?:[a-z0-9-]{{0,61}}[a-z0-9])?\.)+(?:{TLDS}))"
+    r"(?![\w-]|\.\w)"
 )
 NOT_DOMAINS = frozenset({"system.net", "microsoft.net", "asp.net"})
 IPV4_RE = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])")

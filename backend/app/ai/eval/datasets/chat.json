@@ -1,0 +1,594 @@
+{
+ "items": [
+  {
+   "id": "chat-01",
+   "question": "did bob log on from 203.0.113.77?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "answered",
+   "response": {
+    "status": "answered",
+    "answer": "Reference answer.",
+    "key_facts": [
+     {
+      "statement": "Record E1",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "statement": "Record E2",
+      "cites": [
+       "E2"
+      ]
+     }
+    ],
+    "limitations": "Retrieved records only."
+   }
+  },
+  {
+   "id": "chat-02",
+   "question": "which service was installed?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "answered",
+   "response": {
+    "status": "answered",
+    "answer": "Reference answer.",
+    "key_facts": [
+     {
+      "statement": "Record E4",
+      "cites": [
+       "E4"
+      ]
+     }
+    ],
+    "limitations": "Retrieved records only."
+   }
+  },
+  {
+   "id": "chat-03",
+   "question": "was a user account created?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "answered",
+   "response": {
+    "status": "answered",
+    "answer": "Reference answer.",
+    "key_facts": [
+     {
+      "statement": "Record E5",
+      "cites": [
+       "E5"
+      ]
+     }
+    ],
+    "limitations": "Retrieved records only."
+   }
+  },
+  {
+   "id": "chat-04",
+   "question": "what started powershell?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "answered",
+   "response": {
+    "status": "answered",
+    "answer": "Reference answer.",
+    "key_facts": [
+     {
+      "statement": "Record E3",
+      "cites": [
+       "E3"
+      ]
+     }
+    ],
+    "limitations": "Retrieved records only."
+   }
+  },
+  {
+   "id": "chat-05",
+   "question": "any failed logons for bob?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "answered",
+   "response": {
+    "status": "answered",
+    "answer": "Reference answer.",
+    "key_facts": [
+     {
+      "statement": "Record E1",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "limitations": "Retrieved records only."
+   }
+  },
+  {
+   "id": "chat-06",
+   "question": "was data exfiltrated to the cloud?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "insufficient_evidence",
+   "response": {
+    "status": "insufficient_evidence",
+    "answer": "The records do not answer this.",
+    "key_facts": [],
+    "limitations": "Retrieved records only."
+   }
+  },
+  {
+   "id": "chat-07",
+   "question": "which firewall rules changed?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "insufficient_evidence",
+   "response": {
+    "status": "insufficient_evidence",
+    "answer": "The records do not answer this.",
+    "key_facts": [],
+    "limitations": "Retrieved records only."
+   }
+  },
+  {
+   "id": "chat-08",
+   "question": "did the attacker use kerberoasting?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "insufficient_evidence",
+   "response": {
+    "status": "insufficient_evidence",
+    "answer": "The records do not answer this.",
+    "key_facts": [],
+    "limitations": "Retrieved records only."
+   }
+  },
+  {
+   "id": "chat-09",
+   "question": "was mimikatz run?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "insufficient_evidence",
+   "response": {
+    "status": "insufficient_evidence",
+    "answer": "The records do not answer this.",
+    "key_facts": [],
+    "limitations": "Retrieved records only."
+   }
+  },
+  {
+   "id": "chat-10",
+   "question": "what happened on ws-042?",
+   "events": [
+    {
+     "id": "b53ac441-ecb7-5d27-8d91-3c134c0bc49c",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "ws-042",
+     "event_code": "4625",
+     "user": "bob",
+     "message": "Failed logon for bob from 203.0.113.77"
+    },
+    {
+     "id": "48056c7d-6ac4-5ddb-be1f-51f3f0cda487",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "ws-042",
+     "event_code": "4624",
+     "user": "bob",
+     "message": "Logon type 3 for bob from 203.0.113.77"
+    },
+    {
+     "id": "c6247f2c-90bc-5196-8a02-d8f3a71f0fe7",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "user": "bob",
+     "message": "powershell.exe started by winword.exe"
+    },
+    {
+     "id": "ce2c0c48-24e0-5755-9a7b-d973f2477d25",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "ws-042",
+     "event_code": "7045",
+     "user": "SYSTEM",
+     "message": "Service installed: updsvc"
+    },
+    {
+     "id": "5bbf3866-73fb-5ea5-962b-ba503208419d",
+     "ts": "2026-09-14T08:04:00Z",
+     "host": "ws-042",
+     "event_code": "4720",
+     "user": "admin",
+     "message": "User account created: backdoor"
+    }
+   ],
+   "expected_status": "answered",
+   "response": {
+    "status": "answered",
+    "answer": "Reference answer.",
+    "key_facts": [
+     {
+      "statement": "Record E1",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "statement": "Record E3",
+      "cites": [
+       "E3"
+      ]
+     },
+     {
+      "statement": "Record E4",
+      "cites": [
+       "E4"
+      ]
+     }
+    ],
+    "limitations": "Retrieved records only."
+   }
+  }
+ ]
+}

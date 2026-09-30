@@ -1,0 +1,614 @@
+{
+ "items": [
+  {
+   "id": "story-1",
+   "alerts": [
+    {
+     "id": "d7262980-774e-53aa-8142-52cfd41f5f24",
+     "rule_id": "DFIR-X",
+     "severity": "high",
+     "status": "new",
+     "host": "web01",
+     "attack_tags": [],
+     "first_seen": "2026-09-14T08:00:00Z",
+     "last_seen": "2026-09-14T08:28:00Z",
+     "event_count": 5,
+     "title": "phishing document opened"
+    }
+   ],
+   "events": [
+    {
+     "id": "e35a2df1-576f-5305-be71-146ad1aab4bf",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "web01",
+     "event_code": "step0",
+     "message": "phishing document opened"
+    },
+    {
+     "id": "1d17d4ac-7290-58a0-9cde-18d5560a9129",
+     "ts": "2026-09-14T08:03:00Z",
+     "host": "web01",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "d114f09f-fdbc-5f44-b168-3335ffd08e99",
+     "ts": "2026-09-14T08:07:00Z",
+     "host": "web01",
+     "event_code": "step1",
+     "message": "powershell download"
+    },
+    {
+     "id": "da588be6-5505-52b9-bc37-3ddf5aa373b6",
+     "ts": "2026-09-14T08:10:00Z",
+     "host": "web01",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "7e4aa321-3f5b-5741-9711-38a87f95e512",
+     "ts": "2026-09-14T08:14:00Z",
+     "host": "web01",
+     "event_code": "step2",
+     "message": "new service installed"
+    },
+    {
+     "id": "d65b997f-07a6-58bd-a5c3-1687378f4c4b",
+     "ts": "2026-09-14T08:21:00Z",
+     "host": "web01",
+     "event_code": "step3",
+     "message": "lsass access"
+    },
+    {
+     "id": "dd05b75a-5eed-55d4-a152-6c7ada4e19a2",
+     "ts": "2026-09-14T08:28:00Z",
+     "host": "web01",
+     "event_code": "step4",
+     "message": "rdp to dc-01"
+    }
+   ],
+   "key_events": [
+    "e35a2df1-576f-5305-be71-146ad1aab4bf",
+    "d114f09f-fdbc-5f44-b168-3335ffd08e99",
+    "7e4aa321-3f5b-5741-9711-38a87f95e512",
+    "d65b997f-07a6-58bd-a5c3-1687378f4c4b",
+    "dd05b75a-5eed-55d4-a152-6c7ada4e19a2"
+   ],
+   "response": {
+    "title": "phishing document opened",
+    "summary": "phishing document opened -> powershell download -> new service installed -> lsass access -> rdp to dc-01",
+    "timeline": [
+     {
+      "ts": "2026-09-14T08:00:00Z",
+      "stage": "unknown",
+      "statement": "phishing document opened",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "ts": "2026-09-14T08:07:00Z",
+      "stage": "unknown",
+      "statement": "powershell download",
+      "cites": [
+       "E3"
+      ]
+     },
+     {
+      "ts": "2026-09-14T08:14:00Z",
+      "stage": "unknown",
+      "statement": "new service installed",
+      "cites": [
+       "E5"
+      ]
+     },
+     {
+      "ts": "2026-09-14T08:21:00Z",
+      "stage": "unknown",
+      "statement": "lsass access",
+      "cites": [
+       "E6"
+      ]
+     },
+     {
+      "ts": "2026-09-14T08:28:00Z",
+      "stage": "unknown",
+      "statement": "rdp to dc-01",
+      "cites": [
+       "E7"
+      ]
+     }
+    ],
+    "gaps": [],
+    "limitations": "Reference narrative."
+   }
+  },
+  {
+   "id": "story-2",
+   "alerts": [
+    {
+     "id": "c5a157c3-16f5-5ee8-a681-be36fa2fb278",
+     "rule_id": "DFIR-X",
+     "severity": "high",
+     "status": "new",
+     "host": "ws-042",
+     "attack_tags": [],
+     "first_seen": "2026-09-14T09:40:00Z",
+     "last_seen": "2026-09-14T10:01:00Z",
+     "event_count": 4,
+     "title": "ssh brute force"
+    }
+   ],
+   "events": [
+    {
+     "id": "5cf98185-984a-5e79-9ade-3b1c70793f86",
+     "ts": "2026-09-14T09:40:00Z",
+     "host": "ws-042",
+     "event_code": "step0",
+     "message": "ssh brute force"
+    },
+    {
+     "id": "4ec51d0b-17e8-5500-89c9-5ecb62c92318",
+     "ts": "2026-09-14T09:43:00Z",
+     "host": "ws-042",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "f12e3fc7-d041-5f54-b10a-b02943f1fc67",
+     "ts": "2026-09-14T09:47:00Z",
+     "host": "ws-042",
+     "event_code": "step1",
+     "message": "successful root login"
+    },
+    {
+     "id": "20d5b4b3-f0cb-5073-8bc6-fe0da83f13f7",
+     "ts": "2026-09-14T09:50:00Z",
+     "host": "ws-042",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "851e2e37-3403-512f-a2fe-517188fa6b13",
+     "ts": "2026-09-14T09:54:00Z",
+     "host": "ws-042",
+     "event_code": "step2",
+     "message": "crontab modified"
+    },
+    {
+     "id": "d2ea88be-33a4-55e7-a4c6-815cd170b52e",
+     "ts": "2026-09-14T10:01:00Z",
+     "host": "ws-042",
+     "event_code": "step3",
+     "message": "outbound to 203.0.113.9:4444"
+    }
+   ],
+   "key_events": [
+    "5cf98185-984a-5e79-9ade-3b1c70793f86",
+    "f12e3fc7-d041-5f54-b10a-b02943f1fc67",
+    "851e2e37-3403-512f-a2fe-517188fa6b13",
+    "d2ea88be-33a4-55e7-a4c6-815cd170b52e"
+   ],
+   "response": {
+    "title": "ssh brute force",
+    "summary": "ssh brute force -> successful root login -> crontab modified -> outbound to 203.0.113.9:4444",
+    "timeline": [
+     {
+      "ts": "2026-09-14T09:40:00Z",
+      "stage": "unknown",
+      "statement": "ssh brute force",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "ts": "2026-09-14T09:47:00Z",
+      "stage": "unknown",
+      "statement": "successful root login",
+      "cites": [
+       "E3"
+      ]
+     },
+     {
+      "ts": "2026-09-14T09:54:00Z",
+      "stage": "unknown",
+      "statement": "crontab modified",
+      "cites": [
+       "E5"
+      ]
+     },
+     {
+      "ts": "2026-09-14T10:01:00Z",
+      "stage": "unknown",
+      "statement": "outbound to 203.0.113.9:4444",
+      "cites": [
+       "E6"
+      ]
+     }
+    ],
+    "gaps": [],
+    "limitations": "Reference narrative."
+   }
+  },
+  {
+   "id": "story-3",
+   "alerts": [
+    {
+     "id": "7d6ef622-e1a6-57da-ab4a-ba4a1d619226",
+     "rule_id": "DFIR-X",
+     "severity": "high",
+     "status": "new",
+     "host": "dc-01",
+     "attack_tags": [],
+     "first_seen": "2026-09-14T11:20:00Z",
+     "last_seen": "2026-09-14T11:34:00Z",
+     "event_count": 3,
+     "title": "vpn logon from new country"
+    }
+   ],
+   "events": [
+    {
+     "id": "dee5ed8f-2597-54d2-87a0-264bf34a7322",
+     "ts": "2026-09-14T11:20:00Z",
+     "host": "dc-01",
+     "event_code": "step0",
+     "message": "vpn logon from new country"
+    },
+    {
+     "id": "b0045f34-157b-5d12-9f72-5c6cad0adbc3",
+     "ts": "2026-09-14T11:23:00Z",
+     "host": "dc-01",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "94c5abf4-ef4a-50e1-8cb8-5c77e38a0efb",
+     "ts": "2026-09-14T11:27:00Z",
+     "host": "dc-01",
+     "event_code": "step1",
+     "message": "mailbox rule created"
+    },
+    {
+     "id": "fa950e10-e7a6-5e65-bb1b-1067238ca3fa",
+     "ts": "2026-09-14T11:30:00Z",
+     "host": "dc-01",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "fecbf11e-7092-5e06-8659-3d66c8b0b529",
+     "ts": "2026-09-14T11:34:00Z",
+     "host": "dc-01",
+     "event_code": "step2",
+     "message": "mass download from sharepoint"
+    }
+   ],
+   "key_events": [
+    "dee5ed8f-2597-54d2-87a0-264bf34a7322",
+    "94c5abf4-ef4a-50e1-8cb8-5c77e38a0efb",
+    "fecbf11e-7092-5e06-8659-3d66c8b0b529"
+   ],
+   "response": {
+    "title": "vpn logon from new country",
+    "summary": "vpn logon from new country -> mailbox rule created -> mass download from sharepoint",
+    "timeline": [
+     {
+      "ts": "2026-09-14T11:20:00Z",
+      "stage": "unknown",
+      "statement": "vpn logon from new country",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "ts": "2026-09-14T11:27:00Z",
+      "stage": "unknown",
+      "statement": "mailbox rule created",
+      "cites": [
+       "E3"
+      ]
+     },
+     {
+      "ts": "2026-09-14T11:34:00Z",
+      "stage": "unknown",
+      "statement": "mass download from sharepoint",
+      "cites": [
+       "E5"
+      ]
+     }
+    ],
+    "gaps": [],
+    "limitations": "Reference narrative."
+   }
+  },
+  {
+   "id": "story-4",
+   "alerts": [
+    {
+     "id": "ea926c28-a37d-5981-ab5b-97fdf8189030",
+     "rule_id": "DFIR-X",
+     "severity": "high",
+     "status": "new",
+     "host": "fs-02",
+     "attack_tags": [],
+     "first_seen": "2026-09-14T13:00:00Z",
+     "last_seen": "2026-09-14T13:28:00Z",
+     "event_count": 5,
+     "title": "webshell request"
+    }
+   ],
+   "events": [
+    {
+     "id": "73186b64-87fa-5b42-86b6-8377db5bacf2",
+     "ts": "2026-09-14T13:00:00Z",
+     "host": "fs-02",
+     "event_code": "step0",
+     "message": "webshell request"
+    },
+    {
+     "id": "b96bcd3b-9d9b-5f05-910c-f374f3319149",
+     "ts": "2026-09-14T13:03:00Z",
+     "host": "fs-02",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "473527cd-0a86-5ab9-a1dc-3a7ffe3c7e35",
+     "ts": "2026-09-14T13:07:00Z",
+     "host": "fs-02",
+     "event_code": "step1",
+     "message": "whoami executed"
+    },
+    {
+     "id": "4e4af0b5-202a-5f96-b438-285ff5216934",
+     "ts": "2026-09-14T13:10:00Z",
+     "host": "fs-02",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "6ee50123-a94f-5e0c-b947-9322b2eeaeb9",
+     "ts": "2026-09-14T13:14:00Z",
+     "host": "fs-02",
+     "event_code": "step2",
+     "message": "local admin created"
+    },
+    {
+     "id": "427f5c0e-aef7-5a6c-b158-8e16747a8a58",
+     "ts": "2026-09-14T13:21:00Z",
+     "host": "fs-02",
+     "event_code": "step3",
+     "message": "shadow copies deleted"
+    },
+    {
+     "id": "6bae41e4-3774-5128-b098-254cfff3a2a4",
+     "ts": "2026-09-14T13:28:00Z",
+     "host": "fs-02",
+     "event_code": "step4",
+     "message": "files encrypted"
+    }
+   ],
+   "key_events": [
+    "73186b64-87fa-5b42-86b6-8377db5bacf2",
+    "473527cd-0a86-5ab9-a1dc-3a7ffe3c7e35",
+    "6ee50123-a94f-5e0c-b947-9322b2eeaeb9",
+    "427f5c0e-aef7-5a6c-b158-8e16747a8a58",
+    "6bae41e4-3774-5128-b098-254cfff3a2a4"
+   ],
+   "response": {
+    "title": "webshell request",
+    "summary": "webshell request -> whoami executed -> local admin created -> shadow copies deleted -> files encrypted",
+    "timeline": [
+     {
+      "ts": "2026-09-14T13:00:00Z",
+      "stage": "unknown",
+      "statement": "webshell request",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "ts": "2026-09-14T13:07:00Z",
+      "stage": "unknown",
+      "statement": "whoami executed",
+      "cites": [
+       "E3"
+      ]
+     },
+     {
+      "ts": "2026-09-14T13:14:00Z",
+      "stage": "unknown",
+      "statement": "local admin created",
+      "cites": [
+       "E5"
+      ]
+     },
+     {
+      "ts": "2026-09-14T13:21:00Z",
+      "stage": "unknown",
+      "statement": "shadow copies deleted",
+      "cites": [
+       "E6"
+      ]
+     },
+     {
+      "ts": "2026-09-14T13:28:00Z",
+      "stage": "unknown",
+      "statement": "files encrypted",
+      "cites": [
+       "E7"
+      ]
+     }
+    ],
+    "gaps": [],
+    "limitations": "Reference narrative."
+   }
+  },
+  {
+   "id": "story-5",
+   "alerts": [
+    {
+     "id": "8fb2f475-33f2-5e85-861a-2fb0a205c124",
+     "rule_id": "DFIR-X",
+     "severity": "high",
+     "status": "new",
+     "host": "vpn-gw",
+     "attack_tags": [],
+     "first_seen": "2026-09-14T14:40:00Z",
+     "last_seen": "2026-09-14T14:54:00Z",
+     "event_count": 3,
+     "title": "usb device connected"
+    }
+   ],
+   "events": [
+    {
+     "id": "e0c9d99d-6021-5475-b268-6207850c9ad2",
+     "ts": "2026-09-14T14:40:00Z",
+     "host": "vpn-gw",
+     "event_code": "step0",
+     "message": "usb device connected"
+    },
+    {
+     "id": "2defd7cf-df5e-526c-be88-c4fbada60a8d",
+     "ts": "2026-09-14T14:43:00Z",
+     "host": "vpn-gw",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "d37b9914-cab6-57ee-88d6-bf2569a5becc",
+     "ts": "2026-09-14T14:47:00Z",
+     "host": "vpn-gw",
+     "event_code": "step1",
+     "message": "archive created"
+    },
+    {
+     "id": "cf76a381-0d1c-5cb3-95dc-65e7f2af2869",
+     "ts": "2026-09-14T14:50:00Z",
+     "host": "vpn-gw",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "19030e2c-6e46-5143-b186-9b5850b9c1bc",
+     "ts": "2026-09-14T14:54:00Z",
+     "host": "vpn-gw",
+     "event_code": "step2",
+     "message": "archive copied to usb"
+    }
+   ],
+   "key_events": [
+    "e0c9d99d-6021-5475-b268-6207850c9ad2",
+    "d37b9914-cab6-57ee-88d6-bf2569a5becc",
+    "19030e2c-6e46-5143-b186-9b5850b9c1bc"
+   ],
+   "response": {
+    "title": "usb device connected",
+    "summary": "usb device connected -> archive created -> archive copied to usb",
+    "timeline": [
+     {
+      "ts": "2026-09-14T14:40:00Z",
+      "stage": "unknown",
+      "statement": "usb device connected",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "ts": "2026-09-14T14:47:00Z",
+      "stage": "unknown",
+      "statement": "archive created",
+      "cites": [
+       "E3"
+      ]
+     },
+     {
+      "ts": "2026-09-14T14:54:00Z",
+      "stage": "unknown",
+      "statement": "archive copied to usb",
+      "cites": [
+       "E5"
+      ]
+     }
+    ],
+    "gaps": [],
+    "limitations": "Reference narrative."
+   }
+  },
+  {
+   "id": "story-6",
+   "alerts": [
+    {
+     "id": "7cf4aa6a-49fe-5ed8-b668-0a0da6897d23",
+     "rule_id": "DFIR-X",
+     "severity": "high",
+     "status": "new",
+     "host": "web01",
+     "attack_tags": [],
+     "first_seen": "2026-09-14T16:20:00Z",
+     "last_seen": "2026-09-14T16:27:00Z",
+     "event_count": 2,
+     "title": "scheduled task created"
+    }
+   ],
+   "events": [
+    {
+     "id": "38bdccaa-dcf1-5456-8caa-483b5f0bd5ee",
+     "ts": "2026-09-14T16:20:00Z",
+     "host": "web01",
+     "event_code": "step0",
+     "message": "scheduled task created"
+    },
+    {
+     "id": "c837f08b-5984-5eb4-9e31-f86ce9f5f5fc",
+     "ts": "2026-09-14T16:23:00Z",
+     "host": "web01",
+     "event_code": "info",
+     "message": "routine event"
+    },
+    {
+     "id": "ccf588a9-e215-5916-800f-e35d3ee14cdd",
+     "ts": "2026-09-14T16:27:00Z",
+     "host": "web01",
+     "event_code": "step1",
+     "message": "security log cleared"
+    },
+    {
+     "id": "b4339a5c-694a-5ebd-86d7-1136fa686879",
+     "ts": "2026-09-14T16:30:00Z",
+     "host": "web01",
+     "event_code": "info",
+     "message": "routine event"
+    }
+   ],
+   "key_events": [
+    "38bdccaa-dcf1-5456-8caa-483b5f0bd5ee",
+    "ccf588a9-e215-5916-800f-e35d3ee14cdd"
+   ],
+   "response": {
+    "title": "scheduled task created",
+    "summary": "scheduled task created -> security log cleared",
+    "timeline": [
+     {
+      "ts": "2026-09-14T16:20:00Z",
+      "stage": "unknown",
+      "statement": "scheduled task created",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "ts": "2026-09-14T16:27:00Z",
+      "stage": "unknown",
+      "statement": "security log cleared",
+      "cites": [
+       "E3"
+      ]
+     }
+    ],
+    "gaps": [],
+    "limitations": "Reference narrative."
+   }
+  }
+ ]
+}

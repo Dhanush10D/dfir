@@ -1,0 +1,2483 @@
+{
+ "items": [
+  {
+   "id": "alert-001",
+   "label": "malicious",
+   "alert": {
+    "id": "4a994a32-6c92-56ee-b53b-ac976490dd26",
+    "rule_id": "DFIR-LNX-0001",
+    "severity": "high",
+    "status": "new",
+    "host": "web01",
+    "attack_tags": [
+     "T1110"
+    ],
+    "first_seen": "2026-09-14T08:00:00Z",
+    "last_seen": "2026-09-14T08:02:00Z",
+    "event_count": 3,
+    "title": "SSH brute force followed by success"
+   },
+   "events": [
+    {
+     "id": "39beb01e-60ad-5bd2-a58d-45e0f4e4c3c7",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "5374f3bb-78bf-50bb-b044-ad06e9429ae8",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "42cb86ba-82e3-5f55-9e2d-8749880148fa",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "web01",
+     "event_code": "ssh_accepted",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Accepted password for root"
+    }
+   ],
+   "response": {
+    "summary": "SSH brute force followed by success on web01.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-LNX-0001 fired on web01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E2"
+      ]
+     },
+     {
+      "statement": "Event ssh_accepted on web01",
+      "cites": [
+       "E3"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1110",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-002",
+   "label": "malicious",
+   "alert": {
+    "id": "71ea5efe-1760-5e09-b609-68ddc9bada31",
+    "rule_id": "DFIR-WIN-0010",
+    "severity": "high",
+    "status": "new",
+    "host": "ws-042",
+    "attack_tags": [
+     "T1059.001",
+     "T1027"
+    ],
+    "first_seen": "2026-09-14T08:10:00Z",
+    "last_seen": "2026-09-14T08:10:00Z",
+    "event_count": 1,
+    "title": "Encoded PowerShell command"
+   },
+   "events": [
+    {
+     "id": "c7ccacfc-8e10-561e-978a-bed6ec0d81e6",
+     "ts": "2026-09-14T08:10:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "process_name": "powershell.exe",
+     "cmdline": "powershell -nop -w hidden -enc SQBFAFgA",
+     "user": "CORP\\bob"
+    }
+   ],
+   "response": {
+    "summary": "Encoded PowerShell command on ws-042.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0010 fired on ws-042",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4688 on ws-042",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1059.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-003",
+   "label": "benign",
+   "alert": {
+    "id": "b6f119ce-da2d-5546-87e7-e2643ab6e604",
+    "rule_id": "DFIR-WIN-0004",
+    "severity": "medium",
+    "status": "new",
+    "host": "dc-01",
+    "attack_tags": [
+     "T1078"
+    ],
+    "first_seen": "2026-09-14T08:20:00Z",
+    "last_seen": "2026-09-14T08:20:00Z",
+    "event_count": 1,
+    "title": "Administrative logon from jump host"
+   },
+   "events": [
+    {
+     "id": "47f4f6a3-e4b5-5380-97a5-78cd12904e8e",
+     "ts": "2026-09-14T08:20:00Z",
+     "host": "dc-01",
+     "event_code": "4624",
+     "user": "CORP\\admin",
+     "src_ip": "10.0.0.5",
+     "message": "Logon type 10 from JUMP-01 (approved change CHG-1182)"
+    }
+   ],
+   "response": {
+    "summary": "Administrative logon from jump host on dc-01.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0004 fired on dc-01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4624 on dc-01",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1078",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-004",
+   "label": "benign",
+   "alert": {
+    "id": "98e7901d-3766-5b76-a494-7012ea1b18a3",
+    "rule_id": "DFIR-WIN-0020",
+    "severity": "medium",
+    "status": "new",
+    "host": "fs-02",
+    "attack_tags": [
+     "T1053.005"
+    ],
+    "first_seen": "2026-09-14T08:30:00Z",
+    "last_seen": "2026-09-14T08:30:00Z",
+    "event_count": 1,
+    "title": "Scheduled task created"
+   },
+   "events": [
+    {
+     "id": "e64ae494-ec5e-5696-b56c-1ec447a12ba7",
+     "ts": "2026-09-14T08:30:00Z",
+     "host": "fs-02",
+     "event_code": "4698",
+     "user": "NT AUTHORITY\\SYSTEM",
+     "message": "Task \\Microsoft\\Configuration Manager\\Configuration Manager Health Evaluation created by CcmExec.exe"
+    }
+   ],
+   "response": {
+    "summary": "Scheduled task created on fs-02.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0020 fired on fs-02",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4698 on fs-02",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1053.005",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-005",
+   "label": "malicious",
+   "alert": {
+    "id": "e52abbf2-4149-5e1c-942d-62dd6ff7d9c1",
+    "rule_id": "DFIR-WIN-0030",
+    "severity": "high",
+    "status": "new",
+    "host": "vpn-gw",
+    "attack_tags": [
+     "T1070.001"
+    ],
+    "first_seen": "2026-09-14T08:40:00Z",
+    "last_seen": "2026-09-14T08:40:00Z",
+    "event_count": 1,
+    "title": "Security log cleared"
+   },
+   "events": [
+    {
+     "id": "4f47b657-df1e-57f6-a6be-0c11f72a9889",
+     "ts": "2026-09-14T08:40:00Z",
+     "host": "vpn-gw",
+     "event_code": "1102",
+     "user": "CORP\\bob",
+     "message": "The audit log was cleared"
+    }
+   ],
+   "response": {
+    "summary": "Security log cleared on vpn-gw.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0030 fired on vpn-gw",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 1102 on vpn-gw",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1070.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-006",
+   "label": "malicious",
+   "alert": {
+    "id": "d1c634e0-1376-5c32-b440-f5b7a058f7b9",
+    "rule_id": "DFIR-LNX-0001",
+    "severity": "high",
+    "status": "new",
+    "host": "web01",
+    "attack_tags": [
+     "T1110"
+    ],
+    "first_seen": "2026-09-14T08:50:00Z",
+    "last_seen": "2026-09-14T08:52:00Z",
+    "event_count": 3,
+    "title": "SSH brute force followed by success"
+   },
+   "events": [
+    {
+     "id": "0f070620-f828-55bc-8777-82e957aac09e",
+     "ts": "2026-09-14T08:50:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "a11a83b1-db7f-5e56-8dc6-7011d3c59861",
+     "ts": "2026-09-14T08:51:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "302c73af-4bb0-5403-82ac-5d464cc9b9f0",
+     "ts": "2026-09-14T08:52:00Z",
+     "host": "web01",
+     "event_code": "ssh_accepted",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Accepted password for root"
+    }
+   ],
+   "response": {
+    "summary": "SSH brute force followed by success on web01.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-LNX-0001 fired on web01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E2"
+      ]
+     },
+     {
+      "statement": "Event ssh_accepted on web01",
+      "cites": [
+       "E3"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1110",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-007",
+   "label": "malicious",
+   "alert": {
+    "id": "7ff0cce9-2757-5743-83d2-2926484a4aed",
+    "rule_id": "DFIR-WIN-0010",
+    "severity": "high",
+    "status": "new",
+    "host": "ws-042",
+    "attack_tags": [
+     "T1059.001",
+     "T1027"
+    ],
+    "first_seen": "2026-09-14T09:00:00Z",
+    "last_seen": "2026-09-14T09:00:00Z",
+    "event_count": 1,
+    "title": "Encoded PowerShell command"
+   },
+   "events": [
+    {
+     "id": "99b8eb8c-d1ef-5797-9482-c4bed84ec5a7",
+     "ts": "2026-09-14T09:00:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "process_name": "powershell.exe",
+     "cmdline": "powershell -nop -w hidden -enc SQBFAFgA",
+     "user": "CORP\\bob"
+    }
+   ],
+   "response": {
+    "summary": "Encoded PowerShell command on ws-042.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0010 fired on ws-042",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4688 on ws-042",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1059.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-008",
+   "label": "benign",
+   "alert": {
+    "id": "9efeb09d-4f31-50a9-8d1b-35af0858fa3d",
+    "rule_id": "DFIR-WIN-0004",
+    "severity": "medium",
+    "status": "new",
+    "host": "dc-01",
+    "attack_tags": [
+     "T1078"
+    ],
+    "first_seen": "2026-09-14T09:10:00Z",
+    "last_seen": "2026-09-14T09:10:00Z",
+    "event_count": 1,
+    "title": "Administrative logon from jump host"
+   },
+   "events": [
+    {
+     "id": "0e8ea428-65a3-5147-b8d3-86153e25abfd",
+     "ts": "2026-09-14T09:10:00Z",
+     "host": "dc-01",
+     "event_code": "4624",
+     "user": "CORP\\admin",
+     "src_ip": "10.0.0.5",
+     "message": "Logon type 10 from JUMP-01 (approved change CHG-1182)"
+    }
+   ],
+   "response": {
+    "summary": "Administrative logon from jump host on dc-01.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0004 fired on dc-01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4624 on dc-01",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1078",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-009",
+   "label": "benign",
+   "alert": {
+    "id": "c820b2d0-1bbc-5eb4-9be7-6218e6ee1258",
+    "rule_id": "DFIR-WIN-0020",
+    "severity": "medium",
+    "status": "new",
+    "host": "fs-02",
+    "attack_tags": [
+     "T1053.005"
+    ],
+    "first_seen": "2026-09-14T09:20:00Z",
+    "last_seen": "2026-09-14T09:20:00Z",
+    "event_count": 1,
+    "title": "Scheduled task created"
+   },
+   "events": [
+    {
+     "id": "3def2525-b685-5a03-9d16-1d929168e8a4",
+     "ts": "2026-09-14T09:20:00Z",
+     "host": "fs-02",
+     "event_code": "4698",
+     "user": "NT AUTHORITY\\SYSTEM",
+     "message": "Task \\Microsoft\\Configuration Manager\\Configuration Manager Health Evaluation created by CcmExec.exe"
+    }
+   ],
+   "response": {
+    "summary": "Scheduled task created on fs-02.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0020 fired on fs-02",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4698 on fs-02",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1053.005",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-010",
+   "label": "malicious",
+   "alert": {
+    "id": "970e5093-3a28-5bbd-bc6a-6b8568783047",
+    "rule_id": "DFIR-WIN-0030",
+    "severity": "high",
+    "status": "new",
+    "host": "vpn-gw",
+    "attack_tags": [
+     "T1070.001"
+    ],
+    "first_seen": "2026-09-14T09:30:00Z",
+    "last_seen": "2026-09-14T09:30:00Z",
+    "event_count": 1,
+    "title": "Security log cleared"
+   },
+   "events": [
+    {
+     "id": "35c90295-97b3-5472-9a84-ecd84069acd1",
+     "ts": "2026-09-14T09:30:00Z",
+     "host": "vpn-gw",
+     "event_code": "1102",
+     "user": "CORP\\bob",
+     "message": "The audit log was cleared"
+    }
+   ],
+   "response": {
+    "summary": "Security log cleared on vpn-gw.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0030 fired on vpn-gw",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 1102 on vpn-gw",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1070.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-011",
+   "label": "malicious",
+   "alert": {
+    "id": "675b4c65-ca40-556c-a913-96255fbab1b4",
+    "rule_id": "DFIR-LNX-0001",
+    "severity": "high",
+    "status": "new",
+    "host": "web01",
+    "attack_tags": [
+     "T1110"
+    ],
+    "first_seen": "2026-09-14T09:40:00Z",
+    "last_seen": "2026-09-14T09:42:00Z",
+    "event_count": 3,
+    "title": "SSH brute force followed by success"
+   },
+   "events": [
+    {
+     "id": "7f5d741b-536c-5931-bc3c-cee6bf94a9f3",
+     "ts": "2026-09-14T09:40:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "908a48f6-62ae-569d-9695-42b29b0d7f22",
+     "ts": "2026-09-14T09:41:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "f2913ebe-fdeb-5e89-a7a8-666724b2dc63",
+     "ts": "2026-09-14T09:42:00Z",
+     "host": "web01",
+     "event_code": "ssh_accepted",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Accepted password for root"
+    }
+   ],
+   "response": {
+    "summary": "SSH brute force followed by success on web01.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-LNX-0001 fired on web01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E2"
+      ]
+     },
+     {
+      "statement": "Event ssh_accepted on web01",
+      "cites": [
+       "E3"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1110",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-012",
+   "label": "malicious",
+   "alert": {
+    "id": "dcceff79-2111-5616-8719-62ececc158b0",
+    "rule_id": "DFIR-WIN-0010",
+    "severity": "high",
+    "status": "new",
+    "host": "ws-042",
+    "attack_tags": [
+     "T1059.001",
+     "T1027"
+    ],
+    "first_seen": "2026-09-14T09:50:00Z",
+    "last_seen": "2026-09-14T09:50:00Z",
+    "event_count": 1,
+    "title": "Encoded PowerShell command"
+   },
+   "events": [
+    {
+     "id": "e5eef74a-9b5b-575b-b265-62b6bef956c7",
+     "ts": "2026-09-14T09:50:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "process_name": "powershell.exe",
+     "cmdline": "powershell -nop -w hidden -enc SQBFAFgA",
+     "user": "CORP\\bob"
+    }
+   ],
+   "response": {
+    "summary": "Encoded PowerShell command on ws-042.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0010 fired on ws-042",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4688 on ws-042",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1059.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-013",
+   "label": "benign",
+   "alert": {
+    "id": "ef0c3585-b3bf-50db-92f9-e10bfd2f7abd",
+    "rule_id": "DFIR-WIN-0004",
+    "severity": "medium",
+    "status": "new",
+    "host": "dc-01",
+    "attack_tags": [
+     "T1078"
+    ],
+    "first_seen": "2026-09-14T10:00:00Z",
+    "last_seen": "2026-09-14T10:00:00Z",
+    "event_count": 1,
+    "title": "Administrative logon from jump host"
+   },
+   "events": [
+    {
+     "id": "e3428a9c-bb26-54c7-83d7-a0414f2ae65a",
+     "ts": "2026-09-14T10:00:00Z",
+     "host": "dc-01",
+     "event_code": "4624",
+     "user": "CORP\\admin",
+     "src_ip": "10.0.0.5",
+     "message": "Logon type 10 from JUMP-01 (approved change CHG-1182)"
+    }
+   ],
+   "response": {
+    "summary": "Administrative logon from jump host on dc-01.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0004 fired on dc-01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4624 on dc-01",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1078",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-014",
+   "label": "benign",
+   "alert": {
+    "id": "2b5c980c-53eb-523c-a81c-1fcd15fad812",
+    "rule_id": "DFIR-WIN-0020",
+    "severity": "medium",
+    "status": "new",
+    "host": "fs-02",
+    "attack_tags": [
+     "T1053.005"
+    ],
+    "first_seen": "2026-09-14T10:10:00Z",
+    "last_seen": "2026-09-14T10:10:00Z",
+    "event_count": 1,
+    "title": "Scheduled task created"
+   },
+   "events": [
+    {
+     "id": "8f4135ac-35bf-5463-bdbf-85047ca1ca5d",
+     "ts": "2026-09-14T10:10:00Z",
+     "host": "fs-02",
+     "event_code": "4698",
+     "user": "NT AUTHORITY\\SYSTEM",
+     "message": "Task \\Microsoft\\Configuration Manager\\Configuration Manager Health Evaluation created by CcmExec.exe"
+    }
+   ],
+   "response": {
+    "summary": "Scheduled task created on fs-02.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0020 fired on fs-02",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4698 on fs-02",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1053.005",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-015",
+   "label": "malicious",
+   "alert": {
+    "id": "e7183999-a336-504f-b739-b265ea59d1a1",
+    "rule_id": "DFIR-WIN-0030",
+    "severity": "high",
+    "status": "new",
+    "host": "vpn-gw",
+    "attack_tags": [
+     "T1070.001"
+    ],
+    "first_seen": "2026-09-14T10:20:00Z",
+    "last_seen": "2026-09-14T10:20:00Z",
+    "event_count": 1,
+    "title": "Security log cleared"
+   },
+   "events": [
+    {
+     "id": "98e54f2a-15e0-557d-baa5-dfb0aba99736",
+     "ts": "2026-09-14T10:20:00Z",
+     "host": "vpn-gw",
+     "event_code": "1102",
+     "user": "CORP\\bob",
+     "message": "The audit log was cleared"
+    }
+   ],
+   "response": {
+    "summary": "Security log cleared on vpn-gw.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0030 fired on vpn-gw",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 1102 on vpn-gw",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1070.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-016",
+   "label": "malicious",
+   "alert": {
+    "id": "cadd6bed-aad4-5b70-8837-e74ae184bbbe",
+    "rule_id": "DFIR-LNX-0001",
+    "severity": "high",
+    "status": "new",
+    "host": "web01",
+    "attack_tags": [
+     "T1110"
+    ],
+    "first_seen": "2026-09-14T10:30:00Z",
+    "last_seen": "2026-09-14T10:32:00Z",
+    "event_count": 3,
+    "title": "SSH brute force followed by success"
+   },
+   "events": [
+    {
+     "id": "f2771a54-a7d9-582f-b8e2-cbc61787c6ff",
+     "ts": "2026-09-14T10:30:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "74cdd83b-328d-587d-b398-c16ea73b438a",
+     "ts": "2026-09-14T10:31:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "e6392769-de64-565a-908d-332a3485ba36",
+     "ts": "2026-09-14T10:32:00Z",
+     "host": "web01",
+     "event_code": "ssh_accepted",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Accepted password for root"
+    }
+   ],
+   "response": {
+    "summary": "SSH brute force followed by success on web01.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-LNX-0001 fired on web01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E2"
+      ]
+     },
+     {
+      "statement": "Event ssh_accepted on web01",
+      "cites": [
+       "E3"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1110",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-017",
+   "label": "malicious",
+   "alert": {
+    "id": "38a60d06-052d-5eb7-9a8d-94b152425eb7",
+    "rule_id": "DFIR-WIN-0010",
+    "severity": "high",
+    "status": "new",
+    "host": "ws-042",
+    "attack_tags": [
+     "T1059.001",
+     "T1027"
+    ],
+    "first_seen": "2026-09-14T10:40:00Z",
+    "last_seen": "2026-09-14T10:40:00Z",
+    "event_count": 1,
+    "title": "Encoded PowerShell command"
+   },
+   "events": [
+    {
+     "id": "ce883764-f50b-51c6-8b4c-29f3001ec620",
+     "ts": "2026-09-14T10:40:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "process_name": "powershell.exe",
+     "cmdline": "powershell -nop -w hidden -enc SQBFAFgA",
+     "user": "CORP\\bob"
+    }
+   ],
+   "response": {
+    "summary": "Encoded PowerShell command on ws-042.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0010 fired on ws-042",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4688 on ws-042",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1059.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-018",
+   "label": "benign",
+   "alert": {
+    "id": "2bd9b98d-79a3-5c43-a0be-db700e32b428",
+    "rule_id": "DFIR-WIN-0004",
+    "severity": "medium",
+    "status": "new",
+    "host": "dc-01",
+    "attack_tags": [
+     "T1078"
+    ],
+    "first_seen": "2026-09-14T10:50:00Z",
+    "last_seen": "2026-09-14T10:50:00Z",
+    "event_count": 1,
+    "title": "Administrative logon from jump host"
+   },
+   "events": [
+    {
+     "id": "0f4e7717-cd63-57d9-839e-d543e860137b",
+     "ts": "2026-09-14T10:50:00Z",
+     "host": "dc-01",
+     "event_code": "4624",
+     "user": "CORP\\admin",
+     "src_ip": "10.0.0.5",
+     "message": "Logon type 10 from JUMP-01 (approved change CHG-1182)"
+    }
+   ],
+   "response": {
+    "summary": "Administrative logon from jump host on dc-01.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0004 fired on dc-01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4624 on dc-01",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1078",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-019",
+   "label": "benign",
+   "alert": {
+    "id": "c121eb02-a8fc-5972-b507-6e74296a6f4b",
+    "rule_id": "DFIR-WIN-0020",
+    "severity": "medium",
+    "status": "new",
+    "host": "fs-02",
+    "attack_tags": [
+     "T1053.005"
+    ],
+    "first_seen": "2026-09-14T11:00:00Z",
+    "last_seen": "2026-09-14T11:00:00Z",
+    "event_count": 1,
+    "title": "Scheduled task created"
+   },
+   "events": [
+    {
+     "id": "2f9308ff-7931-5486-baf8-04e29768ee3a",
+     "ts": "2026-09-14T11:00:00Z",
+     "host": "fs-02",
+     "event_code": "4698",
+     "user": "NT AUTHORITY\\SYSTEM",
+     "message": "Task \\Microsoft\\Configuration Manager\\Configuration Manager Health Evaluation created by CcmExec.exe"
+    }
+   ],
+   "response": {
+    "summary": "Scheduled task created on fs-02.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0020 fired on fs-02",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4698 on fs-02",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1053.005",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-020",
+   "label": "malicious",
+   "alert": {
+    "id": "8e050b6d-ac0c-5d9d-b89c-7f6865847e96",
+    "rule_id": "DFIR-WIN-0030",
+    "severity": "high",
+    "status": "new",
+    "host": "vpn-gw",
+    "attack_tags": [
+     "T1070.001"
+    ],
+    "first_seen": "2026-09-14T11:10:00Z",
+    "last_seen": "2026-09-14T11:10:00Z",
+    "event_count": 1,
+    "title": "Security log cleared"
+   },
+   "events": [
+    {
+     "id": "e3b039a6-47ba-56ff-b752-2f36bae1611a",
+     "ts": "2026-09-14T11:10:00Z",
+     "host": "vpn-gw",
+     "event_code": "1102",
+     "user": "CORP\\bob",
+     "message": "The audit log was cleared"
+    }
+   ],
+   "response": {
+    "summary": "Security log cleared on vpn-gw.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0030 fired on vpn-gw",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 1102 on vpn-gw",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1070.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-021",
+   "label": "malicious",
+   "alert": {
+    "id": "684ab825-a840-57ca-bc3a-0e2f045b9a7e",
+    "rule_id": "DFIR-LNX-0001",
+    "severity": "high",
+    "status": "new",
+    "host": "web01",
+    "attack_tags": [
+     "T1110"
+    ],
+    "first_seen": "2026-09-14T11:20:00Z",
+    "last_seen": "2026-09-14T11:22:00Z",
+    "event_count": 3,
+    "title": "SSH brute force followed by success"
+   },
+   "events": [
+    {
+     "id": "74e04841-6c5d-5a75-963c-15fef8f5e918",
+     "ts": "2026-09-14T11:20:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "8925b2f0-8795-5ed0-bbdb-19ac14268c11",
+     "ts": "2026-09-14T11:21:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "b6d66a0a-56ff-5baa-82c6-66df7387793a",
+     "ts": "2026-09-14T11:22:00Z",
+     "host": "web01",
+     "event_code": "ssh_accepted",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Accepted password for root"
+    }
+   ],
+   "response": {
+    "summary": "SSH brute force followed by success on web01.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-LNX-0001 fired on web01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E2"
+      ]
+     },
+     {
+      "statement": "Event ssh_accepted on web01",
+      "cites": [
+       "E3"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1110",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-022",
+   "label": "malicious",
+   "alert": {
+    "id": "eccdc866-c047-5a73-b2b5-4946a5bb8b76",
+    "rule_id": "DFIR-WIN-0010",
+    "severity": "high",
+    "status": "new",
+    "host": "ws-042",
+    "attack_tags": [
+     "T1059.001",
+     "T1027"
+    ],
+    "first_seen": "2026-09-14T11:30:00Z",
+    "last_seen": "2026-09-14T11:30:00Z",
+    "event_count": 1,
+    "title": "Encoded PowerShell command"
+   },
+   "events": [
+    {
+     "id": "a6fd4e31-8dcf-531e-a332-2ef14a1bef21",
+     "ts": "2026-09-14T11:30:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "process_name": "powershell.exe",
+     "cmdline": "powershell -nop -w hidden -enc SQBFAFgA",
+     "user": "CORP\\bob"
+    }
+   ],
+   "response": {
+    "summary": "Encoded PowerShell command on ws-042.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0010 fired on ws-042",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4688 on ws-042",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1059.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-023",
+   "label": "benign",
+   "alert": {
+    "id": "3202d028-033f-5e42-9f58-9491c45321e2",
+    "rule_id": "DFIR-WIN-0004",
+    "severity": "medium",
+    "status": "new",
+    "host": "dc-01",
+    "attack_tags": [
+     "T1078"
+    ],
+    "first_seen": "2026-09-14T11:40:00Z",
+    "last_seen": "2026-09-14T11:40:00Z",
+    "event_count": 1,
+    "title": "Administrative logon from jump host"
+   },
+   "events": [
+    {
+     "id": "869bba2d-23cd-5d8b-84e9-975380b2887f",
+     "ts": "2026-09-14T11:40:00Z",
+     "host": "dc-01",
+     "event_code": "4624",
+     "user": "CORP\\admin",
+     "src_ip": "10.0.0.5",
+     "message": "Logon type 10 from JUMP-01 (approved change CHG-1182)"
+    }
+   ],
+   "response": {
+    "summary": "Administrative logon from jump host on dc-01.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0004 fired on dc-01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4624 on dc-01",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1078",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-024",
+   "label": "benign",
+   "alert": {
+    "id": "a41ed767-2355-5426-a175-20e8c5d2c713",
+    "rule_id": "DFIR-WIN-0020",
+    "severity": "medium",
+    "status": "new",
+    "host": "fs-02",
+    "attack_tags": [
+     "T1053.005"
+    ],
+    "first_seen": "2026-09-14T11:50:00Z",
+    "last_seen": "2026-09-14T11:50:00Z",
+    "event_count": 1,
+    "title": "Scheduled task created"
+   },
+   "events": [
+    {
+     "id": "488244a1-81db-572c-92a0-de5d718197c0",
+     "ts": "2026-09-14T11:50:00Z",
+     "host": "fs-02",
+     "event_code": "4698",
+     "user": "NT AUTHORITY\\SYSTEM",
+     "message": "Task \\Microsoft\\Configuration Manager\\Configuration Manager Health Evaluation created by CcmExec.exe"
+    }
+   ],
+   "response": {
+    "summary": "Scheduled task created on fs-02.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0020 fired on fs-02",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4698 on fs-02",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1053.005",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-025",
+   "label": "malicious",
+   "alert": {
+    "id": "9077481a-8cb8-5f56-a0ee-287fa884d19b",
+    "rule_id": "DFIR-WIN-0030",
+    "severity": "high",
+    "status": "new",
+    "host": "vpn-gw",
+    "attack_tags": [
+     "T1070.001"
+    ],
+    "first_seen": "2026-09-14T12:00:00Z",
+    "last_seen": "2026-09-14T12:00:00Z",
+    "event_count": 1,
+    "title": "Security log cleared"
+   },
+   "events": [
+    {
+     "id": "8c9cf7aa-e90e-5142-942b-72bdf52c8341",
+     "ts": "2026-09-14T12:00:00Z",
+     "host": "vpn-gw",
+     "event_code": "1102",
+     "user": "CORP\\bob",
+     "message": "The audit log was cleared"
+    }
+   ],
+   "response": {
+    "summary": "Security log cleared on vpn-gw.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0030 fired on vpn-gw",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 1102 on vpn-gw",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1070.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-026",
+   "label": "malicious",
+   "alert": {
+    "id": "2472837c-bfdf-58e7-a514-1027deb5703c",
+    "rule_id": "DFIR-LNX-0001",
+    "severity": "high",
+    "status": "new",
+    "host": "web01",
+    "attack_tags": [
+     "T1110"
+    ],
+    "first_seen": "2026-09-14T12:10:00Z",
+    "last_seen": "2026-09-14T12:12:00Z",
+    "event_count": 3,
+    "title": "SSH brute force followed by success"
+   },
+   "events": [
+    {
+     "id": "409a89f1-e03a-56f9-9e70-c9305a82aeb3",
+     "ts": "2026-09-14T12:10:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "e20d6892-4aec-5508-a228-1abdf9134073",
+     "ts": "2026-09-14T12:11:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "074700e8-d4c8-5ea8-b210-7a9f4a8507a4",
+     "ts": "2026-09-14T12:12:00Z",
+     "host": "web01",
+     "event_code": "ssh_accepted",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Accepted password for root"
+    }
+   ],
+   "response": {
+    "summary": "SSH brute force followed by success on web01.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-LNX-0001 fired on web01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E2"
+      ]
+     },
+     {
+      "statement": "Event ssh_accepted on web01",
+      "cites": [
+       "E3"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1110",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-027",
+   "label": "malicious",
+   "alert": {
+    "id": "8d8730b5-23da-5090-bddd-d9dc37c76923",
+    "rule_id": "DFIR-WIN-0010",
+    "severity": "high",
+    "status": "new",
+    "host": "ws-042",
+    "attack_tags": [
+     "T1059.001",
+     "T1027"
+    ],
+    "first_seen": "2026-09-14T12:20:00Z",
+    "last_seen": "2026-09-14T12:20:00Z",
+    "event_count": 1,
+    "title": "Encoded PowerShell command"
+   },
+   "events": [
+    {
+     "id": "3578b049-4cac-568d-ac91-753187e796d9",
+     "ts": "2026-09-14T12:20:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "process_name": "powershell.exe",
+     "cmdline": "powershell -nop -w hidden -enc SQBFAFgA",
+     "user": "CORP\\bob"
+    }
+   ],
+   "response": {
+    "summary": "Encoded PowerShell command on ws-042.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0010 fired on ws-042",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4688 on ws-042",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1059.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-028",
+   "label": "benign",
+   "alert": {
+    "id": "863c27a5-6865-53c4-94cf-37657b8021ca",
+    "rule_id": "DFIR-WIN-0004",
+    "severity": "medium",
+    "status": "new",
+    "host": "dc-01",
+    "attack_tags": [
+     "T1078"
+    ],
+    "first_seen": "2026-09-14T12:30:00Z",
+    "last_seen": "2026-09-14T12:30:00Z",
+    "event_count": 1,
+    "title": "Administrative logon from jump host"
+   },
+   "events": [
+    {
+     "id": "84ec9563-46e2-5410-9c2c-122a00983393",
+     "ts": "2026-09-14T12:30:00Z",
+     "host": "dc-01",
+     "event_code": "4624",
+     "user": "CORP\\admin",
+     "src_ip": "10.0.0.5",
+     "message": "Logon type 10 from JUMP-01 (approved change CHG-1182)"
+    }
+   ],
+   "response": {
+    "summary": "Administrative logon from jump host on dc-01.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0004 fired on dc-01",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4624 on dc-01",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1078",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-029",
+   "label": "benign",
+   "alert": {
+    "id": "30e0533f-df9e-5a50-8496-b5c496d6739a",
+    "rule_id": "DFIR-WIN-0020",
+    "severity": "medium",
+    "status": "new",
+    "host": "fs-02",
+    "attack_tags": [
+     "T1053.005"
+    ],
+    "first_seen": "2026-09-14T12:40:00Z",
+    "last_seen": "2026-09-14T12:40:00Z",
+    "event_count": 1,
+    "title": "Scheduled task created"
+   },
+   "events": [
+    {
+     "id": "c129709f-b070-561a-9c4e-e44ea554ffdc",
+     "ts": "2026-09-14T12:40:00Z",
+     "host": "fs-02",
+     "event_code": "4698",
+     "user": "NT AUTHORITY\\SYSTEM",
+     "message": "Task \\Microsoft\\Configuration Manager\\Configuration Manager Health Evaluation created by CcmExec.exe"
+    }
+   ],
+   "response": {
+    "summary": "Scheduled task created on fs-02.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0020 fired on fs-02",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 4698 on fs-02",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1053.005",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "alert-030",
+   "label": "malicious",
+   "alert": {
+    "id": "8590d187-0ec4-5f2d-8ac7-3d6506993f6e",
+    "rule_id": "DFIR-WIN-0030",
+    "severity": "high",
+    "status": "new",
+    "host": "vpn-gw",
+    "attack_tags": [
+     "T1070.001"
+    ],
+    "first_seen": "2026-09-14T12:50:00Z",
+    "last_seen": "2026-09-14T12:50:00Z",
+    "event_count": 1,
+    "title": "Security log cleared"
+   },
+   "events": [
+    {
+     "id": "21cf4d12-2c83-52b2-8101-c85c1d378bbc",
+     "ts": "2026-09-14T12:50:00Z",
+     "host": "vpn-gw",
+     "event_code": "1102",
+     "user": "CORP\\bob",
+     "message": "The audit log was cleared"
+    }
+   ],
+   "response": {
+    "summary": "Security log cleared on vpn-gw.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0030 fired on vpn-gw",
+      "cites": [
+       "A1"
+      ]
+     },
+     {
+      "statement": "Event 1102 on vpn-gw",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1070.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  }
+ ],
+ "fabricated": [
+  {
+   "id": "fabricated-1",
+   "alert": {
+    "id": "4a994a32-6c92-56ee-b53b-ac976490dd26",
+    "rule_id": "DFIR-LNX-0001",
+    "severity": "high",
+    "status": "new",
+    "host": "web01",
+    "attack_tags": [
+     "T1110"
+    ],
+    "first_seen": "2026-09-14T08:00:00Z",
+    "last_seen": "2026-09-14T08:02:00Z",
+    "event_count": 3,
+    "title": "SSH brute force followed by success"
+   },
+   "events": [
+    {
+     "id": "39beb01e-60ad-5bd2-a58d-45e0f4e4c3c7",
+     "ts": "2026-09-14T08:00:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "5374f3bb-78bf-50bb-b044-ad06e9429ae8",
+     "ts": "2026-09-14T08:01:00Z",
+     "host": "web01",
+     "event_code": "ssh_failed",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Failed password for root"
+    },
+    {
+     "id": "42cb86ba-82e3-5f55-9e2d-8749880148fa",
+     "ts": "2026-09-14T08:02:00Z",
+     "host": "web01",
+     "event_code": "ssh_accepted",
+     "user": "root",
+     "src_ip": "203.0.113.50",
+     "message": "Accepted password for root"
+    }
+   ],
+   "response": {
+    "summary": "SSH brute force followed by success on web01.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-LNX-0001 fired on web01",
+      "cites": [
+       "E42"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E1"
+      ]
+     },
+     {
+      "statement": "Event ssh_failed on web01",
+      "cites": [
+       "E2"
+      ]
+     },
+     {
+      "statement": "Event ssh_accepted on web01",
+      "cites": [
+       "E3"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1110",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "fabricated-2",
+   "alert": {
+    "id": "71ea5efe-1760-5e09-b609-68ddc9bada31",
+    "rule_id": "DFIR-WIN-0010",
+    "severity": "high",
+    "status": "new",
+    "host": "ws-042",
+    "attack_tags": [
+     "T1059.001",
+     "T1027"
+    ],
+    "first_seen": "2026-09-14T08:10:00Z",
+    "last_seen": "2026-09-14T08:10:00Z",
+    "event_count": 1,
+    "title": "Encoded PowerShell command"
+   },
+   "events": [
+    {
+     "id": "c7ccacfc-8e10-561e-978a-bed6ec0d81e6",
+     "ts": "2026-09-14T08:10:00Z",
+     "host": "ws-042",
+     "event_code": "4688",
+     "process_name": "powershell.exe",
+     "cmdline": "powershell -nop -w hidden -enc SQBFAFgA",
+     "user": "CORP\\bob"
+    }
+   ],
+   "response": {
+    "summary": "Encoded PowerShell command on ws-042.",
+    "assessment": "likely_malicious",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0010 fired on ws-042",
+      "cites": [
+       "A1",
+       "X9"
+      ]
+     },
+     {
+      "statement": "Event 4688 on ws-042",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1059.001",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "fabricated-3",
+   "alert": {
+    "id": "b6f119ce-da2d-5546-87e7-e2643ab6e604",
+    "rule_id": "DFIR-WIN-0004",
+    "severity": "medium",
+    "status": "new",
+    "host": "dc-01",
+    "attack_tags": [
+     "T1078"
+    ],
+    "first_seen": "2026-09-14T08:20:00Z",
+    "last_seen": "2026-09-14T08:20:00Z",
+    "event_count": 1,
+    "title": "Administrative logon from jump host"
+   },
+   "events": [
+    {
+     "id": "47f4f6a3-e4b5-5380-97a5-78cd12904e8e",
+     "ts": "2026-09-14T08:20:00Z",
+     "host": "dc-01",
+     "event_code": "4624",
+     "user": "CORP\\admin",
+     "src_ip": "10.0.0.5",
+     "message": "Logon type 10 from JUMP-01 (approved change CHG-1182)"
+    }
+   ],
+   "response": {
+    "summary": "Administrative logon from jump host on dc-01.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0004 fired on dc-01",
+      "cites": [
+       "b6f119ce-da2d-5546-87e7-e2643ab6e604"
+      ]
+     },
+     {
+      "statement": "Event 4624 on dc-01",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1078",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  },
+  {
+   "id": "fabricated-4",
+   "alert": {
+    "id": "98e7901d-3766-5b76-a494-7012ea1b18a3",
+    "rule_id": "DFIR-WIN-0020",
+    "severity": "medium",
+    "status": "new",
+    "host": "fs-02",
+    "attack_tags": [
+     "T1053.005"
+    ],
+    "first_seen": "2026-09-14T08:30:00Z",
+    "last_seen": "2026-09-14T08:30:00Z",
+    "event_count": 1,
+    "title": "Scheduled task created"
+   },
+   "events": [
+    {
+     "id": "e64ae494-ec5e-5696-b56c-1ec447a12ba7",
+     "ts": "2026-09-14T08:30:00Z",
+     "host": "fs-02",
+     "event_code": "4698",
+     "user": "NT AUTHORITY\\SYSTEM",
+     "message": "Task \\Microsoft\\Configuration Manager\\Configuration Manager Health Evaluation created by CcmExec.exe"
+    }
+   ],
+   "response": {
+    "summary": "Scheduled task created on fs-02.",
+    "assessment": "likely_benign",
+    "confidence": 0.7,
+    "key_facts": [
+     {
+      "statement": "Alert DFIR-WIN-0020 fired on fs-02",
+      "cites": []
+     },
+     {
+      "statement": "Event 4698 on fs-02",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "next_steps": [
+     {
+      "action": "Review activity around the alert",
+      "why": "Scope",
+      "cites": [
+       "E1"
+      ]
+     }
+    ],
+    "attack_candidates": [
+     {
+      "technique": "T1053.005",
+      "rationale": "Rule tag",
+      "cites": [
+       "A1"
+      ]
+     }
+    ],
+    "limitations": "Only the linked events were reviewed."
+   }
+  }
+ ]
+}

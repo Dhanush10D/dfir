@@ -1,0 +1,543 @@
+{
+ "items": [
+  {
+   "id": "nlq-001",
+   "question": "failed ssh logins from 203.0.113.50",
+   "expected": "event_code:ssh_failed AND src_ip:203.0.113.50",
+   "response": {
+    "query": "event_code:ssh_failed AND src_ip:203.0.113.50",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-002",
+   "question": "all traffic to 203.0.113.50",
+   "expected": "dst_ip:203.0.113.50",
+   "response": {
+    "query": "dst_ip:203.0.113.50",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-003",
+   "question": "failed ssh logins from 198.51.100.7",
+   "expected": "event_code:ssh_failed AND src_ip:198.51.100.7",
+   "response": {
+    "query": "event_code:ssh_failed AND src_ip:198.51.100.7",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-004",
+   "question": "all traffic to 198.51.100.7",
+   "expected": "dst_ip:198.51.100.7",
+   "response": {
+    "query": "dst_ip:198.51.100.7",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-005",
+   "question": "failed ssh logins from 192.0.2.44",
+   "expected": "event_code:ssh_failed AND src_ip:192.0.2.44",
+   "response": {
+    "query": "event_code:ssh_failed AND src_ip:192.0.2.44",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-006",
+   "question": "all traffic to 192.0.2.44",
+   "expected": "dst_ip:192.0.2.44",
+   "response": {
+    "query": "dst_ip:192.0.2.44",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-007",
+   "question": "failed ssh logins from 203.0.113.9",
+   "expected": "event_code:ssh_failed AND src_ip:203.0.113.9",
+   "response": {
+    "query": "event_code:ssh_failed AND src_ip:203.0.113.9",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-008",
+   "question": "all traffic to 203.0.113.9",
+   "expected": "dst_ip:203.0.113.9",
+   "response": {
+    "query": "dst_ip:203.0.113.9",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-009",
+   "question": "failed ssh logins from 198.51.100.200",
+   "expected": "event_code:ssh_failed AND src_ip:198.51.100.200",
+   "response": {
+    "query": "event_code:ssh_failed AND src_ip:198.51.100.200",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-010",
+   "question": "all traffic to 198.51.100.200",
+   "expected": "dst_ip:198.51.100.200",
+   "response": {
+    "query": "dst_ip:198.51.100.200",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-011",
+   "question": "everything that happened on host web01",
+   "expected": "host:web01",
+   "response": {
+    "query": "host:web01",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-012",
+   "question": "powershell started on web01",
+   "expected": "process_name:powershell.exe AND host:web01",
+   "response": {
+    "query": "process_name:powershell.exe AND host:web01",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-013",
+   "question": "everything that happened on host ws-042",
+   "expected": "host:ws-042",
+   "response": {
+    "query": "host:ws-042",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-014",
+   "question": "powershell started on ws-042",
+   "expected": "process_name:powershell.exe AND host:ws-042",
+   "response": {
+    "query": "process_name:powershell.exe AND host:ws-042",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-015",
+   "question": "everything that happened on host dc-01",
+   "expected": "host:dc-01",
+   "response": {
+    "query": "host:dc-01",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-016",
+   "question": "powershell started on dc-01",
+   "expected": "process_name:powershell.exe AND host:dc-01",
+   "response": {
+    "query": "process_name:powershell.exe AND host:dc-01",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-017",
+   "question": "everything that happened on host fs-02",
+   "expected": "host:fs-02",
+   "response": {
+    "query": "host:fs-02",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-018",
+   "question": "powershell started on fs-02",
+   "expected": "process_name:powershell.exe AND host:fs-02",
+   "response": {
+    "query": "process_name:powershell.exe AND host:fs-02",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-019",
+   "question": "everything that happened on host vpn-gw",
+   "expected": "host:vpn-gw",
+   "response": {
+    "query": "host:vpn-gw",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-020",
+   "question": "powershell started on vpn-gw",
+   "expected": "process_name:powershell.exe AND host:vpn-gw",
+   "response": {
+    "query": "process_name:powershell.exe AND host:vpn-gw",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-021",
+   "question": "events for user alice",
+   "expected": "user:alice",
+   "response": {
+    "query": "user:alice",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-022",
+   "question": "failed or successful windows logons for alice",
+   "expected": "user:alice AND (event_code:4625 OR event_code:4624)",
+   "response": {
+    "query": "user:alice AND (event_code:4625 OR event_code:4624)",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-023",
+   "question": "events for user bob",
+   "expected": "user:bob",
+   "response": {
+    "query": "user:bob",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-024",
+   "question": "failed or successful windows logons for bob",
+   "expected": "user:bob AND (event_code:4625 OR event_code:4624)",
+   "response": {
+    "query": "user:bob AND (event_code:4625 OR event_code:4624)",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-025",
+   "question": "events for user admin",
+   "expected": "user:admin",
+   "response": {
+    "query": "user:admin",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-026",
+   "question": "failed or successful windows logons for admin",
+   "expected": "user:admin AND (event_code:4625 OR event_code:4624)",
+   "response": {
+    "query": "user:admin AND (event_code:4625 OR event_code:4624)",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-027",
+   "question": "events for user svc_backup",
+   "expected": "user:svc_backup",
+   "response": {
+    "query": "user:svc_backup",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-028",
+   "question": "failed or successful windows logons for svc_backup",
+   "expected": "user:svc_backup AND (event_code:4625 OR event_code:4624)",
+   "response": {
+    "query": "user:svc_backup AND (event_code:4625 OR event_code:4624)",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-029",
+   "question": "events for user deploy",
+   "expected": "user:deploy",
+   "response": {
+    "query": "user:deploy",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-030",
+   "question": "failed or successful windows logons for deploy",
+   "expected": "user:deploy AND (event_code:4625 OR event_code:4624)",
+   "response": {
+    "query": "user:deploy AND (event_code:4625 OR event_code:4624)",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-031",
+   "question": "anything tagged with brute force T1110",
+   "expected": "attack_tags:T1110",
+   "response": {
+    "query": "attack_tags:T1110",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-032",
+   "question": "connections to port 4444",
+   "expected": "dst_port:4444",
+   "response": {
+    "query": "dst_port:4444",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-033",
+   "question": "traffic from the 10.0.0.0/8 network",
+   "expected": "src_ip:10.0.0.0/8",
+   "response": {
+    "query": "src_ip:10.0.0.0/8",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-034",
+   "question": "process with pid 4242",
+   "expected": "pid:4242",
+   "response": {
+    "query": "pid:4242",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-035",
+   "question": "logons between 8 and 9 UTC on 14 September 2026",
+   "expected": "event_code:4624 AND ts:[2026-09-14T08:00:00Z TO 2026-09-14T09:00:00Z]",
+   "response": {
+    "query": "event_code:4624 AND ts:[2026-09-14T08:00:00Z TO 2026-09-14T09:00:00Z]",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-036",
+   "question": "sysmon events",
+   "expected": "source_type:sysmon",
+   "response": {
+    "query": "source_type:sysmon",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-037",
+   "question": "new services installed",
+   "expected": "event_code:7045",
+   "response": {
+    "query": "event_code:7045",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-038",
+   "question": "events not from the SYSTEM account",
+   "expected": "NOT user:SYSTEM",
+   "response": {
+    "query": "NOT user:SYSTEM",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-039",
+   "question": "any mention of mimikatz",
+   "expected": "mimikatz",
+   "response": {
+    "query": "mimikatz",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-040",
+   "question": "run key persistence artifacts",
+   "expected": "event_code:run_key",
+   "response": {
+    "query": "event_code:run_key",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-041",
+   "question": "prefetch entries for evil.exe",
+   "expected": "source_type:prefetch AND process_name:evil.exe",
+   "response": {
+    "query": "source_type:prefetch AND process_name:evil.exe",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-042",
+   "question": "dns queries",
+   "expected": "action:dns_query",
+   "response": {
+    "query": "action:dns_query",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-043",
+   "question": "yara matches",
+   "expected": "source_type:yara",
+   "response": {
+    "query": "source_type:yara",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-044",
+   "question": "events with a file hash",
+   "expected": "file_hash:*",
+   "response": {
+    "query": "file_hash:*",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-045",
+   "question": "sudo commands on web01",
+   "expected": "host:web01 AND event_code:sudo_command",
+   "response": {
+    "query": "host:web01 AND event_code:sudo_command",
+    "explanation": "Reference translation.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-046",
+   "question": "what is the weather in Paris",
+   "expected": null,
+   "response": {
+    "query": null,
+    "explanation": "The question cannot be expressed as an event search.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-047",
+   "question": "delete every event in this case",
+   "expected": null,
+   "response": {
+    "query": null,
+    "explanation": "The question cannot be expressed as an event search.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-048",
+   "question": "show me the database table layout",
+   "expected": null,
+   "response": {
+    "query": null,
+    "explanation": "The question cannot be expressed as an event search.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-049",
+   "question": "summarise the incident for my manager",
+   "expected": null,
+   "response": {
+    "query": null,
+    "explanation": "The question cannot be expressed as an event search.",
+    "assumptions": []
+   }
+  },
+  {
+   "id": "nlq-050",
+   "question": "which employee is most likely to be the insider",
+   "expected": null,
+   "response": {
+    "query": null,
+    "explanation": "The question cannot be expressed as an event search.",
+    "assumptions": []
+   }
+  }
+ ],
+ "validator_cases": [
+  {
+   "question": "failed logins",
+   "response": {
+    "query": "SELECT * FROM events WHERE event_code = '4625'",
+    "explanation": "x",
+    "assumptions": []
+   }
+  },
+  {
+   "question": "failed logins",
+   "response": {
+    "query": "host:(web01",
+    "explanation": "x",
+    "assumptions": []
+   }
+  },
+  {
+   "question": "failed logins",
+   "response": {
+    "query": "hostname:web01",
+    "explanation": "x",
+    "assumptions": []
+   }
+  },
+  {
+   "question": "failed logins",
+   "response": {
+    "query": "event_code:4625",
+    "explanation": "x",
+    "assumptions": [],
+    "sql": "x"
+   }
+  },
+  {
+   "question": "failed logins",
+   "response": "event_code:4625"
+  }
+ ]
+}

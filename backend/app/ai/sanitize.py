@@ -82,7 +82,7 @@ PATTERNS: dict[str, re.Pattern[str]] = {
     ),
     "role_marker": re.compile(
         r"(^|\n|\\n)\s*(system|assistant|developer)\s*:"
-        r"|[<\uff1c]\s*/?\s*(system|assistant|user|developer|instructions?|im_start|im_end)\b"
+        r"|[<\uff1c]\|?\s*/?\s*(system|assistant|user|developer|instructions?|im_start|im_end)\b"
         r"|\[/?(inst|system)\]|#{2,}\s*(system|instruction)"
     ),
     "delimiter": re.compile(r"[<\uff1c]\s*/?\s*(evidence|question|context|data|untrusted)\b"),
@@ -93,6 +93,10 @@ PATTERNS: dict[str, re.Pattern[str]] = {
         r"|\b(do not|don't|never|must not)\b.{0,25}?"
         r"\b(report|flag|mention|alert|escalate|cite|include)\b"
         r"|\bnothing (suspicious|malicious|to see)\b"
+    ),
+    "output_steering": re.compile(
+        r"\bcit(e|ing)\s+\(?[easd]\d{1,6}\b|\b(respond|reply|answer) (only )?with\b"
+        r"|\bsay\s+[\"']?[a-z0-9_-]{4,}|\bin (the|your) (summary|answer|output|response|report)\b"
     ),
     "fake_output": re.compile(
         r"[\"'](assessment|summary|key_facts|cites|query|answer|status|risk|confidence)[\"']\s*:"
