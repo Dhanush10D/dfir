@@ -18,7 +18,6 @@ import io
 import re
 from collections.abc import Mapping, Sequence
 from typing import Any
-from xml.sax.saxutils import escape
 
 from reportlab import rl_config
 from reportlab.lib import colors
@@ -47,6 +46,11 @@ MAX_CELL_CHARS = 400
 MAX_TOKEN = 60
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 _LONG_TOKEN = re.compile(r"\S{" + str(MAX_TOKEN + 1) + ",}")
+
+
+def escape(text: str) -> str:
+    """Escape the characters ReportLab paragraph markup treats specially."""
+    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 
 class _Text:

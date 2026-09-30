@@ -1,5 +1,5 @@
-"""Feature definitions (A1, A2, A3, A5, A7): output schema, citation rules, extra checks, and the
-pure pack builders shared by the service and the eval harness."""
+"""Feature definitions (A1, A2, A3, A4, A5, A7): output schema, citation rules, extra checks,
+and the pure pack builders shared by the service and the eval harness."""
 
 from __future__ import annotations
 
@@ -11,7 +11,14 @@ from pydantic import BaseModel
 from app.ai.decode import ScriptAnalysis
 from app.ai.packs import EvidencePack, PackFullError
 from app.ai.runner import FeatureSpec
-from app.ai.schemas import AlertExplanation, ChatAnswer, Narrative, NlqOutput, ScriptExplanation
+from app.ai.schemas import (
+    AlertExplanation,
+    ChatAnswer,
+    Narrative,
+    NlqOutput,
+    ReportDraft,
+    ScriptExplanation,
+)
 from app.search.language import QueryError, parse
 
 MAX_SCRIPT_CHARS = 12_000  # of the script shown to the model (S1); decoded layers likewise
@@ -43,6 +50,7 @@ SPECS: dict[str, FeatureSpec] = {
         required_cites=("behaviors", "attack_candidates", "indicators"),
         indicator_lists=("indicators",),
     ),
+    "report_draft": FeatureSpec("report_draft", ReportDraft, required_cites=("claims",)),
 }
 
 

@@ -26,6 +26,7 @@ T600 = Annotated[str, StringConstraints(max_length=600)]
 T1000 = Annotated[str, StringConstraints(max_length=1000)]
 T1500 = Annotated[str, StringConstraints(max_length=1500)]
 T2000 = Annotated[str, StringConstraints(max_length=2000)]
+T6000 = Annotated[str, StringConstraints(max_length=6000)]
 
 
 class _Out(BaseModel):
@@ -127,6 +128,20 @@ class ScriptExplanation(_Out):
     indicators: Annotated[list[Indicator], Field(max_length=50)]
     attack_candidates: Annotated[list[AttackCandidate], Field(max_length=10)]
     limitations: T600
+
+
+class ReportDraft(_Out):
+    """A4: a report section draft (Markdown) whose statements cite the snapshot records."""
+
+    text: T6000
+    claims: Annotated[list[Fact], Field(max_length=30)]
+    limitations: T600
+
+    @model_validator(mode="after")
+    def _claims_needed(self) -> ReportDraft:
+        if self.text.strip() and not self.claims:
+            raise ValueError("a draft needs claims with citations")
+        return self
 
 
 UNSUPPORTED_KEYS = frozenset(

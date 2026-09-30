@@ -16,7 +16,7 @@ from typing import Literal
 from app.ai.sanitize import clean_text
 from app.search.language import field_catalogue
 
-Feature = Literal["nlq", "alert_explain", "narrative", "chat", "script_explain"]
+Feature = Literal["nlq", "alert_explain", "narrative", "chat", "script_explain", "report_draft"]
 Tier = Literal["fast", "strong"]
 
 COMMON = """You are an analysis assistant inside a digital forensics and incident response (DFIR)
@@ -94,6 +94,16 @@ hash, path, registry, other), "value" (exactly as it appears in the cited record
 "attack_candidates" (list of {{"technique", "rationale", "cites"}}); "limitations".
 """
 
+REPORT_DRAFT = """FEATURE: report_draft
+Task: draft one section of a forensic report from the evidence (alerts A* and key events E*
+from the report's data snapshot). The <context> block names the report kind and the section.
+Write factual, neutral prose for the named section only, in Markdown (paragraphs and lists, no
+headings, no HTML, no links, no images). Separate facts from interpretation; say what is not
+known. A person reviews and must accept the draft before it enters the report.
+Output JSON fields: "text" (Markdown, <= 6000 chars); "claims" (list of {{"statement", "cites"}}:
+every factual statement in the text, each citing at least one record); "limitations".
+"""
+
 
 @dataclass(frozen=True)
 class PromptTemplate:
@@ -123,6 +133,7 @@ TEMPLATES: dict[str, PromptTemplate] = {
     "narrative": PromptTemplate("narrative", 1, "strong", NARRATIVE.format()),
     "chat": PromptTemplate("chat", 1, "strong", CHAT.format()),
     "script_explain": PromptTemplate("script_explain", 1, "strong", SCRIPT.format()),
+    "report_draft": PromptTemplate("report_draft", 1, "strong", REPORT_DRAFT.format()),
 }
 
 

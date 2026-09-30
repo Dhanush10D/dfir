@@ -47,7 +47,8 @@ def _clip(text: str | None) -> str:
 
 def md_to_html(text: str | None) -> Markup:
     """Sanitised HTML for untrusted Markdown (raw HTML escaped, unsafe links left as text)."""
-    return Markup(_MD.render(_clip(text)))  # noqa: S704 - markdown-it output with html disabled
+    # markdown-it with html disabled escapes raw HTML; links are allow-listed (see _valid_link)
+    return Markup(_MD.render(_clip(text)))  # noqa: S704  # nosec B704
 
 
 @dataclass(frozen=True)

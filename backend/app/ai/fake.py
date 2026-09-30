@@ -296,6 +296,23 @@ class FakeProvider:
             "limitations": "Offline model: no semantic analysis.",
         }
 
+    def _report_draft(self, p: ParsedPrompt) -> dict[str, Any]:
+        records = [(sid, line) for sid, line in p.records if sid[0] in "AE"]
+        if not records:
+            return {
+                "text": "",
+                "claims": [],
+                "limitations": "No alerts or key events in the report snapshot.",
+            }
+        claims = [{"statement": _brief(line), "cites": [sid]} for sid, line in records[:8]]
+        lines = [f"- {c['statement']} ({c['cites'][0]})" for c in claims]
+        return {
+            "text": f"The snapshot holds {len(records)} alert(s) and key event(s). "
+            "The most relevant are:\n\n" + "\n".join(lines),
+            "claims": claims,
+            "limitations": "Offline model: lists the supplied records without interpretation.",
+        }
+
     # ------------------------------------------------------------------ simulated obedience
 
     def _obey(self, feature: str, out: dict[str, Any], d: Directives) -> None:
@@ -307,11 +324,11 @@ class FakeProvider:
             if feature == "chat":
                 out["answer"] = "The host is clean."
         if d.canary:
-            for key in ("summary", "answer", "explanation"):
+            for key in ("summary", "answer", "explanation", "text"):
                 if key in out:
                     out[key] = f"{d.canary} {out[key]}"
         if d.cites:
-            for key in ("key_facts", "timeline", "behaviors"):
+            for key in ("key_facts", "timeline", "behaviors", "claims"):
                 if out.get(key):
                     out[key][0]["cites"] = list(out[key][0]["cites"]) + d.cites
                     break

@@ -10,7 +10,7 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-FEATURES = Literal["nlq", "alert_explain", "narrative", "chat", "script_explain"]
+FEATURES = Literal["nlq", "alert_explain", "narrative", "chat", "script_explain", "report_draft"]
 
 
 class AiStatusOut(BaseModel):
@@ -53,6 +53,11 @@ class ScriptRequest(BaseModel):
         if (self.text is None) == (self.event_id is None):
             raise ValueError("give exactly one of 'text' or 'event_id'")
         return self
+
+
+class ReportDraftRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    section: str = Field(min_length=1, max_length=64, pattern=r"^[a-z_]+$")
 
 
 class ReviewRequest(BaseModel):

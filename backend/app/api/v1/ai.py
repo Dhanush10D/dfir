@@ -24,6 +24,7 @@ from app.schemas.ai import (
     InteractionOut,
     NarrativeRequest,
     NlqRequest,
+    ReportDraftRequest,
     ReviewRequest,
     ScriptRequest,
 )
@@ -113,6 +114,18 @@ def explain_script(
     return _feature_out(
         ai.explain_script(principal, body.case_id, meta, text=body.text, event_id=body.event_id)
     )
+
+
+@router.post("/reports/{report_id}/draft", response_model=FeatureOut)
+def draft_report_section(
+    report_id: uuid.UUID,
+    body: ReportDraftRequest,
+    principal: CurrentPrincipal,
+    ai: AiSvc,
+    meta: Meta,
+) -> FeatureOut:
+    """A4: draft a report section from the report snapshot; it needs review before use."""
+    return _feature_out(ai.draft_report_section(principal, report_id, body.section, meta))
 
 
 @router.get("/cases/{case_id}/index", response_model=IndexOut)

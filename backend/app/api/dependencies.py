@@ -27,6 +27,7 @@ from app.deps import (
     get_ai_limiter,
     get_ai_provider_factory,
     get_app_settings,
+    get_artifact_store,
     get_bundle_dispatcher,
     get_custody_signer,
     get_db,
@@ -35,6 +36,7 @@ from app.deps import (
     get_trusted_keys,
     get_vault,
 )
+from app.repositories.artifacts import ArtifactStore
 from app.repositories.vault import VaultStore
 from app.services.ai import AiService
 from app.services.alerts import AlertService
@@ -52,6 +54,7 @@ from app.services.iocs import IocService
 from app.services.jobs import JobService
 from app.services.notes import BookmarkService, NoteService
 from app.services.proctree import ProcessTreeService, SummaryService
+from app.services.reports import ReportService
 from app.services.rules import RuleService
 from app.services.search import SearchService
 
@@ -127,6 +130,16 @@ def get_evidence_service(
     trusted: Annotated[dict[str, Ed25519PublicKey], Depends(get_trusted_keys)],
 ) -> EvidenceService:
     return EvidenceService(db, settings, vault=vault, signer=signer, trusted_keys=trusted)
+
+
+def get_report_service(
+    db: DbSession,
+    settings: AppSettings,
+    artifacts: Annotated[ArtifactStore | None, Depends(get_artifact_store)],
+    signer: Annotated[CustodySigner | None, Depends(get_custody_signer)],
+    trusted: Annotated[dict[str, Ed25519PublicKey], Depends(get_trusted_keys)],
+) -> ReportService:
+    return ReportService(db, settings, signer=signer, trusted_keys=trusted, artifacts=artifacts)
 
 
 def get_custody_service(db: DbSession) -> CustodyService:
@@ -228,6 +241,7 @@ def get_ai_service(
 
 
 AiSvc = Annotated[AiService, Depends(get_ai_service)]
+ReportsSvc = Annotated[ReportService, Depends(get_report_service)]
 Search = Annotated[SearchService, Depends(get_search_service)]
 Notes = Annotated[NoteService, Depends(get_note_service)]
 Bookmarks = Annotated[BookmarkService, Depends(get_bookmark_service)]

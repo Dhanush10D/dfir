@@ -1,4 +1,4 @@
-"""AiService (guide 13): the five AI features, provenance, review and per-case policy.
+"""AiService (guide 13): the six AI features, provenance, review and per-case policy.
 
 Every feature follows the same path: case access (404 across cases) + ``ai:use`` + open case +
 AI enabled for the case + daily budget -> context from THIS case only -> evidence pack ->
@@ -47,7 +47,9 @@ from app.db.models import (
     Case,
     CaseStatus,
     Event,
+    Report,
 )
+from app.reports.model import section_def
 from app.services.ai_index import AiIndexService, IndexInfo, event_columns, row_map
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import CaseAccess, load_case_access, require_global
@@ -591,6 +593,74 @@ class AiService:
                 layer["text"] = layer["text"][:20_000] + "…[truncated]"
         result.extras = {"analysis": extras}
         return result
+
+    # ------------------------------------------------------------------ A4 report drafts
+
+    def draft_report_section(
+        self, principal: Principal, report_id: uuid.UUID, section: str, meta: RequestMeta
+    ) -> FeatureResult:
+        """Draft one report section from the report's own snapshot (its alerts and key events).
+
+        The draft is an ordinary AI interaction: it enters the report only after a person accepts
+        it (``POST /ai/interactions/{id}/review``) and an analyst applies it to the section.
+        """
+        report = self.session.get(Report, report_id)
+        if report is None:
+            raise NotFoundError("Report not found.")
+        try:
+            self._prepare(principal, report.case_id)
+        except NotFoundError as exc:
+            raise NotFoundError("Report not found.") from exc
+        if report.status != "draft":
+            raise InvalidStateError("AI drafts are only for reports in draft.")
+        sd = section_def(report.kind, section)
+        if sd is None or not sd.ai_draft:
+            raise AppError("invalid_section", "This section cannot take an AI draft.", 422)
+        ctx = report.context or {}
+        alert_ids = [uuid.UUID(a["id"]) for a in ctx.get("alerts", [])[:NARRATIVE_MAX_ALERTS]]
+        alerts = (
+            list(
+                self.session.execute(
+                    select(Alert)
+                    .where(Alert.case_id == report.case_id, Alert.id.in_(alert_ids))
+                    .order_by(Alert.first_seen, Alert.id)
+                ).scalars()
+            )
+            if alert_ids
+            else []
+        )
+        budget = max(self.settings.ai_max_pack_records - len(alerts), 1)
+        event_ids = [uuid.UUID(e["id"]) for e in ctx.get("key_events", [])[:budget]]
+        rows = (
+            self.session.execute(
+                select(*event_columns())
+                .where(Event.case_id == report.case_id, Event.id.in_(event_ids))
+                .order_by(Event.ts, Event.id)
+                .limit(budget)
+            ).all()
+            if event_ids
+            else []
+        )
+        pack = narrative_pack(
+            [_alert_map(a) for a in alerts],
+            [row_map(r) for r in rows],
+            max_records=self.settings.ai_max_pack_records,
+            max_field_chars=self.settings.ai_max_field_chars,
+        )
+        context = {"report_kind": report.kind, "section": sd.title}
+        return self._run(
+            "report_draft",
+            principal,
+            report.case_id,
+            pack,
+            meta,
+            context=context,
+            input_extra={
+                "report_id": str(report.id),
+                "section": section,
+                "context_sha256": report.context_sha256,
+            },
+        )
 
     # ------------------------------------------------------------------ interactions
 

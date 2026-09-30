@@ -19,6 +19,7 @@ from app.ai.llm import LLMProvider
 from app.config import Settings, get_settings
 from app.core.signing import CustodySigner, SigningKeyError, load_signer, load_trusted_keys
 from app.db.session import get_engine, get_sessionmaker
+from app.repositories.artifacts import ArtifactStore, MinioArtifactStore
 from app.repositories.vault import MinioVault, VaultStore
 from app.services.audit import DbAuditSink
 from app.services.health import (
@@ -83,6 +84,11 @@ def get_vault_client() -> Minio:
 
 def get_vault() -> VaultStore | None:
     return MinioVault(get_vault_client(), get_settings().vault_bucket)
+
+
+def get_artifact_store() -> ArtifactStore | None:
+    """Report artifacts (signed report files) in the artifacts bucket."""
+    return MinioArtifactStore(get_vault_client(), get_settings().artifacts_bucket)
 
 
 @lru_cache(maxsize=1)
