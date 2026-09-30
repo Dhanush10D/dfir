@@ -14,11 +14,16 @@ from httpx2 import Response
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
+from app.ai.fake import FakeProvider
+from app.ai.gateway import MemoryRateLimiter
+from app.ai.llm import LLMProvider
 from app.config import Settings
 from app.core.signing import CustodySigner
 from app.db.models import UserRole
 from app.db.session import make_session_factory
 from app.deps import (
+    get_ai_limiter,
+    get_ai_provider_factory,
     get_app_settings,
     get_bundle_dispatcher,
     get_custody_signer,
@@ -83,6 +88,13 @@ class Harness:
         # Bundle ingest jobs likewise; run them with run_bundle()/run_bundle_pending().
         self.bundle_dispatched: list[uuid.UUID] = []
         self.app.dependency_overrides[get_bundle_dispatcher] = lambda: self._dispatch_bundle
+        # AI: an offline provider (tests replace it) and in-memory rate limits; never a real LLM.
+        self.ai_provider: LLMProvider = FakeProvider()
+        self.app.dependency_overrides[get_ai_provider_factory] = lambda: (
+            lambda _settings: self.ai_provider
+        )
+        self.ai_limiter = MemoryRateLimiter(10_000, 10_000)
+        self.app.dependency_overrides[get_ai_limiter] = lambda: self.ai_limiter
         self.client = TestClient(self.app, raise_server_exceptions=False, client=(CLIENT_IP, 50000))
 
     def _dispatch(self, job_id: uuid.UUID) -> None:

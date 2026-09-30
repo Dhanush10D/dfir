@@ -116,6 +116,11 @@ def make_test_settings(db_url: str, **overrides: object) -> Settings:
         "totp_enc_key": "integration-test-totp-key-0123456789",
         "log_json": True,
         "upload_part_size_mb": 5,
+        # AI on with the offline provider: explicit values, so CI/shell env vars cannot change them.
+        "enable_ai": True,
+        "llm_provider": "fake",
+        "ai_local_only": False,
+        "ai_redaction_policy": "standard",
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[arg-type]

@@ -82,6 +82,8 @@ class Redactor:
                 if group == 0:
                     return self._placeholder(kind, m.group(0))
                 value = m.group(group)
+                if PLACEHOLDER_RE.fullmatch(value.strip("\"'")):
+                    return m.group(0)  # already redacted (redact() is idempotent)
                 start, end = m.span(group)
                 s0 = m.start(0)
                 whole = m.group(0)
