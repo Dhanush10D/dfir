@@ -202,6 +202,9 @@ class Settings(BaseSettings):
     report_max_iocs: int = Field(default=1000, ge=1, le=100_000)
     report_max_context_mb: int = Field(default=8, ge=1, le=64)
     report_org_name: str = Field(default="dfirbench", min_length=1, max_length=200)
+    # Rendering is synchronous: one render (sign, verify, draft download) gets this budget; keep it
+    # below the web proxy's 300 s read timeout.
+    report_render_timeout_s: int = Field(default=120, ge=5, le=280)
 
     # Integrations (Phase 9)
     vt_api_key: SecretStr | None = None

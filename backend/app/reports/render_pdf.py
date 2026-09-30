@@ -10,12 +10,17 @@
   replaced with ``?`` and the PDF says how many; the HTML and JSON artifacts keep the exact text.
 * Size: table cells and long unbroken tokens are shortened/broken so a hostile value cannot make a
   row taller than a page.
+* Time: rendering is synchronous, so it has a budget. Every new page checks the page cap
+  (``MAX_PDF_PAGES``) and the caller's time budget and raises :class:`RenderLimitError` when either
+  is exceeded. The check never changes the output, so a render that finishes is still
+  deterministic.
 """
 
 from __future__ import annotations
 
 import io
 import re
+import time
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -43,9 +48,15 @@ rl_config.trustedSchemes = []
 rl_config.trustedHosts = []
 
 MAX_CELL_CHARS = 400
+MAX_PDF_PAGES = 2000
+DEFAULT_TIME_BUDGET_S = 120.0
 MAX_TOKEN = 60
 _CONTROL = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]")
 _LONG_TOKEN = re.compile(r"\S{" + str(MAX_TOKEN + 1) + ",}")
+
+
+class RenderLimitError(Exception):
+    """The report is too large to render within the page cap or the time budget."""
 
 
 def escape(text: str) -> str:
@@ -477,7 +488,11 @@ def render_pdf(
     context: Mapping[str, Any],
     sections: Mapping[str, Any],
     findings: Sequence[Mapping[str, Any]],
+    *,
+    time_budget_s: float | None = DEFAULT_TIME_BUDGET_S,
+    max_pages: int = MAX_PDF_PAGES,
 ) -> bytes:
+    deadline = None if time_budget_s is None else time.monotonic() + time_budget_s
     view = build_view(meta, context, sections, findings)
     builder = _Builder(view)
     story = builder.build()
@@ -490,6 +505,10 @@ def render_pdf(
     footer_text = clean.plain(footer, 150)
 
     def on_page(canvas: Canvas, doc: Any) -> None:
+        if doc.page > max_pages:
+            raise RenderLimitError(f"the PDF would have more than {max_pages} pages")
+        if deadline is not None and time.monotonic() > deadline:
+            raise RenderLimitError(f"the PDF did not render within {time_budget_s:g} seconds")
         canvas.saveState()
         canvas.setFont("Helvetica", 7.5)
         canvas.drawString(18 * mm, 10 * mm, footer_text)

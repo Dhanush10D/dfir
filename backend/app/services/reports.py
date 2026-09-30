@@ -63,6 +63,7 @@ from app.reports.exports import pretty_json
 from app.reports.model import CONFIDENCE, SECTIONS, content_sha256, default_sections, section_def
 from app.reports.package import build_evidence_package
 from app.reports.qa import QaResult, run_qa
+from app.reports.render_pdf import RenderLimitError
 from app.reports.seal import (
     build_manifest,
     json_sha256,
@@ -196,6 +197,14 @@ class ReportService:
                 "stale_revision",
                 revision=report.revision,
             )
+
+    @staticmethod
+    def _too_large(exc: RenderLimitError) -> AppError:
+        return AppError(
+            "report_too_large",
+            f"The report is too large to render ({exc}); shorten it or split it.",
+            413,
+        )
 
     def _label(self, user_id: uuid.UUID | None) -> str | None:
         return user_label(self.session.get(User, user_id)) if user_id else None
@@ -701,9 +710,17 @@ class ReportService:
             signed_at=signed_at,
             key_id=signer.key_id,
         )
-        artifacts = render_all(
-            report.kind, render_meta, report.context, report.sections, report.findings
-        )
+        try:
+            artifacts = render_all(
+                report.kind,
+                render_meta,
+                report.context,
+                report.sections,
+                report.findings,
+                time_budget_s=self.settings.report_render_timeout_s,
+            )
+        except RenderLimitError as exc:
+            raise self._too_large(exc) from exc
         prefix = artifact_prefix(report.case_id, report.family_id, report.version)
         for art in artifacts:  # bounded by the snapshot caps; a few MB at most
             store.put_bytes(prefix + art.name, art.data, art.content_type)
@@ -792,18 +809,24 @@ class ReportService:
                 item["stored_sha256"] = None
             if not item["stored_ok"]:
                 problems.append({"code": "artifact_mismatch", "message": f"{name} changed"})
-            rendered = render_one(
-                name,
-                manifest.get("render_meta") or {},
-                report.context,
-                report.sections,
-                report.findings,
-            )
-            item["rerender_ok"] = rendered.sha256 == entry.get("sha256")
-            if not item["rerender_ok"]:
-                problems.append(
-                    {"code": "rerender_mismatch", "message": f"{name} does not re-render"}
+            try:
+                rendered = render_one(
+                    name,
+                    manifest.get("render_meta") or {},
+                    report.context,
+                    report.sections,
+                    report.findings,
+                    time_budget_s=self.settings.report_render_timeout_s,
                 )
+            except RenderLimitError as exc:
+                item["rerender_ok"] = False
+                problems.append({"code": "rerender_limit", "message": f"{name}: {exc}"})
+            else:
+                item["rerender_ok"] = rendered.sha256 == entry.get("sha256")
+                if not item["rerender_ok"]:
+                    problems.append(
+                        {"code": "rerender_mismatch", "message": f"{name} does not re-render"}
+                    )
             results.append(item)
         result = {
             "ok": not problems,
@@ -859,9 +882,17 @@ class ReportService:
             if report.status == "signed":
                 out = self._signed_artifact(report, name, base, content_type)
             else:
-                art = render_one(
-                    name, self.render_meta(report), report.context, report.sections, report.findings
-                )
+                try:
+                    art = render_one(
+                        name,
+                        self.render_meta(report),
+                        report.context,
+                        report.sections,
+                        report.findings,
+                        time_budget_s=self.settings.report_render_timeout_s,
+                    )
+                except RenderLimitError as exc:
+                    raise self._too_large(exc) from exc
                 out = Download(f"{base}_DRAFT_{name}", content_type, art.data, art.sha256)
         self._audit(
             "report.download",

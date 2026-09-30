@@ -23,9 +23,11 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 from sqlalchemy import Engine, text
 from sqlalchemy.exc import DBAPIError
 
+import app.services.reports as report_service
 from app.core.signing import CustodySigner
 from app.db.models import Alert, AlertEvent, Event, Severity, UserRole
 from app.reports.package import verify_package
+from app.reports.render_pdf import RenderLimitError
 from app.reports.verify import verify_report_seal
 from tests.integration.harness import Harness, UserCtx
 
@@ -397,6 +399,32 @@ def test_snapshot_edit_is_detected_by_verify(world: World, db_engine: Engine) ->
     body = world.h.get(f"/reports/{signed['id']}/verify", world.lead).json()
     codes = {p["code"] for p in body["problems"]}
     assert body["ok"] is False and "context_mismatch" in codes and "rerender_mismatch" in codes
+
+
+def test_render_limit_is_a_clean_413(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    h = world.h
+    signed = world.signed("executive")
+    report = world.fill(world.create("executive"))
+    rid = report["id"]
+    r = h.post(f"/reports/{rid}/submit", world.analyst, json={"expected_revision": 1})
+    assert r.status_code == 200, r.text
+    assert h.post(f"/reports/{rid}/approve", world.lead).status_code == 200
+    budgets: list[object] = []
+
+    def over_budget(*args: Any, time_budget_s: float | None = None, **kw: Any) -> Any:
+        budgets.append(time_budget_s)
+        raise RenderLimitError("the PDF did not render within 120 seconds")
+
+    monkeypatch.setattr(report_service, "render_all", over_budget)
+    monkeypatch.setattr(report_service, "render_one", over_budget)
+    r = h.post(f"/reports/{rid}/sign", world.lead)
+    assert r.status_code == 413 and r.json()["error"]["code"] == "report_too_large", r.text
+    assert h.get(f"/reports/{rid}", world.viewer).json()["status"] == "approved"
+    r = h.get(f"/reports/{rid}/download", world.viewer, params={"format": "pdf"})
+    assert r.status_code == 413
+    body = h.get(f"/reports/{signed['id']}/verify", world.lead).json()
+    assert body["ok"] is False and {p["code"] for p in body["problems"]} == {"rerender_limit"}
+    assert budgets and all(b == 120 for b in budgets)  # REPORT_RENDER_TIMEOUT_S default
 
 
 def test_new_version_takes_a_fresh_snapshot(world: World, db_engine: Engine) -> None:

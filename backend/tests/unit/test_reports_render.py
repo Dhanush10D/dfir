@@ -13,7 +13,7 @@ from app.reports.artifacts import KIND_ARTIFACTS, render_all, render_one
 from app.reports.markdown import md_blocks, md_to_html
 from app.reports.model import SECTIONS, build_view, content_sha256, default_sections
 from app.reports.render_html import render_html
-from app.reports.render_pdf import render_pdf
+from app.reports.render_pdf import RenderLimitError, render_pdf
 from tests.unit.report_fixtures import (
     sample_context,
     sample_findings,
@@ -203,6 +203,20 @@ def test_pdf_survives_huge_unbroken_values() -> None:
     findings[0]["body"] = "Z" * 40_000
     pdf = render_pdf(sample_meta(), ctx, sample_sections(), findings)
     assert pdf.startswith(b"%PDF-")
+
+
+def test_pdf_page_cap_and_time_budget() -> None:
+    args: tuple[Any, ...] = (sample_meta(), sample_context(), sample_sections(), sample_findings())
+    unlimited = render_pdf(*args, time_budget_s=None)
+    assert unlimited == render_pdf(*args)  # the budget check never changes the bytes
+    with pytest.raises(RenderLimitError, match="pages"):
+        render_pdf(*args, max_pages=1)
+    with pytest.raises(RenderLimitError, match="seconds"):
+        render_pdf(*args, time_budget_s=0)
+    with pytest.raises(RenderLimitError):
+        render_one("report.pdf", *args, time_budget_s=0)
+    # formats without pages ignore the budget
+    assert render_one("report.html", *args, time_budget_s=0).data
 
 
 def test_every_kind_renders_all_its_artifacts() -> None:
