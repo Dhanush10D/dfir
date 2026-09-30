@@ -31,6 +31,15 @@ x-backend-env: &backend-env
   CUSTODY_KEY_ID: ${CUSTODY_KEY_ID:-}
   # Retired/other trusted custody public keys (JSON {key_id: PEM}); empty = only the signer.
   CUSTODY_TRUSTED_KEYS_PATH: ${CUSTODY_TRUSTED_KEYS_PATH:-}
+  # AI (Phase 7): off by default; provider/models/key from the repo-root .env (docs/ai.md).
+  ENABLE_AI: ${ENABLE_AI:-false}
+  AI_LOCAL_ONLY: ${AI_LOCAL_ONLY:-false}
+  LLM_PROVIDER: ${LLM_PROVIDER:-anthropic}
+  LLM_API_KEY: ${LLM_API_KEY:-}
+  LLM_BASE_URL: ${LLM_BASE_URL:-}
+  LLM_MODEL_FAST: ${LLM_MODEL_FAST:-claude-haiku-4-5-20251001}
+  LLM_MODEL_STRONG: ${LLM_MODEL_STRONG:-claude-sonnet-5-5}
+  AI_REDACTION_POLICY: ${AI_REDACTION_POLICY:-standard}
 
 x-backend-build: &backend-build
   context: ../backend

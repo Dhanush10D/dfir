@@ -15,9 +15,9 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | ~~Forensic binaries in the worker image~~ **Partly done in Phase 6**: Sleuth Kit (with Debian's libewf), Volatility 3 (own venv), YARA (yara-python) and the tool version file. Remaining: Plaso, Hayabusa, tshark, Suricata (image size / RAM), Zeek (optional engine, wrapper exists) | Image size on the 7.6 GB dev host | Phase 10 |
 | Per-job sandbox containers (`--network none`, read-only evidence mount) | Phase scope | Phase 10 |
 | ~~Router~~ (done in Phase 4: own History-API router). Remaining: generated TypeScript API client (`openapi-typescript`) and shadcn/ui; Phase 4 hand-writes `frontend/src/api/types.ts` | No new npm dependencies in Phase 4 | Phase 10 |
-| Split worker images (`worker-parse`, `worker-ai`) per guide 21.2 | Only one worker needed now; Phase 6 kept one image (engines add ~250 MB) | Phase 7/10 |
+| Split worker images (`worker-parse`, `worker-ai`) per guide 21.2 | Only one worker needed now; Phase 6 kept one image (engines add ~250 MB); Phase 7 needs no AI worker (the hashing embedder and provider calls run in the API) | Phase 10 |
 | Evaluate replacing the `pgsty/minio` community image if upstream images return, or pin by digest | Upstream `minio/minio` images are no longer published on Docker Hub/quay | Phase 10 |
-| `EMBEDDING_DIM` != 384 requires a migration of `event_chunks.embedding` | Model not chosen yet | Phase 7 |
+| ~~`EMBEDDING_DIM` != 384 requires a migration of `event_chunks.embedding`~~ **Done in Phase 7**: the default embedder is the local `hashing-v1` (384-d); settings refuse any other `EMBEDDING_DIM`, and remote embedding providers must return 384-d vectors. A different model size still needs a migration | - | - |
 | ~~`dfir_ensure_events_partition` fails if `events_default` already holds rows for that month~~ | Done in Phase 2 (migration 0004) | - |
 
 ## From Phase 1
@@ -67,7 +67,7 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Suppressions (`POST /alerts/{id}/suppress`: rule + entity + expiry + reason) and incident grouping of alerts by host/user/time | Out of Phase 4 scope (analysis UI first) | Phase 9 |
 | SQL push-down of rule predicates (prefilter by event_code/source_type) and streaming single-event detection at ingest; today every run rescans the case in Python | Correct and bounded; performance work | Phase 10 |
 | Detection runs are full-case rescans; incremental runs over new events only | Simplicity/idempotency first | Phase 10 |
-| Statistical analytics (beaconing, DGA, rare parent-child, IsolationForest), ~~YARA~~ (Phase 6 `yara_scan`), remaining Appendix B rules (WIN-0013..0025, 0028, LNX-0005..0010, NET-*) that need data sources not parsed yet | Needs Sysmon/PowerShell/DNS/PCAP/MFT/history parsers | Phases 6/7 |
+| Statistical analytics (beaconing, DGA, rare parent-child, IsolationForest), ~~YARA~~ (Phase 6 `yara_scan`), remaining Appendix B rules (WIN-0013..0025, 0028, LNX-0005..0010, NET-*) that need data sources not parsed yet | Needs Sysmon/PowerShell/DNS/PCAP/MFT/history parsers | Phase 10 (scikit-learn analytics, see From Phase 7) |
 | MISP import, VirusTotal/MISP enrichment, global (case_id NULL) IOC management API; IOC CIDR ranges | Integrations phase | Phase 9 |
 | Asset inventory for `asset_criticality` in the risk score (1.0 today) | Phase 4 entities exist; criticality needs an admin/asset UI | Phase 9 |
 | ATT&CK tags on events are only added; a tag from an alert that later goes stale stays on the event | Needs per-event tag provenance (out of Phase 4 scope) | Phase 10 |
@@ -81,7 +81,7 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Monaco query editor with autocomplete popup; saved queries API | Plain input with client-side validation mirroring the server grammar is enough for now | Phase 10 |
 | Virtualized event table | Server keyset paging + "load more" keeps the DOM bounded | Phase 10 |
 | ECharts / Cytoscape for charts and the graph | Small hand-written SVG components; no new npm dependencies | Later |
-| Entity merge suggestions + analyst approval; time-scoped IP-to-host mapping; domain and file entities; alert nodes in the graph; shortest path | Deterministic resolution first | Phase 7/10 |
+| Entity merge suggestions + analyst approval; time-scoped IP-to-host mapping; domain and file entities; alert nodes in the graph; shortest path | Deterministic resolution first; Phase 7 kept to the roadmap's AI features | Phase 10 |
 | File browser (TSK listing) and file extraction (`icat`) | Phase 6 ships the TSK timeline (`tsk_fs`); a browsable listing needs an API + UI | Phase 10 |
 | Playwright end-to-end tests of the UI | Vitest + Testing Library cover components; live API smoke covers the backend | Phase 11 |
 | MFA enrolment UI and admin screens (users, rules, IOCs) | Login with TOTP works; enrolment/admin via API | Phase 10 |
@@ -115,10 +115,27 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | MFT / `$UsnJrnl:$J` parsers (MFTECmd-style) and `$SI` vs `$FN` timestomp checks | Needs raw NTFS reads (collector) or `icat` extraction from images | Phase 10 |
 | Jump Lists (OLE CFB AutomaticDestinations: DestList + embedded LNK), ShellBags (UsrClass/NTUSER), SRUM (ESE database) | Need an OLE and an ESE reader; collected already, re-derived by a bundle reprocess once parsers exist | Phase 10 |
 | Firefox `places.sqlite-wal` replay (open a copy with the WAL applied) | `immutable=1` read-only open ignores the WAL by design; replay needs a writable scratch copy | Phase 10 |
-| The collectors' volatile JSON listings (processes, connections, services) as snapshot events | Not time-series data; needs a "snapshot" event convention | Phase 7/10 |
+| The collectors' volatile JSON listings (processes, connections, services) as snapshot events | Not time-series data; needs a "snapshot" event convention | Phase 10 |
 | User-supplied YARA rules through the API (validation, size caps, compile in a sandbox, versioned rule packs) and YARA over files extracted from images / memory regions (Volatility yarascan) | Rules are trusted configuration only in Phase 6 | Phase 9/10 |
-| Detection rules for the new sources (Run key persistence, IFEO debugger, BAM/Prefetch of rare binaries, DNS to IOC domains, YARA-match alerts) | Phase 3 engine works on any field; rule content is a separate review | Phase 7/9 |
+| Detection rules for the new sources (Run key persistence, IFEO debugger, BAM/Prefetch of rare binaries, DNS to IOC domains, YARA-match alerts) | Phase 3 engine works on any field; rule content is a separate review | Phase 9 |
 | Win8.x and Win7 x86 ShimCache layouts; UserAssist focus-time decoding checks against real hives; registry transaction-log replay for dirty hives | Synthetic fixtures only (no redistributable real hives); dirty hives are parsed as-is with a warning | Phase 10 |
 | Windows: `run_tool` kills only the launcher of a `.bat` test double (no process-group kill on Windows) | Workers run on Linux (process-group kill); Windows only runs unit tests | Later |
 | TCP reassembly for HTTP/TLS in the `pcap` parser (today single-segment only) | Zeek covers it when installed | Later |
 | Pin Volatility 3's transitive pip dependencies in `infra/docker/worker.Dockerfile` (constraints file with hashes); today only `volatility3==${VOLATILITY3_VERSION}` is pinned | Needs an image rebuild (~250 MB of engines) that the 7.6 GB dev host could not afford at Phase 6 close; `vol` runs in its own venv, offline, through `run_tool` | Phase 10 |
+
+## From Phase 7
+
+| Item | Why deferred | Target |
+|---|---|---|
+| A4 report drafting ("AI-drafted" sections with approval) and A14 report QA | Reports do not exist yet; the review/provenance model of Phase 7 is ready for them | Phase 8 |
+| A9 analytics with scikit-learn: IsolationForest on per-host time buckets, beaconing, rare parent-child, DGA scoring, DBSCAN over command lines (guide 11.5, 13.13); `scikit-learn` pin and a labeled sample set | P2 in the guide and not in the Phase 7 roadmap row; adds numpy/scipy (~100 MB) to the images on the 7.6 GB host | Phase 10 |
+| A6 IOC/entity extraction from free text, A8 standalone ATT&CK mapping suggestions (A2/A7 already return candidates), A10 similar cases, A12 log-format helper, A13 next-step suggestions | Not in the Phase 7 roadmap row | Later |
+| A11 playbook recommendation; one-click IOC creation from A7 indicators | Playbooks and IOC workflows are Phase 9 | Phase 9 |
+| Chat index and narrative as background jobs on the `ai` Celery queue (with progress), and neural embeddings (sentence-transformers BGE/MiniLM) in a `worker-ai` image | Indexing runs in the request with a cap (`AI_INDEX_MAX_EVENTS`); torch images do not fit the dev host | Phase 10 |
+| Redaction mapping (`ai_interactions.redactions.mapping`) stored as plain JSONB: encrypt at rest or keep only a keyed reference; NER-based redaction of names in free text | Values already exist in `events`; regex redaction is documented as best effort | Phase 10 |
+| The daily budget is checked before a call, so concurrent in-flight calls can overshoot it by a few calls; a Redis reservation would make it exact | Per-user/per-case rate limits bound the overshoot | Phase 10 |
+| Multi-turn chat (conversation memory) and streaming answers in the UI | Single-question chat keeps every answer independently verifiable | Later |
+| Anthropic prompt caching (`cache_control`) on the stable system prompts | Cost optimisation; needs real traffic to measure | Later |
+| A live-model evaluation run (`python -m app.ai.eval --provider live --record ...`) with the report stored next to the prompt versions | Needs an API key and network; the offline suites run in CI | Phase 11 (AI-eval report) |
+| Citation links to alerts open the Alerts tab, not the specific alert; deep links for alerts | UI polish | Phase 10 |
+| Run `scripts/phase7-smoke.py` in the CI compose-smoke job (stack started with `ENABLE_AI=true LLM_PROVIDER=fake`) | CI smoke covers Phases 1-3 today; verify-phase7.sh runs it locally | Phase 10 |

@@ -339,7 +339,11 @@ class AiService:
             "provider": s.llm_provider,
             "local_only": s.ai_local_only,
             "configured": s.llm_provider in ("fake",)
-            or (s.llm_provider == "anthropic" and s.llm_api_key is not None)
+            or (
+                s.llm_provider == "anthropic"
+                and s.llm_api_key is not None
+                and bool(s.llm_api_key.get_secret_value())
+            )
             or (s.llm_provider in ("ollama", "openai_compat") and bool(s.llm_base_url)),
             "models": {"fast": s.llm_model_fast, "strong": s.llm_model_strong},
             "embedding_model": s.embedding_model,

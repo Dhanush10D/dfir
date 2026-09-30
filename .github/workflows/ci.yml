@@ -76,6 +76,8 @@ jobs:
         run: alembic upgrade head && alembic check
       - name: Pytest (unit + integration)
         run: python -m pytest -q --cov=app --cov-report=term-missing --cov-fail-under=80
+      - name: AI eval (offline, fixtures; no LLM, no network)
+        run: python -m app.ai.eval --out ai-eval-report.json
 
   frontend:
     runs-on: ubuntu-24.04

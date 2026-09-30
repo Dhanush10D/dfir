@@ -39,13 +39,16 @@ dependencies = [
   "yara-python==4.5.4",
   "dpkt==1.9.8",
   "LnkParse3==1.6.0",
+  # Phase 7 AI layer: official Anthropic SDK (MIT) and its HTTP client, also used directly by the
+  # Ollama / OpenAI-compatible providers (BSD-3). Only app/ai/gateway.py imports them.
+  "anthropic==1.9.0",
+  "httpx2==2.13.1",
 ]
 
 [project.optional-dependencies]
 dev = [
   "pytest==9.1.1",
   "pytest-cov==7.1.0",
-  "httpx2==2.13.1",
   "ruff==0.16.9",
   "mypy==2.3.1",
   "celery-types==0.26.0",
