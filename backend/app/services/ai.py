@@ -703,6 +703,8 @@ class AiService:
     ) -> AiInteraction:
         row, access = self._load(principal, iid)
         access.require(Permission.AI_USE)
+        if access.case.status is CaseStatus.closed:
+            raise InvalidStateError("The case is closed.")
         row.feedback = value
         self.audit.record(
             "ai.feedback",
@@ -728,6 +730,9 @@ class AiService:
         )
         access.require(Permission.CASE_MANAGE)
         case = access.case
+        if case.status is CaseStatus.closed:
+            self.session.rollback()
+            raise InvalidStateError("The case is closed.")
         before = case.ai_enabled
         case.ai_enabled = enabled
         self.audit.record(

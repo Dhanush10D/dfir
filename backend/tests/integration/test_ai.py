@@ -578,6 +578,9 @@ def test_case_switch_closed_case_rate_limit_and_provider_errors(
     assert r.status_code == 200, r.text
     r = world.ai("/nlq", case_id=world.cid, question="failed logins")
     assert r.status_code == 409
+    assert h.put(path, world.lead, json={"ai_enabled": False}).status_code == 409
+    r = h.post(f"/ai/interactions/{iid}/feedback", world.analyst, json={"value": 1})
+    assert r.status_code == 409
 
 
 def test_interaction_listing_scopes(world: World) -> None:
