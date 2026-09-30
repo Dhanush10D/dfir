@@ -32,8 +32,9 @@ deterministic QA gate is in scope), report comments/review threads.
 1. **Snapshot first.** Creating a report builds `reports.context` from the case at that moment
    (case, evidence inventory with hashes and acquisition data, custody chains with verification
    results, alerts, key events = bookmarked or alert-linked events, IOCs, ATT&CK counts, entities,
-   notes, accepted AI outputs, processing runs with parser and tool versions), with caps (500 key
-   events, 500 alerts, 1000 IOCs, 200 notes; truncation is recorded in the snapshot). Its SHA-256
+   accepted AI outputs, processing runs with parser and tool versions), with caps (500 key
+   events, 500 alerts, 1000 IOCs; truncation is recorded in the snapshot). Notes are not copied
+   (internal working material; findings carry the analyst's statements). Its SHA-256
    (`context_sha256`) is stored; the snapshot never changes. "Later case changes create a new
    version": `POST /reports/{id}/versions` takes a new snapshot and copies sections and findings.
 2. **Deterministic rendering.** HTML via Jinja2 (autoescape, StrictUndefined) and PDF via ReportLab
@@ -103,11 +104,13 @@ deterministic QA gate is in scope), report comments/review threads.
 | Path | What |
 |---|---|
 | `backend/app/reports/snapshot.py` | `build_snapshot(session, case_id, *, principal_label, custody, limits) -> dict` |
-| `backend/app/reports/model.py` | `SECTIONS` per kind, `Block` types, `build_document(report) -> list[Block]` |
+| `backend/app/reports/model.py` | `SECTIONS`/`LAYOUT` per kind, `build_view(meta, context, sections, findings)` (the one render model), `content_sha256` |
 | `backend/app/reports/markdown.py` | `md_to_html(text) -> Markup`, `md_blocks(text) -> list[MdBlock]` |
 | `backend/app/reports/render_html.py`, `render_pdf.py`, `templates/report.html.j2` | renderers |
-| `backend/app/reports/exports.py` | `stix_bundle(ctx, report_id)`, `iocs_csv`, `timeline_csv`, `report_json`, `csv_cell` |
-| `backend/app/reports/qa.py` | `run_qa(kind, context, sections, findings, ref_check) -> QaResult` |
+| `backend/app/reports/exports.py` | `stix_bundle(ctx, meta)`, `iocs_csv`, `timeline_csv`, `report_json`, `custody_json` (CSV guard shared in `app/core/csvsafe.py`) |
+| `backend/app/reports/artifacts.py` | artifacts per kind, `render_all`, `render_one` |
+| `backend/app/repositories/artifacts.py` | artifacts bucket store (`put_bytes`/`get_bytes`) |
+| `backend/app/reports/qa.py` | `run_qa(kind, context, title, sections, findings, missing_refs) -> QaResult` |
 | `backend/app/reports/seal.py` | `canonical_json`, `build_manifest`, `manifest_sha256`, `verify_manifest_signature` |
 | `backend/app/reports/package.py` | `build_evidence_package(...) -> bytes`, `verify_package(bytes, keys)` |
 | `backend/app/reports/verify.py` | CLI: offline verification of a package ZIP or report manifest |
@@ -145,7 +148,7 @@ UPDATE of identity/snapshot columns, no DELETE/TRUNCATE.
 
 ## Settings (new)
 `REPORT_MAX_KEY_EVENTS=500`, `REPORT_MAX_ALERTS=500`, `REPORT_MAX_IOCS=1000`,
-`REPORT_MAX_NOTES=200`, `REPORT_MAX_CONTEXT_MB=8`, `REPORT_ORG_NAME=dfirbench` (STIX identity
+`REPORT_MAX_CONTEXT_MB=8`, `REPORT_ORG_NAME=dfirbench` (STIX identity
 and report cover).
 
 ## Test plan
@@ -177,3 +180,19 @@ and report cover).
 ```bash
 bash scripts/verify-phase8.sh
 ```
+
+## Amendments during the build
+* Migration is `0011_reporting` (after the Phase 7 review fix `0010_ai_review_guard`), with a
+  column-level UPDATE grant and a BEFORE INSERT OR UPDATE guard (see Data model changes).
+* One render model (`build_view`) feeds the HTML template and the ReportLab builder; no separate
+  `Block` layer.
+* `render_meta` (cover data: author, approver, signer, times, status) is frozen inside the signed
+  manifest, so re-rendering does not depend on live user names.
+* Drafts can be previewed and downloaded in every format of their kind; they are rendered on
+  request, marked "DRAFT - not approved" and the served hash is audited. Signed artifacts are
+  served from storage only after their hash matches the manifest (409 `artifact_tampered`).
+* `GET /reports/{id}/download?format=seal` returns `seal.json` (manifest, hash, signature) for
+  `python -m app.reports.verify report`.
+* AI drafts: only sections marked `ai_draft` (not scope, methodology, lessons learned, custody
+  statements, handling guidance). An analyst edit after applying marks the section `ai_edited`.
+* Snapshot larger than `REPORT_MAX_CONTEXT_MB` -> 413 `report_too_large`.

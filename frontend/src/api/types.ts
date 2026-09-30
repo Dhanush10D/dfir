@@ -345,7 +345,7 @@ export interface Job {
 
 // ---------------------------------------------------------------- AI (Phase 7)
 
-export type AiFeature = 'nlq' | 'alert_explain' | 'narrative' | 'chat' | 'script_explain'
+export type AiFeature = 'nlq' | 'alert_explain' | 'narrative' | 'chat' | 'script_explain' | 'report_draft'
 
 export interface AiStatus {
   enabled: boolean
@@ -431,4 +431,97 @@ export interface AiIndex {
   stale: boolean
   current_event_count: number
   rebuilt: boolean
+}
+
+// ------------------------------------------------------------------ reports (Phase 8)
+
+export type ReportKind = 'technical' | 'executive' | 'custody' | 'ioc'
+export type ReportStatus = 'draft' | 'in_review' | 'approved' | 'signed'
+
+export interface Report {
+  id: string
+  case_id: string
+  family_id: string
+  supersedes_id: string | null
+  version: number
+  kind: ReportKind
+  title: string
+  status: ReportStatus
+  revision: number
+  context_sha256: string
+  created_by: string | null
+  created_at: string
+  updated_by: string | null
+  updated_at: string
+  submitted_by: string | null
+  submitted_at: string | null
+  approved_by: string | null
+  approved_at: string | null
+  signed_by: string | null
+  signed_at: string | null
+  key_id: string | null
+  sha256: string | null
+}
+
+export interface ReportAiProvenance {
+  interaction_id: string
+  reviewed_by_label: string | null
+  reviewed_at: string | null
+  model: string | null
+  prompt_version: string | null
+  output_sha256: string | null
+}
+
+export interface ReportSection {
+  text: string
+  origin: 'template' | 'analyst' | 'ai_approved' | 'ai_edited'
+  ai?: ReportAiProvenance | null
+}
+
+export interface ReportRef {
+  type: 'event' | 'alert' | 'evidence'
+  id: string
+  label?: string
+  ts?: string | null
+  summary?: string
+}
+
+export interface ReportFinding {
+  id?: string
+  title: string
+  body: string
+  confidence: 'low' | 'medium' | 'high'
+  attack: string[]
+  refs: ReportRef[]
+  origin?: string
+}
+
+export interface QaIssue {
+  code: string
+  message: string
+  where: string
+}
+
+export interface ReportDetail extends Report {
+  sections: Record<string, ReportSection>
+  findings: ReportFinding[]
+  qa: { ok: boolean; errors: QaIssue[]; warnings: QaIssue[]; revision: number; checked_at: string } | null
+  signature: string | null
+  manifest: { artifacts: { name: string; sha256: string; size: number }[]; signed_at: string } | null
+  section_defs: { name: string; title: string; required: boolean; ai_draft: boolean }[]
+  formats: string[]
+  counts: Record<string, unknown>
+  truncated: Record<string, boolean>
+}
+
+export interface ReportVerify {
+  ok: boolean
+  report_id: string
+  version: number
+  manifest_sha256: string | null
+  key_id: string | null
+  signature_ok: boolean
+  artifacts: { name: string; stored_ok?: boolean; rerender_ok?: boolean; stored_sha256?: string | null }[]
+  problems: { code: string; message: string }[]
+  checked_at: string | null
 }

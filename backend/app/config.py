@@ -200,7 +200,6 @@ class Settings(BaseSettings):
     report_max_key_events: int = Field(default=500, ge=1, le=10_000)
     report_max_alerts: int = Field(default=500, ge=1, le=10_000)
     report_max_iocs: int = Field(default=1000, ge=1, le=100_000)
-    report_max_notes: int = Field(default=200, ge=0, le=5000)
     report_max_context_mb: int = Field(default=8, ge=1, le=64)
     report_org_name: str = Field(default="dfirbench", min_length=1, max_length=200)
 

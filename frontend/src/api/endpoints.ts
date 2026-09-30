@@ -27,6 +27,11 @@ import type {
   NoteDetail,
   Page,
   ProcessTree,
+  Report,
+  ReportDetail,
+  ReportFinding,
+  ReportKind,
+  ReportVerify,
   Summary,
   VerifyResult,
 } from './types'
@@ -44,6 +49,27 @@ function scope(s: QueryScope): Record<string, string> {
   if (s.from) body.from = s.from
   if (s.to) body.to = s.to
   return body
+}
+
+const FILENAME = /filename="([A-Za-z0-9._-]{1,200})"/
+
+async function blobResult(res: Response, fallback: string): Promise<{ blob: Blob; filename: string }> {
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null
+    throw new ApiError(res.status, body?.error?.code ?? 'download_failed', body?.error?.message ?? `HTTP ${res.status}`)
+  }
+  const match = FILENAME.exec(res.headers.get('Content-Disposition') ?? '')
+  return { blob: await res.blob(), filename: match?.[1] ?? fallback }
+}
+
+/** Save a blob through a temporary object URL (the name comes from a strict allow-list regex). */
+export function saveBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 export const api = {
@@ -193,6 +219,41 @@ export const api = {
       acknowledge_warnings: acknowledge,
       note: note || null,
     }),
+  reports: (caseId: string, signal?: AbortSignal) =>
+    apiGet<{ items: Report[] }>(`/cases/${enc(caseId)}/reports`, { signal }),
+  report: (id: string, signal?: AbortSignal) => apiGet<ReportDetail>(`/reports/${enc(id)}`, { signal }),
+  createReport: (caseId: string, kind: ReportKind, title: string) =>
+    apiPost<ReportDetail>(`/cases/${enc(caseId)}/reports`, { kind, title: title || null }),
+  updateReport: (
+    id: string,
+    body: { expected_revision: number; title?: string; sections?: Record<string, string>; findings?: ReportFinding[] },
+  ) => apiRequest<ReportDetail>('PATCH', `/reports/${enc(id)}`, { body }),
+  reportAction: (id: string, action: 'qa' | 'approve' | 'sign' | 'versions') =>
+    apiPost<ReportDetail>(`/reports/${enc(id)}/${action}`),
+  submitReport: (id: string, expected_revision: number) =>
+    apiPost<ReportDetail>(`/reports/${enc(id)}/submit`, { expected_revision }),
+  returnReport: (id: string, reason: string) => apiPost<ReportDetail>(`/reports/${enc(id)}/return`, { reason }),
+  verifyReport: (id: string) => apiGet<ReportVerify>(`/reports/${enc(id)}/verify`),
+  applyAiDraft: (id: string, section: string, interaction_id: string, expected_revision: number) =>
+    apiPost<ReportDetail>(`/reports/${enc(id)}/sections/${enc(section)}/apply-ai`, {
+      interaction_id,
+      expected_revision,
+    }),
+  aiDraftSection: (id: string, section: string) => apiPost<AiResult>(`/ai/reports/${enc(id)}/draft`, { section }),
+  /** Report HTML as text, shown only inside a sandboxed iframe (never injected into the page). */
+  async reportPreview(id: string, signal?: AbortSignal): Promise<string> {
+    const res = await apiFetch('GET', `/reports/${enc(id)}/preview`, { signal, headers: { Accept: 'text/html' } })
+    if (!res.ok) throw new ApiError(res.status, 'preview_failed', `Preview failed (HTTP ${res.status})`)
+    return res.text()
+  },
+  async reportDownload(id: string, format: string): Promise<{ blob: Blob; filename: string }> {
+    const res = await apiFetch('GET', `/reports/${enc(id)}/download?format=${enc(format)}`)
+    return blobResult(res, `report.${format}`)
+  },
+  async exportPackage(evidenceId: string): Promise<{ blob: Blob; filename: string }> {
+    const res = await apiFetch('POST', `/evidence/${enc(evidenceId)}/export-package`)
+    return blobResult(res, 'evidence_package.zip')
+  },
   aiFeedback: (id: string, value: -1 | 0 | 1) =>
     apiPost<AiInteraction>(`/ai/interactions/${enc(id)}/feedback`, { value }),
 }

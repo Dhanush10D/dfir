@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 
-import { api } from '@/api/endpoints'
+import { api, saveBlob } from '@/api/endpoints'
 import type { Evidence, VerifyResult } from '@/api/types'
 import { Dialog } from '@/components/Dialog'
 import { Button, ErrorMessage, inputClass, Loading, Panel } from '@/components/ui'
@@ -106,12 +106,16 @@ export function EvidenceTab() {
     mutationFn: (id: string) => api.process(id),
     onSuccess: () => void client.invalidateQueries({ queryKey: ['jobs', caseId] }),
   })
+  const exportPackage = useMutation({
+    mutationFn: (id: string) => api.exportPackage(id),
+    onSuccess: ({ blob, filename }) => saveBlob(blob, filename),
+  })
 
   return (
     <div className="space-y-4">
       <Panel title="Evidence">
         {list.isPending && <Loading />}
-        <ErrorMessage error={list.error ?? verify.error ?? process.error} />
+        <ErrorMessage error={list.error ?? verify.error ?? process.error ?? exportPackage.error} />
         {list.data && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -161,6 +165,15 @@ export function EvidenceTab() {
                         {can('custody:view') && (
                           <Button onClick={() => setCustody(ev)} aria-label={`Custody chain of ${ev.label}`}>
                             Custody
+                          </Button>
+                        )}
+                        {can('custody:view') && (
+                          <Button
+                            onClick={() => exportPackage.mutate(ev.id)}
+                            disabled={exportPackage.isPending}
+                            title="Signed package: manifest, custody chain and signature (no original bytes)"
+                          >
+                            Export package
                           </Button>
                         )}
                         {can('evidence:verify') && (

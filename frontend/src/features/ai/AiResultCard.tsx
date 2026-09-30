@@ -152,7 +152,7 @@ export function AiOutput({ output, citations }: { output: Record<string, unknown
           )}
         </Section>
       )}
-      {(['summary', 'answer', 'explanation'] as const).map((k) =>
+      {(['summary', 'answer', 'explanation', 'text'] as const).map((k) =>
         typeof o[k] === 'string' && o[k] ? (
           <p key={k} className="text-sm whitespace-pre-wrap">
             {asText(o[k])}
@@ -178,6 +178,7 @@ export function AiOutput({ output, citations }: { output: Record<string, unknown
         )}
       </p>
       <ListOf title="Key facts" rows={items(o.key_facts)} citations={citations} render={(r) => asText(r.statement)} />
+      <ListOf title="Claims" rows={items(o.claims)} citations={citations} render={(r) => asText(r.statement)} />
       <ListOf
         title="Timeline"
         rows={items(o.timeline)}
