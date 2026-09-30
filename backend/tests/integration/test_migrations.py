@@ -53,7 +53,7 @@ def test_all_core_tables_exist(db_engine: Engine) -> None:
     assert "events_default" in tables
     with db_engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0010"
+    assert version == "0011"
 
 
 def test_app_role_privileges(db_engine: Engine) -> None:
@@ -87,6 +87,23 @@ def test_app_role_privileges(db_engine: Engine) -> None:
     assert privileges("ai_interactions") == {"SELECT", "INSERT"}
     assert privileges("event_chunks") == {"SELECT", "INSERT", "DELETE"}
     assert privileges("ai_index_state") == {"SELECT", "INSERT", "UPDATE"}
+    # 0011: reports are never deleted; UPDATE only on the workflow/content columns.
+    assert privileges("reports") == {"SELECT", "INSERT"}
+    with db_engine.connect() as conn:
+
+        def report_col(c: str) -> bool:
+            return bool(
+                conn.execute(
+                    text("SELECT has_column_privilege('dfirbench_app', 'reports', :c, 'UPDATE')"),
+                    {"c": c},
+                ).scalar_one()
+            )
+
+        assert all(report_col(c) for c in ("title", "sections", "status", "manifest"))
+        assert not any(
+            report_col(c)
+            for c in ("context", "context_sha256", "case_id", "kind", "version", "family_id")
+        )
     with db_engine.connect() as conn:
         review_cols = {
             c
@@ -322,6 +339,28 @@ def test_downgrade_and_reupgrade_roundtrip(admin_engine: Engine) -> None:
                 )
         finally:
             engine.dispose()
+        # A report row survives the 0011 round trip (the downgrade drops only the new columns).
+        engine = create_engine(db_url)
+        try:
+            with engine.begin() as conn:
+                cid = conn.execute(
+                    text(
+                        "INSERT INTO cases (case_number, title) VALUES ('IR-RT-1', 'rt') "
+                        "RETURNING id"
+                    )
+                ).scalar_one()
+                conn.execute(
+                    text(
+                        "INSERT INTO reports (id, case_id, kind, version, context, family_id, "
+                        "context_sha256) VALUES (gen_random_uuid(), :c, 'technical', 1, "
+                        "'{}'::jsonb, gen_random_uuid(), repeat('0', 64))"
+                    ),
+                    {"c": cid},
+                )
+        finally:
+            engine.dispose()
+        command.downgrade(cfg, "0010")
+        command.upgrade(cfg, "head")
         command.downgrade(cfg, "0008")
         command.upgrade(cfg, "head")
     finally:

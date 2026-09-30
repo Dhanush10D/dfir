@@ -102,3 +102,21 @@ class FakeVault:
 
     def delete_all(self, key: str) -> None:
         self.objects.pop(key, None)
+
+
+@dataclass
+class FakeArtifactStore:
+    """In-memory artifacts bucket; tests overwrite ``objects[key]`` to simulate tampering."""
+
+    bucket: str = "artifacts"
+    objects: dict[str, bytes] = field(default_factory=dict)
+
+    def put_bytes(self, key: str, data: bytes, content_type: str) -> None:
+        self.objects[key] = bytes(data)
+
+    def get_bytes(self, key: str, max_bytes: int = 256 * 1024 * 1024) -> bytes:
+        from app.repositories.artifacts import ArtifactMissingError
+
+        if key not in self.objects:
+            raise ArtifactMissingError(key)
+        return self.objects[key]

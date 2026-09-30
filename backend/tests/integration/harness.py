@@ -25,6 +25,7 @@ from app.deps import (
     get_ai_limiter,
     get_ai_provider_factory,
     get_app_settings,
+    get_artifact_store,
     get_bundle_dispatcher,
     get_custody_signer,
     get_db,
@@ -39,7 +40,7 @@ from app.services.bundles import BundleIngestService
 from app.services.detection import DetectionService
 from app.services.iam import IAMService
 from app.services.processing import ProcessingService, RunResult
-from tests.fakes import FakeVault
+from tests.fakes import FakeArtifactStore, FakeVault
 
 TEST_PASSWORD = "Correct-Horse-Battery-42"
 
@@ -75,6 +76,9 @@ class Harness:
         self.app.dependency_overrides[get_db] = self._db
         self.app.dependency_overrides[get_vault] = lambda: self.vault
         self.app.dependency_overrides[get_custody_signer] = lambda: self.signer
+        # Report artifacts (Phase 8) in memory; tests tamper with ``artifacts.objects``.
+        self.artifacts = FakeArtifactStore()
+        self.app.dependency_overrides[get_artifact_store] = lambda: self.artifacts
         # Extra trusted custody keys (CUSTODY_TRUSTED_KEYS_PATH); the signer is always trusted.
         self.trusted: dict[str, Any] = {}
         self.app.dependency_overrides[get_trusted_keys] = lambda: self.trusted

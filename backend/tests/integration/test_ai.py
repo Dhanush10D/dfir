@@ -181,6 +181,7 @@ def test_status_and_nlq(world: World, db_engine: Engine) -> None:
         "narrative",
         "chat",
         "script_explain",
+        "report_draft",
     }
 
     r = world.ai("/nlq", case_id=world.cid, question="failed ssh logins from 203.0.113.50")
