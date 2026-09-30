@@ -230,3 +230,50 @@ def test_every_kind_renders_all_its_artifacts() -> None:
         "report.json", sample_meta(), sample_context(), sample_sections(), sample_findings()
     )
     assert one.content_type == "application/json" and len(one.sha256) == 64
+
+
+def test_renderers_never_fetch_urls_or_read_files_named_by_evidence(
+    tmp_path: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import builtins
+    import io
+    import socket
+    import urllib.request
+
+    canary = tmp_path / "canary-secret.png"
+    canary.write_bytes(b"CANARY-SECRET-BYTES")
+    path = canary.as_posix()
+    hostile = (
+        f'<img src="{path}" width="10" height="10"/> <img src="file://{path}"/> '
+        f"![x]({path}) ![y](file://{path}) ![z](http://127.0.0.1:9/x.png) "
+        f'<a href="http://127.0.0.1:9/">l</a> <font face="{path}">f</font>'
+    )
+    ctx = sample_context()
+    ctx["evidence"][0]["original_name"] = hostile
+    ctx["key_events"][0]["summary"] = hostile
+    ctx["alerts"][0]["title"] = hostile
+    findings = sample_findings()
+    findings[0]["body"] = hostile
+
+    opened: list[str] = []
+    real_open = builtins.open
+
+    def spy_open(file: Any, *args: Any, **kw: Any) -> Any:
+        opened.append(str(file))
+        return real_open(file, *args, **kw)
+
+    def no_network(*args: Any, **kw: Any) -> Any:
+        raise AssertionError("a renderer tried to use the network")
+
+    monkeypatch.setattr(builtins, "open", spy_open)
+    monkeypatch.setattr(io, "open", spy_open)
+    monkeypatch.setattr(socket.socket, "connect", no_network)
+    monkeypatch.setattr(socket, "create_connection", no_network)
+    monkeypatch.setattr(urllib.request, "urlopen", no_network)
+    for kind in KIND_ARTIFACTS:
+        sections = sample_sections(kind)
+        for name in sections:
+            sections[name] = {"text": hostile, "origin": "analyst"}
+        for art in render_all(kind, sample_meta(kind), ctx, sections, findings):
+            assert b"CANARY-SECRET" not in art.data, art.name
+    assert not [p for p in opened if "canary" in p]
