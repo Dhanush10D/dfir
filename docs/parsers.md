@@ -67,11 +67,13 @@ lists only know the key's last-write time (true for the most recent entry): the 
 | `PARSER_MAX_STRUCTURED_MB` | 1024 | hives, SQLite, PE (random-access formats are refused above it) |
 | `PARSER_MAX_RECORDS` | 5 000 000 | every parser (run becomes `partial`) |
 | `PARSER_SQLITE_TIMEOUT_S` | 600 | browser DB queries (progress handler) |
-| `TOOL_TIMEOUT_S` / `TOOL_MAX_OUTPUT_MB` | 3600 / 1024 | each engine run (wall clock / stdout+stderr+log dir) |
+| `TOOL_TIMEOUT_S` / `TOOL_MAX_OUTPUT_MB` | 3600 / 1024 | each engine run (wall clock / stdout+stderr+log dir); Volatility: one budget for all plugins, symbol cache counted |
 | `YARA_TIMEOUT_S` / `YARA_MAX_FILE_MB` | 600 / 2048 | YARA scans |
 | fixed | 16 MiB | Prefetch (compressed and declared decompressed), LNK |
 | fixed | depth 64, 5 M keys, 16 MiB per value | registry reader |
 | fixed | 200 000 flows | pcap flow table (`partial` beyond) |
+| fixed | 256 KiB per packet (+64 KiB per pcapng block) | pcap record length; a larger `caplen`/block is not read: one `capture_truncated` error, run `partial` |
+| fixed | 20 ASCII digits | numbers taken from text evidence (history, journal, auth logs); others cost the record or the field |
 | fixed | 256 MiB | Volatility JSON loaded per plugin |
 
 ## External engines

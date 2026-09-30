@@ -162,6 +162,47 @@ def test_volatility_all_plugins_failing_fails_the_job(tmp_path: Path, tools: Pat
         )
 
 
+def test_volatility_plugins_share_one_time_budget(
+    tmp_path: Path, tools: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from types import SimpleNamespace
+
+    from app.parsers import volatility
+    from app.parsers.tools import ToolResult
+
+    make_tool(tools, "vol")
+    work = tmp_path / "work"
+    work.mkdir()
+    clock = iter([0.0, 0.0, 2500.5, 3600.0])  # start, then before each of the 3 plugins
+    monkeypatch.setattr(volatility, "time", SimpleNamespace(monotonic=lambda: next(clock)))
+    calls: list[dict[str, object]] = []
+
+    def fake_run_tool(argv: list[str], **kwargs: object) -> ToolResult:
+        calls.append(kwargs)
+        out = kwargs["stdout"]
+        assert isinstance(out, Path)
+        out.write_text("[]")
+        return ToolResult(tuple(argv), 0, out, "", 0.0, 2)
+
+    monkeypatch.setattr(volatility, "run_tool", fake_run_tool)
+    result = run(
+        "volatility",
+        context(
+            BIN / "fat12.img",
+            params={"os": "windows", "plugins": ["pslist", "netscan", "malfind"]},
+            tools=ToolConfig(search_path=str(tools), timeout_s=3600),
+            work_dir=work,
+        ),
+    )
+    assert [c["timeout_s"] for c in calls] == [3600, 1100]  # the third found the budget spent
+    assert all(c["watch"] == [work / "volcache"] for c in calls)
+    assert result["warnings"] == {"plugin_skipped_timeout": 1}
+    assert result["assumptions"]["incomplete"] == "plugin_failed"
+    assert result["assumptions"]["plugins_failed"] == [
+        "windows.malfind: TOOL_TIMEOUT_S budget used up"
+    ]
+
+
 def test_volatility_params_are_allowlisted() -> None:
     assert validate_params(
         "volatility", {"os": "linux", "plugins": ["pslist", "bash", "pslist"]}

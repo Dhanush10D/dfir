@@ -37,6 +37,20 @@ def snippet(value: bytes | str) -> str:
     return rendered + ("..." if len(value) > SNIPPET_CHARS else "")
 
 
+def decimal_int(value: str | None, max_digits: int = 20) -> int | None:
+    """A non-negative integer from an evidence string, or ``None``.
+
+    Only ASCII ``0-9`` of at most ``max_digits`` digits are accepted: ``str.isdigit`` also accepts
+    characters ``int()`` rejects (``"²"``), and ``int()`` refuses strings above Python's
+    4300-digit limit, so neither may be applied to hostile text directly.
+    """
+    if value is None or not 0 < len(value) <= max_digits:
+        return None
+    if not (value.isascii() and value.isdigit()):
+        return None
+    return int(value)
+
+
 @dataclass
 class Event:
     """One normalized event (Appendix A). ``ts`` MUST be timezone-aware."""

@@ -39,7 +39,10 @@ from app.parsers.tools import (
 
 SOURCE = "filesystem"
 MAX_PARTITIONS = 16
-MMLS_RE = re.compile(r"^\s*(\d+):\s+(\d+:\d+)\s+(\d+)\s+(\d+)\s+(\d+)\s+(.*)$")
+MMLS_RE = re.compile(
+    r"^\s*(\d{1,20}):\s+(\d{1,20}:\d{1,20})\s+(\d{1,20})\s+(\d{1,20})\s+(\d{1,20})\s+(.*)$",
+    re.ASCII,
+)
 E01_MAGIC = b"EVF\x09\x0d\x0a\xff\x00"
 IMAGE_NAMES = (".dd", ".raw", ".img", ".e01", ".001", ".vhd", ".iso")
 
@@ -96,9 +99,8 @@ class TskFsParser:
         )
         partitions: list[tuple[int, str]] = []
         if listing.returncode == 0:
-            partitions = mmls_partitions(
-                (work / "mmls.txt").read_bytes()[: 1024 * 1024].decode("utf-8", "replace")
-            )
+            with (work / "mmls.txt").open("rb") as fh:  # bounded: never load a huge listing
+                partitions = mmls_partitions(fh.read(1024 * 1024).decode("utf-8", "replace"))
         targets = partitions or [(0, "whole image")]
         stats.assumptions.update(
             {

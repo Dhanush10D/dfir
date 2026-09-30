@@ -29,8 +29,11 @@ NAMES = {
     ".ash_history": "ash",
     "consolehost_history.txt": "powershell",
 }
-BASH_TS = re.compile(r"^#(\d{9,11})$")
-ZSH_EXT = re.compile(r"^: (\d{1,20}):(\d+);(.*)$", re.S)
+BASH_TS = re.compile(r"^#([0-9]{9,11})$")
+# zsh EXTENDED_HISTORY. Digits are ASCII and bounded (``int()`` refuses > 4300 digits); a line of
+# the same shape with oversized numbers is a counted error, not a command.
+ZSH_EXT = re.compile(r"^: ([0-9]{1,20}):([0-9]{1,10});(.*)$", re.S)
+ZSH_SHAPE = re.compile(r"^: [0-9]+:[0-9]+;")
 USER_RE = re.compile(r"(?:^|/)(?:home|users)/([^/]{1,64})/", re.I)
 
 
@@ -96,6 +99,9 @@ class ShellHistoryParser:
             pending = None
             extra: dict[str, int] = {}
             z = ZSH_EXT.match(text)
+            if z is None and ZSH_SHAPE.match(text):
+                stats.error(location, "bad_zsh_record", snippet(text))
+                continue
             if z:
                 command = z.group(3)
                 extra["elapsed_s"] = int(z.group(2))

@@ -26,7 +26,13 @@ from collections.abc import Callable, Iterator
 from pathlib import Path, PureWindowsPath
 from typing import Any
 
-from app.parsers.base import Event, ParseContext, ParserInputError, record_cap_reached
+from app.parsers.base import (
+    Event,
+    ParseContext,
+    ParserInputError,
+    decimal_int,
+    record_cap_reached,
+)
 from app.parsers.regf import Hive, HiveLimits, Key, RegfError, Value, hive_kind, utf16z
 from app.parsers.registry import register
 from app.parsers.timeconv import Converted, TimestampError, filetime
@@ -705,8 +711,8 @@ def _mru_list(em: Emitter, hive: Hive, path: str, code: str, label: str) -> Iter
                 text = text.removesuffix("\\1")
                 position = order_value.find(value.name) if value.name else -1
             else:
-                digits = "".join(c for c in value.name if c.isdigit())
-                position = int(digits) - 1 if digits else -1
+                number = decimal_int("".join(c for c in value.name if c in "0123456789"), 9)
+                position = number - 1 if number is not None else -1
             raw: dict[str, Any] = {
                 "value_name": value.name,
                 "value": text,

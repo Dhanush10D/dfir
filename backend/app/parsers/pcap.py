@@ -8,6 +8,11 @@ DNS message, HTTP request or TLS ClientHello with SNI (one event each), an undec
 table is capped (``MAX_FLOWS``); packets of flows beyond it are counted as errors and the run is
 ``partial``. No TCP reassembly: HTTP/TLS are read from single segments. Packet times are Unix
 epoch (UTC) as stored in the capture.
+
+dpkt trusts the on-disk ``caplen`` (pcap) and block length (pcapng), up to 4 GiB each, so the file
+object it reads through refuses any single read above ``MAX_PACKET_BYTES`` (libpcap's maximum
+snaplen; pcapng blocks get ``MAX_BLOCK_OVERHEAD`` more for headers and options). An oversized
+record ends the run as one ``capture_truncated`` error, like a truncated capture.
 """
 
 from __future__ import annotations
@@ -30,6 +35,8 @@ SOURCE = "pcap"
 MAX_FLOWS = 200_000
 PCAP_MAGICS = {b"\xd4\xc3\xb2\xa1", b"\xa1\xb2\xc3\xd4", b"\x4d\x3c\xb2\xa1", b"\xa1\xb2\x3c\x4d"}
 PCAPNG_MAGIC = b"\x0a\x0d\x0d\x0a"
+MAX_PACKET_BYTES = 256 * 1024  # libpcap MAXIMUM_SNAPLEN
+MAX_BLOCK_OVERHEAD = 64 * 1024
 HTTP_METHODS = (
     b"GET ",
     b"POST ",
@@ -53,6 +60,25 @@ DNS_TYPES = {
     33: "SRV",
     65: "HTTPS",
 }
+
+
+class RecordTooLargeError(ValueError):
+    """A capture record declares more bytes than any real packet has."""
+
+
+class _BoundedFile:
+    """Read-only view of the capture that refuses single reads above ``max_read`` bytes."""
+
+    def __init__(self, fh: Any, max_read: int) -> None:
+        self._fh = fh
+        self._max_read = max_read
+        self.name = getattr(fh, "name", "<capture>")
+
+    def read(self, size: int = -1) -> bytes:
+        if size < 0 or size > self._max_read:
+            raise RecordTooLargeError(f"record of {size} bytes (limit {self._max_read})")
+        data: bytes = self._fh.read(size)
+        return data
 
 
 @dataclass
@@ -355,7 +381,9 @@ class PcapParser:
             fh.seek(0)
             try:
                 reader: Any = (
-                    dpkt.pcapng.Reader(fh) if magic == PCAPNG_MAGIC else dpkt.pcap.Reader(fh)
+                    dpkt.pcapng.Reader(_BoundedFile(fh, MAX_PACKET_BYTES + MAX_BLOCK_OVERHEAD))
+                    if magic == PCAPNG_MAGIC
+                    else dpkt.pcap.Reader(_BoundedFile(fh, MAX_PACKET_BYTES))
                 )
             except (ValueError, dpkt.UnpackError, struct.error) as exc:
                 raise ParserInputError(f"not a readable capture: {type(exc).__name__}") from exc

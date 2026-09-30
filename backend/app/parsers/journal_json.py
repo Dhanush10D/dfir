@@ -15,7 +15,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-from app.parsers.base import Event, ParseContext, record_cap_reached, snippet
+from app.parsers.base import Event, ParseContext, decimal_int, record_cap_reached, snippet
 from app.parsers.linux_auth import LinuxAuthParser, _Parsed
 from app.parsers.registry import register
 from app.parsers.textio import head_text, iter_lines
@@ -50,10 +50,8 @@ def _field(value: Any) -> str | None:
 
 
 def _int(value: str | None) -> int | None:
-    if value is None or not value.isdigit():
-        return None
-    number = int(value)
-    return number if number < 2**31 else None
+    number = decimal_int(value, 10)
+    return number if number is not None and number < 2**31 else None
 
 
 @register
@@ -96,8 +94,13 @@ class JournalJsonParser:
                 stats.error(location, "not_an_object")
                 continue
             raw_ts = _field(obj.get("__REALTIME_TIMESTAMP"))
+            micros = decimal_int(raw_ts, 20)
+            if micros is None:
+                reason = "no __REALTIME_TIMESTAMP" if not raw_ts else snippet(raw_ts)
+                stats.error(location, "bad_timestamp", reason)
+                continue
             try:
-                converted = unix_micros(int(raw_ts)) if raw_ts and raw_ts.isdigit() else None
+                converted = unix_micros(micros)
             except TimestampError as exc:
                 stats.error(location, "bad_timestamp", str(exc))
                 continue

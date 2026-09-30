@@ -32,7 +32,14 @@ from pathlib import Path
 from typing import Any
 from zoneinfo import ZoneInfo
 
-from app.parsers.base import Event, ParseContext, ParserInputError, ParseStats, snippet
+from app.parsers.base import (
+    Event,
+    ParseContext,
+    ParserInputError,
+    ParseStats,
+    decimal_int,
+    snippet,
+)
 from app.parsers.registry import register
 from app.parsers.textio import head_text, iter_lines
 
@@ -292,17 +299,13 @@ def _ip(value: str | None) -> str | None:
 
 
 def _port(value: str | None) -> int | None:
-    if value is None or not value.isdigit():
-        return None
-    number = int(value)
-    return number if 0 <= number <= 65535 else None
+    number = decimal_int(value, 5)
+    return number if number is not None and number <= 65535 else None
 
 
 def _pid(value: str | None) -> int | None:
-    if value is None or not value.isdigit():
-        return None
-    number = int(value)
-    return number if 0 <= number <= 2**31 - 1 else None
+    number = decimal_int(value, 10)
+    return number if number is not None and number <= 2**31 - 1 else None
 
 
 def classify(program: str | None, message: str) -> tuple[Rule, dict[str, str]] | None:

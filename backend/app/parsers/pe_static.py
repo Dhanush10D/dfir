@@ -101,6 +101,8 @@ class PeStaticParser:
             pe = pefile.PE(name=str(ctx.path), fast_load=True)
         except pefile.PEFormatError as exc:
             raise ParserInputError(f"not a valid PE file: {str(exc)[:200]}") from exc
+        except (struct.error, ValueError, IndexError, AttributeError) as exc:
+            raise ParserInputError(f"unreadable PE headers: {type(exc).__name__}") from exc
         try:
             yield from self._summary(ctx, pe, size)
         finally:

@@ -13,13 +13,17 @@ is one record and one ``memory`` event:
   timestamp column, else the evidence reference time (``raw.ts_source``, tag ``time_inferred``).
 
 A plugin that fails (e.g. no matching symbols) is a warning with Volatility's message and the run
-is ``partial``; if every plugin fails the job fails with that message.
+is ``partial``; if every plugin fails the job fails with that message. ``TOOL_TIMEOUT_S`` is the
+budget for all plugins together (each run gets what is left; plugins after it runs out are
+skipped as failures), and the shared symbol cache counts toward ``TOOL_MAX_OUTPUT_MB``.
 """
 
 from __future__ import annotations
 
 import functools
 import json
+import math
+import time
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
@@ -218,8 +222,14 @@ class VolatilityParser:
         )
         failures: list[str] = []
         succeeded = 0
+        started = time.monotonic()
         for n, plugin_short in enumerate(plugins):
             plugin = f"{os_name}.{plugin_short}"
+            remaining = math.ceil(ctx.tools.timeout_s - (time.monotonic() - started))
+            if remaining <= 0:
+                failures.append(f"{plugin}: TOOL_TIMEOUT_S budget used up")
+                stats.warn("plugin_skipped_timeout", plugin)
+                continue
             argv = [vol, "-q", "-r", "json", "--offline", "--cache-path", str(cache)]
             if ctx.tools.volatility_symbols_dir:
                 argv += ["-s", ctx.tools.volatility_symbols_dir]
@@ -232,6 +242,8 @@ class VolatilityParser:
                     stdout=out,
                     cfg=ctx.tools,
                     heartbeat=functools.partial(ctx.progress, n / len(plugins)),
+                    watch=[cache],
+                    timeout_s=remaining,
                 )
             except (ToolTimeoutError, ToolOutputLimitError) as exc:
                 failures.append(f"{plugin}: {exc}")

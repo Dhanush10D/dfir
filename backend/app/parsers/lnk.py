@@ -4,8 +4,8 @@ The three target FILETIMEs (created, modified, accessed; UTC) are read directly 
 header: one record each, a zero time is skipped. Link info (local path, volume serial/label,
 network share), string data (arguments, working directory, description) and the distributed link
 tracker block (machine id, droids) come from LnkParse3 1.6.0 (MIT) and go into ``raw`` of every
-event. A library failure on those structures is a warning (the header times are still used);
-files over 16 MiB or with a bad header are refused.
+event. A library failure on those structures is one counted error record (the header times are
+still used); files over 16 MiB or with a bad header are refused.
 """
 
 from __future__ import annotations
@@ -49,7 +49,7 @@ def link_details(data: bytes) -> tuple[dict[str, Any], str | None]:
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             parsed = LnkParse3.lnk_file(indata=data).get_json()
-    except Exception as exc:  # noqa: BLE001 - hostile input; any library failure is one warning
+    except Exception as exc:  # noqa: BLE001 - hostile input; any library failure is one error
         return {}, f"{type(exc).__name__}: {str(exc)[:200]}"
     info = parsed.get("link_info") or {}
     location = info.get("location_info") or {}
@@ -108,7 +108,8 @@ class LnkParser:
             raise ParserInputError("not a Windows shortcut (bad header)")
         details, error = link_details(data)
         if error:
-            stats.warn("lnk_structure_unreadable", "link info/string data", error)
+            stats.read()
+            stats.error("link info/string data", "lnk_structure_unreadable", error)
         target = details.get("target_path") or details.get("relative_path")
         file_size = struct.unpack_from("<I", data, 52)[0]
         stats.assumptions["timezone"] = "UTC (FILETIME)"

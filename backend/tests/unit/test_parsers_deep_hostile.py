@@ -8,6 +8,7 @@ segments, decompression), SQLite views are refused, and limits/timeouts apply.
 from __future__ import annotations
 
 import contextlib
+import json
 import sqlite3
 import struct
 import sys
@@ -191,6 +192,23 @@ def test_regf_refuses_bad_files(tmp_path: Path) -> None:
     assert result is None
 
 
+def test_registry_mru_value_names_with_odd_digits(tmp_path: Path) -> None:
+    root = RegKey("ROOT", ft(1767348000))
+    typed = root.key(
+        "Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\TypedPaths", ft(1767348000)
+    )
+    typed.sz("url3", "C:\\ok").sz("url²", "C:\\sup").sz("url" + "9" * 5000, "C:\\long")
+    data = build_hive(root, "\\??\\C:\\Users\\eve\\ntuser.dat", ft(1767348000))
+    result = parse_bytes(tmp_path, "registry_hive", data, "NTUSER.DAT")
+    assert result["counts"]["errors"] == 0
+    positions = {
+        e["raw"]["value"]: e["raw"]["mru_position"]
+        for e in result["events"]
+        if e["event_code"] == "typed_path"
+    }
+    assert positions == {"C:\\ok": 2, "C:\\sup": -1, "C:\\long": -1}
+
+
 @FUZZ
 @given(st.lists(st.tuples(st.integers(0, 4000), st.integers(0, 255)), min_size=1, max_size=30))
 def test_registry_fuzz(tmp_path: Path, flips: list[tuple[int, int]]) -> None:
@@ -223,6 +241,176 @@ def test_binary_formats_fuzz(tmp_path: Path, flips: list[tuple[int, int]]) -> No
         data = mutate((BIN / fixture).read_bytes(), flips)
         with contextlib.suppress(ParserInputError):
             parse_bytes(tmp_path, parser, data, fixture)
+
+
+# ---------------------------------------------------------------------- numeric fields in text
+
+
+# ``str.isdigit`` accepts "²" (``int()`` does not) and ``int()`` refuses more than 4300 digits.
+# Superscripts two/three/one, then Arabic-Indic, Extended Arabic-Indic, NKo and Devanagari digits.
+ODD_DIGITS = (0xB2, 0xB3, 0xB9, 0x663, 0x6F5, 0x7C9, 0x966)
+HOSTILE_NUMBERS = st.one_of(
+    st.text(alphabet="0123456789" + "".join(map(chr, ODD_DIGITS)), max_size=40),
+    st.integers(min_value=0, max_value=10**30).map(str),
+    st.integers(4290, 6000).map(lambda n: "9" * n),
+    st.integers(4290, 6000).map(lambda n: "٣" * n),
+)
+
+
+def _events_by_line(result: dict[str, Any]) -> set[str]:
+    return {e["source_record_id"] for e in result["events"]}
+
+
+def test_shell_history_hostile_numbers_cost_one_record(tmp_path: Path) -> None:
+    lines = [
+        ": 1767347700:0;whoami",
+        ": 1700000000:" + "9" * 5000 + ";ls",  # elapsed beyond int()'s digit limit
+        ": " + "9" * 20 + ":0;uname -a",  # 20 digits parse, but beyond any datetime
+        ": 1767347800:3;id",
+        ": ²:0;cat /etc/shadow",  # not ASCII digits: not zsh extended format, a plain command
+    ]
+    result = parse_bytes(
+        tmp_path, "shell_history", "\n".join(lines).encode(), "home/eve/.zsh_history"
+    )
+    assert result["counts"] == {"records_read": 5, "events_emitted": 3, "skipped": 0, "errors": 2}
+    assert _events_by_line(result) == {"1", "4", "5"}
+    reasons = {(s["location"], s["reason"]) for s in result["error_samples"]}
+    assert reasons == {("line 2", "bad_zsh_record"), ("line 3", "bad_timestamp")}
+    by_key = {e["source_record_id"]: e for e in result["events"]}
+    assert by_key["4"]["cmdline"] == "id" and by_key["4"]["raw"]["elapsed_s"] == 3
+    assert "time_inferred" in by_key["5"]["tags"]
+
+
+def test_journal_hostile_numbers_cost_one_record(tmp_path: Path) -> None:
+    ok = {"__REALTIME_TIMESTAMP": "1767347950000000", "SYSLOG_IDENTIFIER": "sshd"}
+    records: list[dict[str, Any]] = [
+        {**ok, "MESSAGE": "first", "_PID": "812"},
+        {**ok, "__REALTIME_TIMESTAMP": "²", "MESSAGE": "superscript time"},
+        {**ok, "__REALTIME_TIMESTAMP": "9" * 5000, "MESSAGE": "huge time"},
+        {**ok, "MESSAGE": "odd pid", "_PID": "²"},
+        {**ok, "MESSAGE": "huge pid", "_PID": "٣" * 5000},
+        {  # the auth classifier's port field: 5000 Arabic-Indic digits match \d+
+            **ok,
+            "MESSAGE": "Accepted password for bob from 198.51.100.7 port " + "٣" * 5000 + " ssh2",
+        },
+        {**ok, "MESSAGE": "last"},
+    ]
+    data = "\n".join(json.dumps(r, ensure_ascii=False) for r in records).encode()
+    result = parse_bytes(tmp_path, "journal_json", data, "journal.json")
+    assert result["counts"] == {"records_read": 7, "events_emitted": 5, "skipped": 0, "errors": 2}
+    assert _events_by_line(result) == {"1", "4", "5", "6", "7"}
+    assert {s["reason"] for s in result["error_samples"]} == {"bad_timestamp"}
+    by_key = {e["source_record_id"]: e for e in result["events"]}
+    assert by_key["1"]["pid"] == 812
+    assert by_key["4"]["pid"] is None and by_key["5"]["pid"] is None
+    assert by_key["6"]["event_code"] == "ssh_accepted"
+    assert by_key["6"]["src_port"] is None and by_key["6"]["user"] == "bob"
+
+
+def test_linux_auth_hostile_port_costs_nothing(tmp_path: Path) -> None:
+    lines = [
+        "2026-01-02T10:00:00+00:00 web01 sshd[1]: Accepted password for bob from 198.51.100.7 "
+        "port " + "٣" * 5000 + " ssh2",
+        "<38>1 2026-01-02T10:00:01+00:00 web01 sshd ² - - Accepted password for amy from "
+        "198.51.100.8 port 22 ssh2",
+    ]
+    result = parse_bytes(tmp_path, "linux_auth", "\n".join(lines).encode(), "auth.log")
+    assert result["counts"]["events_emitted"] == 2 and result["counts"]["errors"] == 0
+    assert [e["src_port"] for e in result["events"]] == [None, 22]
+    assert [e["pid"] for e in result["events"]] == [1, None]
+
+
+@FUZZ
+@given(st.lists(st.tuples(HOSTILE_NUMBERS, HOSTILE_NUMBERS), min_size=1, max_size=6))
+def test_shell_history_fuzz(tmp_path: Path, pairs: list[tuple[str, str]]) -> None:
+    fixture = (BIN / ".zsh_history").read_text(encoding="utf-8").splitlines()
+    lines = [f": {a}:{b};cmd{i}" for i, (a, b) in enumerate(pairs)] + [f"#{pairs[0][0]}"]
+    for name in (".zsh_history", ".bash_history"):
+        result = parse_bytes(tmp_path, "shell_history", "\n".join(lines + fixture).encode(), name)
+        anchor = str(len(lines) + 1)  # the fixture's valid first line always parses
+        assert anchor in _events_by_line(result)
+
+
+@FUZZ
+@given(HOSTILE_NUMBERS, HOSTILE_NUMBERS, HOSTILE_NUMBERS, st.text(max_size=60))
+def test_journal_json_fuzz(tmp_path: Path, ts: str, pid: str, port: str, text: str) -> None:
+    hostile = {
+        "__REALTIME_TIMESTAMP": ts,
+        "_PID": pid,
+        "_UID": port,
+        "SYSLOG_IDENTIFIER": "sshd",
+        "MESSAGE": f"Accepted password for {text} from 198.51.100.7 port {port} ssh2",
+    }
+    lines = [json.dumps(hostile, ensure_ascii=False)]
+    anchor = {**hostile, "__REALTIME_TIMESTAMP": "1767347950000000"}
+    lines.append(json.dumps(anchor, ensure_ascii=False))
+    lines += (BIN / "journal.json").read_text(encoding="utf-8").splitlines()
+    result = parse_bytes(tmp_path, "journal_json", "\n".join(lines).encode(), "journal.json")
+    assert {"2", "3"} <= _events_by_line(result)
+
+
+# ---------------------------------------------------------------------- pcap record sizes
+
+
+def test_pcap_oversized_caplen_is_refused_not_read(tmp_path: Path) -> None:
+    from app.parsers.pcap import MAX_PACKET_BYTES
+
+    capture = (BIN / "capture.pcap").read_bytes()
+    first_len = struct.unpack_from("<I", capture, 24 + 8)[0]
+    first = capture[: 24 + 16 + first_len]  # file header + the first packet
+    huge = struct.pack("<IIII", 1767347900, 0, 0xFFFFFFF0, 0xFFFFFFF0) + b"\x00" * 64
+    result = parse_bytes(tmp_path, "pcap", first + huge, "capture.pcap")
+    assert result["assumptions"]["incomplete"] == "capture_truncated"
+    assert {"location": "after packet 1", "reason": "capture_truncated"}.items() <= (
+        result["error_samples"][0].items()
+    )
+    assert result["error_samples"][0]["detail"] == "RecordTooLargeError"
+    assert result["assumptions"]["packets"] == 1
+    # a packet of exactly the cap is still read
+    edge = struct.pack("<IIII", 1767347900, 0, MAX_PACKET_BYTES, MAX_PACKET_BYTES)
+    result = parse_bytes(
+        tmp_path, "pcap", first + edge + b"\x00" * MAX_PACKET_BYTES, "capture.pcap"
+    )
+    assert result["assumptions"]["packets"] == 2 and "incomplete" not in result["assumptions"]
+
+
+def test_pcapng_oversized_block_is_refused_not_read(tmp_path: Path) -> None:
+    capture = (BIN / "capture.pcapng").read_bytes()
+    shb_len = struct.unpack_from("<I", capture, 4)[0]
+    idb_len = struct.unpack_from("<I", capture, shb_len + 4)[0]
+    head = capture[: shb_len + idb_len]
+    huge = struct.pack("<II", 6, 0xFFFFFFF0) + b"\x00" * 64  # enhanced packet block, 4 GiB
+    result = parse_bytes(tmp_path, "pcap", head + huge, "capture.pcapng")
+    assert result["assumptions"]["incomplete"] == "capture_truncated"
+    assert result["error_samples"][0]["detail"] == "RecordTooLargeError"
+
+
+def test_pe_header_library_errors_are_input_errors(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import pefile
+
+    for exc in (struct.error("x"), ValueError("x"), IndexError("x"), AttributeError("x")):
+
+        def boom(*args: Any, exc: Exception = exc, **kwargs: Any) -> Any:
+            raise exc
+
+        monkeypatch.setattr(pefile, "PE", boom)
+        with pytest.raises(ParserInputError, match=type(exc).__name__):
+            run("pe_static", context(BIN / "sample.exe"))
+
+
+def test_lnk_library_failure_is_one_counted_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    import LnkParse3
+
+    def boom(*args: Any, **kwargs: Any) -> Any:
+        raise KeyError("broken extra block")
+
+    monkeypatch.setattr(LnkParse3, "lnk_file", boom)
+    result = run("lnk", context(BIN / "evil.lnk"))
+    assert result["counts"]["errors"] == 1 and result["counts"]["events_emitted"] == 2
+    assert result["error_samples"][0]["reason"] == "lnk_structure_unreadable"
+    assert "lnk_structure_unreadable" not in result["warnings"]
 
 
 @FUZZ
