@@ -64,6 +64,8 @@ create (snapshot) -> edit -> QA -> submit -> approve (another person) -> sign ->
 
 Closed cases are read-only: create, edit, QA, transitions and new versions all return 409.
 Reading, previewing, downloading and verifying still work. Sign reports before closing a case.
+The evidence export package also works on a closed case (like `GET /evidence/{id}/download`):
+handing evidence over after closure is a normal step, and it is recorded in custody.
 
 ### Manifest and signature
 
@@ -146,8 +148,14 @@ All evidence-derived text is treated as hostile in every output format.
 
 Size and time limits: the snapshot caps (`REPORT_MAX_KEY_EVENTS=500`, `REPORT_MAX_ALERTS=500`,
 `REPORT_MAX_IOCS=1000`, `REPORT_MAX_CONTEXT_MB=8`), 50 000 characters per section, 200 findings with
-up to 50 references each, and 20 000 characters per finding body. With these caps, rendering takes
-seconds and runs in the request.
+up to 50 references each, and 20 000 characters per finding body. Rendering runs in the request.
+A typical report renders in a few seconds. A report at every cap (500 alerts, 500 key events and
+1000 IOCs as PDF tables plus the maximum text) takes about a minute on a small host, so the PDF
+renderer has two more limits: at most 2000 pages, and `REPORT_RENDER_TIMEOUT_S` (default 120 s,
+checked on every new page; kept below the web proxy's 300 s read timeout). Exceeding either
+returns 413 `report_too_large` for sign and draft downloads (the report stays in its state), and
+verification reports `rerender_limit`. The check never changes the output, so a render that
+finishes is still byte-for-byte reproducible.
 
 ## AI-drafted sections (A4)
 
@@ -206,6 +214,12 @@ Migration `0011_reporting` extends `reports` with these columns: `title`, `famil
   - signed rows are frozen
 - CHECK `signed_sealed` requires a signed row to carry its hash, signature, manifest, key id and
   time.
+- Downgrading 0011 drops the review trail and the seal columns, so it returns every report to an
+  unreviewed, unsealed draft (status, approver, storage URI, hash and signature cleared). The
+  snapshot, sections and findings are kept. After a later upgrade, a report has to go through QA,
+  review and signing again. The downgrade leaves artifacts in the bucket alone, but signing again
+  writes the same `v{n}/` prefix and replaces them; the `report.sign` audit record keeps the old
+  hashes (write-once artifact keys are in the backlog).
 
 ## Deliberate deviations from the guide
 
