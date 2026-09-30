@@ -8,7 +8,7 @@ same way as a prompt. Events must be passed sorted by (host, ts, id).
 from __future__ import annotations
 
 import hashlib
-from collections.abc import Hashable, Iterable, Mapping, Sequence
+from collections.abc import Hashable, Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
@@ -39,8 +39,8 @@ class ChunkDraft:
         return hashlib.sha256(self.text.encode()).hexdigest()
 
 
-def build_chunks(events: Iterable[Mapping[str, Any]]) -> list[ChunkDraft]:
-    chunks: list[ChunkDraft] = []
+def iter_chunks(events: Iterable[Mapping[str, Any]]) -> Iterator[ChunkDraft]:
+    """Yield finished chunks while streaming the events (bounded memory)."""
     cur: ChunkDraft | None = None
     size = 0
     for ev in events:
@@ -54,14 +54,20 @@ def build_chunks(events: Iterable[Mapping[str, Any]]) -> list[ChunkDraft]:
             or len(cur.event_ids) >= MAX_EVENTS
             or size + len(line) > MAX_CHARS
         ):
+            if cur is not None:
+                yield cur
             cur = ChunkDraft(host=host, ts_start=ts, ts_end=ts)
-            chunks.append(cur)
             size = 0
         cur.event_ids.append(ev["id"])
         cur.lines.append(line)
         cur.ts_end = max(cur.ts_end, ts)
         size += len(line) + 1
-    return chunks
+    if cur is not None:
+        yield cur
+
+
+def build_chunks(events: Iterable[Mapping[str, Any]]) -> list[ChunkDraft]:
+    return list(iter_chunks(events))
 
 
 def rrf[K: Hashable](rankings: Sequence[Sequence[K]], k: int = 60) -> list[K]:

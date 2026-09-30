@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import uuid
 from collections.abc import Callable, Iterator
 from functools import lru_cache
@@ -13,6 +14,8 @@ from redis import Redis
 from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
+from app.ai.gateway import RateLimiter, RedisRateLimiter, build_provider
+from app.ai.llm import LLMProvider
 from app.config import Settings, get_settings
 from app.core.signing import CustodySigner, SigningKeyError, load_signer, load_trusted_keys
 from app.db.session import get_engine, get_sessionmaker
@@ -125,3 +128,42 @@ def get_bundle_dispatcher() -> Callable[[uuid.UUID], None]:
     from app.workers.dispatch import dispatch_bundle
 
     return dispatch_bundle
+
+
+# ------------------------------------------------------------------ AI (Phase 7)
+
+_AI_PROVIDERS: dict[tuple[object, ...], LLMProvider] = {}
+
+
+def _cached_provider(settings: Settings) -> LLMProvider:
+    """One provider (HTTP connection pool) per distinct configuration."""
+    key_hash = (
+        hashlib.sha256(settings.llm_api_key.get_secret_value().encode()).hexdigest()
+        if settings.llm_api_key
+        else None
+    )
+    key = (
+        settings.llm_provider,
+        settings.llm_base_url,
+        key_hash,
+        settings.llm_effort,
+        settings.llm_anthropic_fallbacks,
+    )
+    provider = _AI_PROVIDERS.get(key)
+    if provider is None:
+        provider = build_provider(settings)
+        _AI_PROVIDERS[key] = provider
+    return provider
+
+
+def get_ai_provider_factory() -> Callable[[Settings], LLMProvider]:
+    """Builds the chat provider on first use by an AI feature (tests override this)."""
+    return _cached_provider
+
+
+def get_ai_limiter() -> RateLimiter:
+    """Per-user/per-case AI rate limits shared through Redis (tests override this)."""
+    settings = get_settings()
+    return RedisRateLimiter(
+        get_redis(), settings.ai_rate_limit_per_minute, settings.ai_case_rate_limit_per_hour
+    )

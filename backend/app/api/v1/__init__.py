@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    ai,
     analysis,
     audit,
     auth,
@@ -32,6 +33,7 @@ for module in (
     detection,
     notes,
     analysis,
+    ai,
     audit,
 ):
     router.include_router(module.router)

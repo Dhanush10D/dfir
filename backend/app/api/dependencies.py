@@ -17,11 +17,15 @@ from fastapi import Depends, Request, Security
 from fastapi.security import APIKeyHeader, HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
+from app.ai.gateway import Gateway, GatewayConfig, RateLimiter, build_embedding_provider
+from app.ai.llm import LLMProvider
 from app.config import Settings
 from app.core.exceptions import ForbiddenError, UnauthenticatedError
 from app.core.permissions import Permission, Principal
 from app.core.signing import CustodySigner
 from app.deps import (
+    get_ai_limiter,
+    get_ai_provider_factory,
     get_app_settings,
     get_bundle_dispatcher,
     get_custody_signer,
@@ -32,6 +36,7 @@ from app.deps import (
     get_vault,
 )
 from app.repositories.vault import VaultStore
+from app.services.ai import AiService
 from app.services.alerts import AlertService
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import require_global
@@ -202,6 +207,27 @@ def get_summary_service(db: DbSession, settings: AppSettings) -> SummaryService:
     return SummaryService(db, settings)
 
 
+def get_ai_service(
+    db: DbSession,
+    settings: AppSettings,
+    provider_factory: Annotated[
+        Callable[[Settings], LLMProvider], Depends(get_ai_provider_factory)
+    ],
+    limiter: Annotated[RateLimiter, Depends(get_ai_limiter)],
+) -> AiService:
+    def gateway_factory() -> Gateway:
+        embedder = build_embedding_provider(settings)
+        return Gateway(
+            provider_factory(settings),
+            GatewayConfig.from_settings(settings),
+            limiter,
+            embedder=embedder,
+        )
+
+    return AiService(db, settings, gateway_factory=gateway_factory)
+
+
+AiSvc = Annotated[AiService, Depends(get_ai_service)]
 Search = Annotated[SearchService, Depends(get_search_service)]
 Notes = Annotated[NoteService, Depends(get_note_service)]
 Bookmarks = Annotated[BookmarkService, Depends(get_bookmark_service)]
