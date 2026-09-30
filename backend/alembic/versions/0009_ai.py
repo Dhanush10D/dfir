@@ -173,6 +173,9 @@ def downgrade() -> None:
         op.drop_column("event_chunks", col)
     op.execute("DROP TRIGGER IF EXISTS ai_interactions_guard ON ai_interactions")
     op.execute("DROP FUNCTION IF EXISTS ai_interactions_guard()")
+    # Downgrade-only fix (Phase 7 review): the reviewer columns are dropped below, so a review
+    # cannot be kept; clearing ``accepted`` lets a later upgrade add ``review_complete`` again.
+    op.execute("UPDATE ai_interactions SET accepted = NULL WHERE accepted IS NOT NULL")
     op.drop_index("ix_ai_interactions_user_id_created_at", table_name="ai_interactions")
     op.drop_index("ix_ai_interactions_case_id_created_at", table_name="ai_interactions")
     for ck in ("review_complete", "feedback", "status"):

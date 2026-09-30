@@ -295,6 +295,35 @@ def test_downgrade_and_reupgrade_roundtrip(admin_engine: Engine) -> None:
         command.upgrade(cfg, "head")
         command.downgrade(cfg, "base")
         command.upgrade(cfg, "head")
+        # A reviewed AI interaction survives a 0008 round trip (0009 downgrade clears the review).
+        from sqlalchemy import create_engine
+
+        engine = create_engine(db_url)
+        try:
+            with engine.begin() as conn:
+                uid = conn.execute(
+                    text(
+                        "INSERT INTO users (email, display_name) "
+                        "VALUES ('r@x.test', 'r') RETURNING id"
+                    )
+                ).scalar_one()
+                iid = conn.execute(
+                    text(
+                        "INSERT INTO ai_interactions (feature, provider, model, prompt_version, "
+                        "input_refs, output) VALUES ('nlq', 'p', 'm', 'v', '{}', '{}') RETURNING id"
+                    )
+                ).scalar_one()
+                conn.execute(
+                    text(
+                        "UPDATE ai_interactions SET accepted = true, reviewed_by = :u, "
+                        "reviewed_at = now() WHERE id = :i"
+                    ),
+                    {"u": uid, "i": iid},
+                )
+        finally:
+            engine.dispose()
+        command.downgrade(cfg, "0008")
+        command.upgrade(cfg, "head")
     finally:
         drop_temp_database(admin_engine, db_url)
 
