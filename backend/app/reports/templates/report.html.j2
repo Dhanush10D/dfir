@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<meta name="referrer" content="no-referrer">
+<title>{{ case.case_number }} - {{ kind_title }} v{{ meta.version }}</title>
+<style>
+@page { size: A4; margin: 18mm; }
+body { font-family: Helvetica, Arial, sans-serif; font-size: 10.5pt; color: #111; margin: 0 auto; max-width: 60em; padding: 1.5em; }
+h1 { font-size: 18pt; margin-bottom: 0.2em; }
+h2 { font-size: 13pt; border-bottom: 1px solid #999; padding-bottom: 2px; margin-top: 1.6em; }
+h3 { font-size: 11pt; margin-bottom: 0.3em; }
+table { border-collapse: collapse; width: 100%; margin: 0.5em 0; }
+th, td { border: 1px solid #bbb; padding: 3px 5px; font-size: 8.5pt; text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+th { background: #eee; }
+code, .mono { font-family: "Courier New", monospace; font-size: 8.5pt; overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #f5f5f5; padding: 6px; }
+.cover { border: 1px solid #999; padding: 1em; margin-bottom: 1em; }
+.status { font-weight: bold; text-transform: uppercase; }
+.draft { color: #a00; }
+.badge-ai { background: #fde7c2; border: 1px solid #c9a15b; padding: 1px 6px; border-radius: 4px; font-size: 8pt; display: inline-block; margin: 2px 0; }
+.muted { color: #555; font-size: 9pt; }
+.warn { color: #8a4b00; }
+.bad { color: #a00; font-weight: bold; }
+</style>
+</head>
+<body>
+<div class="cover">
+<p class="muted">{{ org }} &middot; {{ (case.classification or "unclassified")|upper }}</p>
+<h1>{{ meta.title or case.title }}</h1>
+<p>{{ kind_title }} &middot; Case {{ case.case_number }}: {{ case.title }}</p>
+<table>
+<tr><th>Report</th><td class="mono">{{ meta.report_id }} (family {{ meta.family_id }}), version {{ meta.version }}</td></tr>
+<tr><th>Status</th><td><span class="status{% if meta.status != 'signed' %} draft{% endif %}">{{ meta.status_label }}</span></td></tr>
+<tr><th>Author</th><td>{{ meta.author }}</td></tr>
+<tr><th>Data snapshot</th><td>{{ generated_at }} by {{ generated_by }}</td></tr>
+<tr><th>Approved</th><td>{% if meta.approved_by %}{{ meta.approved_by }} at {{ meta.approved_at }}{% else %}not approved{% endif %}</td></tr>
+<tr><th>Signed</th><td>{% if meta.signed_by %}{{ meta.signed_by }} at {{ meta.signed_at }} (key {{ meta.key_id }}){% else %}not signed{% endif %}</td></tr>
+<tr><th>Case</th><td>severity {{ case.severity }}, status {{ case.status }}, opened {{ case.opened_at }}{% if case.closed_at %}, closed {{ case.closed_at }}{% endif %}</td></tr>
+</table>
+</div>
+{% for part in parts %}
+<h2 id="part-{{ part.number }}">{{ part.number }}. {{ part.title }}</h2>
+{% if part.type == "section" %}
+{% if part.ai_label %}<p class="badge-ai">{{ part.ai_label }}</p>{% endif %}
+{% if part.text %}{{ part.text|md }}{% else %}<p class="muted">(empty)</p>{% endif %}
+{% elif part.name == "runs" %}
+{% if runs %}
+<table><tr><th>Evidence</th><th>Kind</th><th>Parser / version</th><th>Outcome</th><th>Records read / events</th><th>Finished</th><th>Tools</th></tr>
+{% for r in runs %}<tr><td>{{ r.evidence_label }}</td><td>{{ r.kind }}</td><td>{{ r.parser }} {{ r.parser_version }}</td><td>{{ r.outcome }}</td><td>{{ r.records_read }} / {{ r.events_emitted }}</td><td>{{ r.finished_at }}</td><td class="mono">{{ r.tools }}</td></tr>
+{% endfor %}</table>
+{% else %}<p class="muted">No processing runs.</p>{% endif %}
+{% if truncated.runs %}<p class="warn">Only the most recent runs are listed ({{ counts.runs }} in total).</p>{% endif %}
+{% elif part.name == "evidence" %}
+{% if evidence %}
+<table><tr><th>ID</th><th>Name / kind</th><th>Source</th><th>Hashes</th><th>Size (bytes)</th><th>Acquired</th><th>Custody</th></tr>
+{% for e in evidence %}<tr><td>{{ e.label }}</td><td>{{ e.original_name }}<br><span class="muted">{{ e.kind }}{% if e.parent_label %}, derived from {{ e.parent_label }}{% endif %}</span></td><td>{{ e.source_host }}</td><td class="mono">SHA-256 {{ e.sha256 or "missing" }}<br>MD5 {{ e.md5 or "-" }}</td><td>{{ e.size_bytes }}</td><td>{{ e.acquired_at or "-" }}{% if e.acquired_by %} by {{ e.acquired_by }}{% endif %}{% if e.acquisition_tool %}<br><span class="muted">{{ e.acquisition_tool }}</span>{% endif %}</td><td>{% if e.custody_ok %}verified ({{ e.custody_entries }} entries){% else %}<span class="bad">NOT VERIFIED</span>{% endif %}<br><span class="muted">status {{ e.status }}</span></td></tr>
+{% endfor %}</table>
+{% else %}<p class="muted">No evidence.</p>{% endif %}
+{% elif part.name == "key_events" %}
+{% if key_events %}
+<table><tr><th>Time (UTC)</th><th>Host / user</th><th>Source</th><th>Event</th><th>Evidence</th></tr>
+{% for ev in key_events %}<tr><td class="mono">{{ ev.ts }}{% if ev.ts_original %}<br><span class="muted">orig. {{ ev.ts_original }}</span>{% endif %}</td><td>{{ ev.host }}{% if ev.user %}<br>{{ ev.user }}{% endif %}</td><td>{{ ev.source_type }} {{ ev.event_code }}</td><td>{{ ev.summary }}<br><span class="muted mono">event {{ ev.id }} &middot; {{ ev.reasons|join(", ") }}</span></td><td>{{ ev.evidence_label }}</td></tr>
+{% endfor %}</table>
+{% else %}<p class="muted">No bookmarked or alert-linked events.</p>{% endif %}
+{% if truncated.key_events %}<p class="warn">Only the first {{ key_events|length }} key events are included ({{ counts.key_events }} in total).</p>{% endif %}
+{% elif part.name == "findings" %}
+{% for f in findings %}
+<h3>{{ part.number }}.{{ f.number }} {{ f.title }}</h3>
+{% if f.ai_label %}<p class="badge-ai">{{ f.ai_label }}</p>{% endif %}
+{{ f.body|md }}
+<p class="muted">Confidence: {{ f.confidence }} &middot; Source of statement: {{ f.source }}{% if f.attack %} &middot; ATT&amp;CK: {{ f.attack|join(", ") }}{% endif %}</p>
+<table><tr><th>Evidence reference</th><th>Time (UTC)</th><th>Summary</th></tr>
+{% for r in f.refs %}<tr><td>{{ r.type }} {{ r.label }}<br><span class="mono muted">{{ r.id }}</span></td><td class="mono">{{ r.ts or "-" }}</td><td>{{ r.summary }}</td></tr>
+{% endfor %}</table>
+{% else %}<p class="muted">No findings.</p>{% endfor %}
+{% elif part.name == "iocs" %}
+{% if iocs %}
+<table><tr><th>Type</th><th>Value</th><th>TLP</th><th>Confidence</th><th>Source</th><th>First seen</th></tr>
+{% for i in iocs %}<tr><td>{{ i.type }}</td><td class="mono">{{ i.value }}</td><td>{{ i.tlp }}</td><td>{{ i.confidence }}</td><td>{{ i.source }}</td><td>{{ i.first_seen or "-" }}</td></tr>
+{% endfor %}</table>
+{% else %}<p class="muted">No active indicators.</p>{% endif %}
+{% if truncated.iocs %}<p class="warn">Only the first {{ iocs|length }} indicators are included.</p>{% endif %}
+{% elif part.name == "attack" %}
+{% if attack %}
+<table><tr><th>Technique</th><th>Alerts</th><th>Events</th></tr>
+{% for a in attack %}<tr><td>{{ a.technique }}</td><td>{{ a.alerts }}</td><td>{{ a.events }}</td></tr>
+{% endfor %}</table>
+{% else %}<p class="muted">No ATT&amp;CK techniques observed.</p>{% endif %}
+{% elif part.name == "custody" %}
+<table><tr><th>Evidence</th><th>Entries</th><th>Verification</th><th>Head hash</th></tr>
+{% for c in custody %}<tr><td>{{ c.label }}</td><td>{{ c.entries_total }}</td><td>{% if c.ok %}chain and signatures verified{% else %}<span class="bad">FAILED</span>: {% for p in c.problems %}{{ p.code }} at seq {{ p.seq }}{% if not loop.last %}; {% endif %}{% endfor %}{% endif %}</td><td class="mono">{{ c.head_hash }}</td></tr>
+{% endfor %}</table>
+{% elif part.name == "custody_full" %}
+{% for c in custody %}
+<h3>{{ c.label }}: {% if c.ok %}verified{% else %}<span class="bad">verification FAILED</span>{% endif %}</h3>
+{% if not c.ok %}<ul>{% for p in c.problems %}<li>seq {{ p.seq }}: {{ p.code }} - {{ p.message }}</li>{% endfor %}</ul>{% endif %}
+<table><tr><th>Seq</th><th>Time (UTC)</th><th>Actor</th><th>Action</th><th>Detail</th><th>Entry hash / key</th></tr>
+{% for e in c.entries %}<tr><td>{{ e.seq }}</td><td class="mono">{{ e.ts }}</td><td>{{ e.actor }}</td><td>{{ e.action }}</td><td class="mono">{{ e.detail }}</td><td class="mono">{{ e.entry_hash }}<br>{{ e.key_id }}</td></tr>
+{% endfor %}</table>
+{% if c.entries_truncated %}<p class="warn">Only the first {{ c.entries|length }} of {{ c.entries_total }} entries are listed.</p>{% endif %}
+{% else %}<p class="muted">No evidence.</p>{% endfor %}
+{% elif part.name == "alerts" %}
+{% if alerts %}
+<table><tr><th>Severity</th><th>Title</th><th>Rule</th><th>Status</th><th>Host / user</th><th>First / last seen</th><th>Events</th><th>ATT&amp;CK</th></tr>
+{% for a in alerts %}<tr><td>{{ a.severity }}</td><td>{{ a.title }}</td><td>{{ a.rule_id }}</td><td>{{ a.status }}</td><td>{{ a.host }}{% if a.user %}<br>{{ a.user }}{% endif %}</td><td class="mono">{{ a.first_seen }}<br>{{ a.last_seen }}</td><td>{{ a.event_count }}</td><td>{{ a.attack|join(", ") }}</td></tr>
+{% endfor %}</table>
+{% else %}<p class="muted">No alerts.</p>{% endif %}
+{% if truncated.alerts %}<p class="warn">Only the first {{ alerts|length }} alerts are included ({{ counts.alerts }} in total).</p>{% endif %}
+{% elif part.name == "overview" %}
+<table>
+<tr><th>Evidence items</th><td>{{ counts.evidence }}</td></tr>
+<tr><th>Events in the timeline</th><td>{{ counts.events }}</td></tr>
+<tr><th>Alerts</th><td>{{ counts.alerts }}{% for sev, n in counts.alerts_by_severity|dictsort %} &middot; {{ sev }} {{ n }}{% endfor %}</td></tr>
+<tr><th>Active indicators</th><td>{{ counts.iocs }}</td></tr>
+<tr><th>Custody chains verified</th><td>{{ counts.custody_ok }} of {{ counts.evidence }}</td></tr>
+</table>
+{% elif part.name == "provenance" %}
+<p>This report was rendered from an immutable data snapshot. Re-rendering the snapshot gives the same bytes; the signed manifest lists the SHA-256 of every artifact.</p>
+<table>
+<tr><th>Snapshot SHA-256</th><td class="mono">{{ context_sha256 }}</td></tr>
+<tr><th>Content SHA-256</th><td class="mono">{{ content_sha256 }}</td></tr>
+{% for name, h in input_hashes|dictsort %}<tr><th>Included {{ name }} SHA-256</th><td class="mono">{{ h }}</td></tr>
+{% endfor %}
+</table>
+{% if ai_used %}
+<h3>AI assistance</h3>
+<p>Parts of this report were drafted by an AI model and accepted by a named person before they were included. They are labelled where they appear.</p>
+<table><tr><th>Where</th><th>Approved by</th><th>Model / prompt</th><th>Interaction</th><th>Output SHA-256</th></tr>
+{% for a in ai_used %}<tr><td>{{ a.where }}</td><td>{{ a.reviewed_by_label }} at {{ a.reviewed_at }}</td><td>{{ a.model }} / {{ a.prompt_version }}</td><td class="mono">{{ a.interaction_id }}</td><td class="mono">{{ a.output_sha256 }}</td></tr>
+{% endfor %}</table>
+{% else %}<p class="muted">No AI-drafted text is included in this report.</p>{% endif %}
+{% endif %}
+{% endfor %}
+<p class="muted">{{ case.case_number }} &middot; {{ kind_title }} v{{ meta.version }} &middot; {{ meta.status_label }}</p>
+</body>
+</html>

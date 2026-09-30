@@ -98,7 +98,10 @@ warn_unused_ignores = true
 exclude = ["alembic/", "tests/"]
 
 [[tool.mypy.overrides]]
-module = ["pgvector.*", "Evtx.*", "re2", "pefile", "yara", "dpkt.*", "dpkt", "LnkParse3.*"]
+module = [
+  "pgvector.*", "Evtx.*", "re2", "pefile", "yara", "dpkt.*", "dpkt", "LnkParse3.*",
+  "reportlab", "reportlab.*",
+]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

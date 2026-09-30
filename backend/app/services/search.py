@@ -28,6 +28,7 @@ from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from app.config import Settings
+from app.core.csvsafe import csv_cell
 from app.core.exceptions import AppError, NotFoundError
 from app.core.permissions import Permission, Principal
 from app.db.models import Event
@@ -74,9 +75,6 @@ EXPORT_COLUMNS = (
     "registry_key", "message", "attack_tags", "tags", "evidence_id", "parser_name",
     "parser_version",
 )  # fmt: skip
-# Full-width forms too: some spreadsheets treat them as formula starts.
-FULLWIDTH_FORMULA_PREFIXES = tuple(chr(c) for c in (0xFF1D, 0xFF0B, 0xFF0D, 0xFF20))
-FORMULA_PREFIXES = ("=", "+", "-", "@", "\t", "\r", "\n", *FULLWIDTH_FORMULA_PREFIXES)
 MAX_CONTEXT_MINUTES = 1440
 
 
@@ -116,21 +114,6 @@ class ExportResult:
 
 def _iso(value: datetime | None) -> str | None:
     return value.astimezone(UTC).isoformat().replace("+00:00", "Z") if value else None
-
-
-def csv_cell(value: Any) -> str:
-    """Text for a CSV cell; neutralises spreadsheet formulas (CSV injection)."""
-    if value is None:
-        return ""
-    if isinstance(value, list):
-        text = ";".join(str(v) for v in value)
-    elif isinstance(value, datetime):
-        text = _iso(value) or ""
-    else:
-        text = str(value)
-    if text.startswith(FORMULA_PREFIXES) or text.lstrip().startswith(FORMULA_PREFIXES):
-        text = "'" + text
-    return text
 
 
 def pick_interval(span_s: float, buckets: int) -> int:
