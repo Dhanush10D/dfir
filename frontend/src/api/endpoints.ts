@@ -1,5 +1,10 @@
 import { apiFetch, apiGet, apiPost, apiRequest, ApiError } from './client'
 import type {
+  AiIndex,
+  AiInteraction,
+  AiInteractionDetail,
+  AiResult,
+  AiStatus,
   Alert,
   AlertDetail,
   AlertEvent,
@@ -161,4 +166,33 @@ export const api = {
       `/cases/${enc(caseId)}/process-tree?${new URLSearchParams({ host }).toString()}`,
       { signal },
     ),
+
+  aiStatus: (signal?: AbortSignal) => apiGet<AiStatus>('/ai/status', { signal }),
+  aiNlq: (caseId: string, question: string) =>
+    apiPost<AiResult>('/ai/nlq', { case_id: caseId, question }),
+  aiExplainAlert: (alertId: string) => apiPost<AiResult>(`/ai/alerts/${enc(alertId)}/explain`),
+  aiNarrative: (caseId: string, body: Record<string, string>) =>
+    apiPost<AiResult>(`/ai/cases/${enc(caseId)}/narrative`, body),
+  aiChat: (caseId: string, question: string) =>
+    apiPost<AiResult>(`/ai/cases/${enc(caseId)}/chat`, { question }),
+  aiScript: (caseId: string, text: string) =>
+    apiPost<AiResult>('/ai/script/explain', { case_id: caseId, text }),
+  aiIndex: (caseId: string, signal?: AbortSignal) =>
+    apiGet<AiIndex>(`/ai/cases/${enc(caseId)}/index`, { signal }),
+  aiSetCase: (caseId: string, aiEnabled: boolean) =>
+    apiRequest<{ ai_enabled: boolean }>('PUT', `/ai/cases/${enc(caseId)}/settings`, {
+      body: { ai_enabled: aiEnabled },
+    }),
+  aiInteractions: (caseId: string, signal?: AbortSignal) =>
+    apiGet<Page<AiInteraction>>(`/ai/interactions?case_id=${enc(caseId)}&limit=50`, { signal }),
+  aiInteraction: (id: string, signal?: AbortSignal) =>
+    apiGet<AiInteractionDetail>(`/ai/interactions/${enc(id)}`, { signal }),
+  aiReview: (id: string, decision: 'accept' | 'reject', acknowledge: boolean, note: string) =>
+    apiPost<AiInteractionDetail>(`/ai/interactions/${enc(id)}/review`, {
+      decision,
+      acknowledge_warnings: acknowledge,
+      note: note || null,
+    }),
+  aiFeedback: (id: string, value: -1 | 0 | 1) =>
+    apiPost<AiInteraction>(`/ai/interactions/${enc(id)}/feedback`, { value }),
 }

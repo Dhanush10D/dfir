@@ -6,6 +6,7 @@ import { caseHref } from '@/app/router'
 import { Link } from '@/app/Link'
 import { useAuth } from '@/auth/AuthContext'
 import { ErrorMessage, Loading, SeverityChip } from '@/components/ui'
+import { AiTab } from '@/features/ai/AiTab'
 import { AlertsTab } from '@/features/alerts/AlertsTab'
 import { AttackMatrix } from '@/features/attack/AttackMatrix'
 import { EntitiesTab } from '@/features/entities/EntitiesTab'
@@ -26,6 +27,7 @@ const TABS: { id: string; label: string; component: ComponentType }[] = [
   { id: 'entities', label: 'Entities & graph', component: EntitiesTab },
   { id: 'process', label: 'Process tree', component: ProcessTreeTab },
   { id: 'notes', label: 'Notes & bookmarks', component: NotesTab },
+  { id: 'ai', label: 'AI analyst', component: AiTab },
 ]
 
 export function CaseWorkspace({ id, tab }: { id: string; tab: string }) {

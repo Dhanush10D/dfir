@@ -47,6 +47,7 @@ class CaseOut(BaseModel):
     created_by: uuid.UUID | None
     opened_at: datetime
     closed_at: datetime | None
+    ai_enabled: bool = True  # Phase 7: AI features switched on for this case
 
 
 class CaseDetail(CaseOut):

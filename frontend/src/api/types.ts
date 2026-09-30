@@ -58,6 +58,7 @@ export interface Case {
   classification: string | null
   opened_at: string
   closed_at: string | null
+  ai_enabled?: boolean
 }
 
 export interface CaseDetail extends Case {
@@ -340,4 +341,94 @@ export interface Job {
   progress: number
   error: string | null
   queued_at: string
+}
+
+// ---------------------------------------------------------------- AI (Phase 7)
+
+export type AiFeature = 'nlq' | 'alert_explain' | 'narrative' | 'chat' | 'script_explain'
+
+export interface AiStatus {
+  enabled: boolean
+  provider: string
+  local_only: boolean
+  configured: boolean
+  models: Record<string, string>
+  embedding_model: string
+  redaction_policy: string
+  prompt_versions: Record<string, string>
+}
+
+export interface AiCitation {
+  short_id: string
+  kind: string
+  id: string | null
+  ts: string | null
+  summary: string
+}
+
+export interface AiWarning {
+  type: string
+  record?: string
+  flags?: string[]
+  items?: { path: string; tokens: string[] }[]
+  problems?: string[]
+  limit?: number
+}
+
+export interface AiInteraction {
+  id: string
+  case_id: string | null
+  user_id: string | null
+  feature: AiFeature
+  status: 'valid' | 'invalid' | 'refused' | 'error'
+  provider: string
+  model: string
+  model_served: string | null
+  prompt_version: string
+  prompt_sha256: string | null
+  input_sha256: string | null
+  output_sha256: string | null
+  started_at: string | null
+  created_at: string
+  latency_ms: number | null
+  input_tokens: number | null
+  output_tokens: number | null
+  cost_usd: string | null
+  citations_valid: boolean | null
+  warnings: AiWarning[]
+  error: string | null
+  accepted: boolean | null
+  reviewed_by: string | null
+  reviewed_at: string | null
+  review_note: string | null
+  feedback: number | null
+}
+
+export interface AiInteractionDetail extends AiInteraction {
+  output: Record<string, unknown>
+  citations: AiCitation[]
+  input_refs: Record<string, unknown>
+  prompt_text: string | null
+  redaction_policy: string | null
+  redaction_counts: Record<string, number>
+}
+
+export interface AiResult {
+  interaction: AiInteraction
+  output: Record<string, unknown>
+  citations: Record<string, AiCitation>
+  problems: string[]
+  extras: Record<string, unknown>
+}
+
+export interface AiIndex {
+  case_id: string
+  built_at: string | null
+  event_count: number
+  chunk_count: number
+  embedding_model: string | null
+  truncated: boolean
+  stale: boolean
+  current_event_count: number
+  rebuilt: boolean
 }

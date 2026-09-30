@@ -4,6 +4,7 @@ import { useState, type FormEvent } from 'react'
 import { api } from '@/api/endpoints'
 import type { Alert, EventRow } from '@/api/types'
 import { Button, ErrorMessage, inputClass, Loading, Panel, SeverityChip } from '@/components/ui'
+import { AlertAiPanel } from '@/features/ai/AlertAiPanel'
 import { useCase } from '@/features/cases/CaseContext'
 import { EventDrawer } from '@/features/explorer/EventDrawer'
 import { EventTable } from '@/features/explorer/EventTable'
@@ -90,6 +91,7 @@ function AlertDetailPane({ alertId }: { alertId: string }) {
         {a.status_reason && <p className="text-sm">Reason: {a.status_reason}</p>}
       </div>
       {can('alert:update') && <StatusControl key={a.status} alert={a} />}
+      {can('ai:use') && <AlertAiPanel key={a.id} alertId={a.id} />}
       <section aria-label="Alert history">
         <h4 className="text-sm font-medium">History</h4>
         <ul className="text-xs">
