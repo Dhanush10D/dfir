@@ -190,6 +190,8 @@ class Settings(BaseSettings):
     embedding_provider: EmbeddingProvider = "hashing"
     embedding_model: str = Field(default="hashing-v1", min_length=1, max_length=128)
     embedding_dim: int = Field(default=384, ge=1)
+    embedding_base_url: str | None = None  # ollama / openai_compat embeddings endpoint
+    embedding_api_key: SecretStr | None = None
     ai_index_max_events: int = Field(default=200_000, ge=1)
     ai_chat_top_k: int = Field(default=8, ge=1, le=50)
     ai_chat_max_events: int = Field(default=120, ge=1, le=1000)

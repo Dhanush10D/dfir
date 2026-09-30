@@ -61,6 +61,7 @@ FIELDS: dict[str, FieldKind] = {
     "ts": "ts",
     "attack_tags": "array",
     "tags": "array",
+    "id": "uuid",
     "evidence_id": "uuid",
     "job_id": "uuid",
 }
