@@ -128,6 +128,19 @@ def verify_package(data: bytes, trusted_keys: Mapping[str, Ed25519PublicKey]) ->
         custody = json.loads(members["custody.json"])
     except (PackageError, ValueError) as exc:
         return {"ok": False, "problems": [{"code": "malformed", "message": str(exc)}]}
+    for member, value in (
+        ("manifest.sig", sig),
+        ("manifest.json", manifest),
+        ("custody.json", custody),
+    ):
+        if not isinstance(value, dict):
+            return {
+                "ok": False,
+                "problems": [{"code": "malformed", "message": f"{member} is not a JSON object"}],
+            }
+    evidence = manifest.get("evidence")
+    if not isinstance(evidence, dict):
+        evidence = {}
     m_sha = sha256_hex(members["manifest.json"])
     c_sha = sha256_hex(members["custody.json"])
     if sig.get("manifest_sha256") != m_sha:
@@ -145,7 +158,7 @@ def verify_package(data: bytes, trusted_keys: Mapping[str, Ed25519PublicKey]) ->
         report = verify_chain(
             _chain_entries(custody),
             trusted_keys,
-            evidence_id=str(manifest.get("evidence", {}).get("id") or "") or None,
+            evidence_id=str(evidence.get("id") or "") or None,
         )
         chain_ok = report.ok
         if not report.ok:
@@ -155,7 +168,7 @@ def verify_package(data: bytes, trusted_keys: Mapping[str, Ed25519PublicKey]) ->
                     "message": f"custody chain problems at seq {report.broken_seqs[:10]}",
                 }
             )
-    except (KeyError, TypeError, ValueError) as exc:
+    except (KeyError, TypeError, ValueError, AttributeError) as exc:
         chain_ok = False
         problems.append({"code": "custody_malformed", "message": type(exc).__name__})
     return {
@@ -164,6 +177,6 @@ def verify_package(data: bytes, trusted_keys: Mapping[str, Ed25519PublicKey]) ->
         "manifest_sha256": m_sha,
         "custody_sha256": c_sha,
         "custody_chain_ok": chain_ok,
-        "evidence_sha256": (manifest.get("evidence") or {}).get("sha256"),
+        "evidence_sha256": evidence.get("sha256"),
         "problems": problems,
     }

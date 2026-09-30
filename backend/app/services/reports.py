@@ -23,6 +23,7 @@ import uuid
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from time import monotonic
 from typing import Any
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -794,6 +795,9 @@ class ReportService:
             manifest.get("case_id"), manifest.get("family_id"), int(manifest.get("version") or 0)
         )
         results = []
+        # One render budget for the whole call (not one per artifact), shared by the re-renders.
+        budget = float(self.settings.report_render_timeout_s)
+        deadline = monotonic() + budget
         for entry in manifest.get("artifacts") or []:
             name = str(entry.get("name"))
             item: dict[str, Any] = {"name": name, "expected_sha256": entry.get("sha256")}
@@ -810,13 +814,16 @@ class ReportService:
             if not item["stored_ok"]:
                 problems.append({"code": "artifact_mismatch", "message": f"{name} changed"})
             try:
+                remaining = deadline - monotonic()
+                if remaining <= 0:
+                    raise RenderLimitError(f"the verification used its {budget:g} s render budget")
                 rendered = render_one(
                     name,
                     manifest.get("render_meta") or {},
                     report.context,
                     report.sections,
                     report.findings,
-                    time_budget_s=self.settings.report_render_timeout_s,
+                    time_budget_s=remaining,
                 )
             except RenderLimitError as exc:
                 item["rerender_ok"] = False

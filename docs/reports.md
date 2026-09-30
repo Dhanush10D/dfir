@@ -117,7 +117,10 @@ python -m app.reports.verify report ./out/seal.json --public-key custody.pub.pem
 
 `trusted.json` has the format of `CUSTODY_TRUSTED_KEYS_PATH` (`{"key_id": "PEM"}`). The public key
 PEM inside `seal.json` is only there for convenience and is never trusted by itself. The command
-exits with 0 when the report verifies, 1 when it does not, and 2 on a usage error.
+exits with 0 when the report verifies, 1 when it does not, and 2 on a usage error. Every artifact
+listed in the manifest must be in the directory (`artifact_missing` otherwise); `--partial` checks
+only the files present. The output lists `artifacts_checked` and `artifacts_total`. A seal or
+package whose JSON is not the expected object fails as `malformed`.
 
 ## Output safety
 
@@ -153,8 +156,9 @@ A typical report renders in a few seconds. A report at every cap (500 alerts, 50
 1000 IOCs as PDF tables plus the maximum text) takes about a minute on a small host, so the PDF
 renderer has two more limits: at most 2000 pages, and `REPORT_RENDER_TIMEOUT_S` (default 120 s,
 checked on every new page; kept below the web proxy's 300 s read timeout). Exceeding either
-returns 413 `report_too_large` for sign and draft downloads (the report stays in its state), and
-verification reports `rerender_limit`. The check never changes the output, so a render that
+returns 413 `report_too_large` for sign and draft downloads (the report stays in its state).
+`GET /reports/{id}/verify` shares one budget across all its re-renders and reports
+`rerender_limit` for the artifacts it could not re-render in time. The check never changes the output, so a render that
 finishes is still byte-for-byte reproducible.
 
 ## AI-drafted sections (A4)
@@ -210,8 +214,12 @@ Migration `0011_reporting` extends `reports` with these columns: `title`, `famil
   - identity and snapshot columns are immutable
   - sections, findings and title change only in draft
   - only the lifecycle transitions shown above are allowed
-  - the approver differs from the submitter
+  - the approver differs from the recorded submitter; the submitter columns change only on submit
+    or return, the approver columns only on approve or return, and the signer and seal columns
+    only on sign, which needs a four-eyes approval and a named signer
   - signed rows are frozen
+- CHECKs `submitted` (a non-draft report names its submitter) and `four_eyes` (an approved or
+  signed report names an approver other than the submitter) hold even with triggers bypassed.
 - CHECK `signed_sealed` requires a signed row to carry its hash, signature, manifest, key id and
   time.
 - Downgrading 0011 drops the review trail and the seal columns, so it returns every report to an

@@ -327,10 +327,15 @@ def test_full_lifecycle_technical(world: World, db_engine: Engine, signer: Custo
 
     # the seal verifies offline with the signer's public key only
     seal = h.get(f"/reports/{rid}/download", world.viewer, params={"format": "seal"}).json()
-    offline = verify_report_seal(seal, Path("."), {signer.key_id: signer.public_key})
-    assert offline["ok"] is True, offline
+    keys = {signer.key_id: signer.public_key}
+    offline = verify_report_seal(seal, Path("."), keys, partial=True)
+    assert offline["ok"] is True and offline["artifacts_checked"] == 0, offline
+    missing = verify_report_seal(seal, Path("."), keys)  # no artifact files: not verified
+    assert missing["ok"] is False and "artifact_missing" in {p["code"] for p in missing["problems"]}
     other = CustodySigner(signer.key_id, Ed25519PrivateKey.generate())
-    assert not verify_report_seal(seal, Path("."), {signer.key_id: other.public_key})["ok"]
+    assert not verify_report_seal(seal, Path("."), {signer.key_id: other.public_key}, partial=True)[
+        "ok"
+    ]
 
     # tamper an artifact in storage: verify fails, the download refuses to serve it
     key = next(k for k in h.artifacts.objects if k.endswith("/report.pdf"))
@@ -424,7 +429,29 @@ def test_render_limit_is_a_clean_413(world: World, monkeypatch: pytest.MonkeyPat
     assert r.status_code == 413
     body = h.get(f"/reports/{signed['id']}/verify", world.lead).json()
     assert body["ok"] is False and {p["code"] for p in body["problems"]} == {"rerender_limit"}
-    assert budgets and all(b == 120 for b in budgets)  # REPORT_RENDER_TIMEOUT_S default
+    # REPORT_RENDER_TIMEOUT_S default: sign and download get it all, verify what is left of it
+    assert budgets[:2] == [120, 120] and all(0 < b <= 120 for b in budgets)  # type: ignore[operator]
+
+
+def test_verify_shares_one_render_budget(world: World, monkeypatch: pytest.MonkeyPatch) -> None:
+    signed = world.signed("technical")
+    clock = iter(range(0, 10_000, 50))  # every monotonic() call advances 50 s
+    monkeypatch.setattr(report_service, "monotonic", lambda: float(next(clock)))
+    budgets: list[float | None] = []
+    real = report_service.render_one
+
+    def spy(*args: Any, time_budget_s: float | None = None, **kw: Any) -> Any:
+        budgets.append(time_budget_s)
+        return real(*args, time_budget_s=None, **kw)
+
+    monkeypatch.setattr(report_service, "render_one", spy)
+    body = world.h.get(f"/reports/{signed['id']}/verify", world.lead).json()
+    # deadline = 0 + 120; the first re-render gets 70 s, the second 20 s, then the budget is gone
+    assert budgets == [70.0, 20.0]
+    items = {a["name"]: a["rerender_ok"] for a in body["artifacts"]}
+    assert list(items.values()) == [True, True, False, False, False, False]
+    codes = [p["code"] for p in body["problems"]]
+    assert body["ok"] is False and codes == ["rerender_limit"] * 4
 
 
 def test_new_version_takes_a_fresh_snapshot(world: World, db_engine: Engine) -> None:

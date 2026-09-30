@@ -204,3 +204,9 @@ bash scripts/verify-phase8.sh
   review trail and seal columns (a signed row would otherwise fail `signed_sealed` on re-upgrade,
   and an in-review row would lose its submitter for the four-eyes check). The round-trip test
   includes a signed report.
+* Review fixes: `reports_guard` freezes the submitter, approver and signer/seal columns outside
+  their own transitions (approve compares with the recorded submitter; sign needs a four-eyes
+  approval and a signer), plus CHECKs `submitted` and `four_eyes`. The offline report verifier
+  fails when an artifact file is missing (`--partial` to check only the files present). Package
+  and seal JSON that is not an object is `malformed`. `/verify` uses one render budget for all of
+  its re-renders.

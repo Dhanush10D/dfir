@@ -169,6 +169,17 @@ def test_malformed_packages(signer: CustodySigner) -> None:
     with zipfile.ZipFile(out, "w") as zf:
         zf.writestr("../../evil", b"x")
     assert not verify_package(out.getvalue(), keys)["ok"]
+    # valid JSON that is not an object, in each member
+    good = package(signer)
+    for member in ("manifest.json", "manifest.sig", "custody.json"):
+        for value in (b"[]", b"42", b'"text"', b"null"):
+            buf = io.BytesIO()
+            with zipfile.ZipFile(io.BytesIO(good)) as src, zipfile.ZipFile(buf, "w") as dst:
+                for info in src.infolist():
+                    dst.writestr(info, value if info.filename == member else src.read(info))
+            result = verify_package(buf.getvalue(), keys)
+            assert result["ok"] is False, (member, value)
+            assert result["problems"][0]["code"] == "malformed", (member, value, result)
 
 
 def test_verify_cli_package_and_report(
@@ -192,11 +203,28 @@ def test_verify_cli_package_and_report(
     (tmp_path / "seal.json").write_text(json.dumps(seal))
     (tmp_path / "report.html").write_bytes(html)
     capsys.readouterr()
-    assert verify_cli.main(["report", str(tmp_path / "seal.json"), *args]) == 0
+    # report.pdf is missing: not verified unless --partial is given
+    assert verify_cli.main(["report", str(tmp_path / "seal.json"), *args]) == 1
+    out = json.loads(capsys.readouterr().out)
+    assert out["ok"] is False and out["artifacts_checked"] == 1 and out["artifacts_total"] == 2
+    assert "artifact_missing" in {p["code"] for p in out["problems"]}
+    assert verify_cli.main(["report", str(tmp_path / "seal.json"), "--partial", *args]) == 0
     out = json.loads(capsys.readouterr().out)
     assert {a["name"]: a["ok"] for a in out["artifacts"]} == {
         "report.html": True,
         "report.pdf": None,
     }
+    assert out["artifacts_checked"] == 1 and out["partial"] is True
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    seal_arg = str(tmp_path / "seal.json")
+    assert verify_cli.main(["report", seal_arg, "--dir", str(empty), *args]) == 1
+    capsys.readouterr()
+    # malformed seals fail cleanly (no traceback)
+    for bad in ("[]", "42", '{"manifest": []}', '{"manifest": {"artifacts": [1]}}'):
+        (tmp_path / "bad.json").write_text(bad)
+        assert verify_cli.main(["report", str(tmp_path / "bad.json"), *args]) == 1
+        out = json.loads(capsys.readouterr().out)
+        assert out["problems"][0]["code"] == "malformed", bad
     (tmp_path / "report.html").write_bytes(html + b"<!-- tampered -->")
     assert verify_cli.main(["report", str(tmp_path / "seal.json"), *args]) == 1
