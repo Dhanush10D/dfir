@@ -159,3 +159,21 @@ def test_api_flow_against_real_vault_and_overwrite_detection(
     assert {p["code"] for p in report["object"]["problems"]} == {"object_replaced"}
     # The locked original version is untouched and still verifies byte for byte.
     assert report["object"]["actual"]["sha256"] == hashlib.sha256(data).hexdigest()
+
+
+def test_artifact_store_roundtrip(minio_client: Minio) -> None:
+    """Phase 8: report artifacts in a plain bucket; missing and oversized objects are errors."""
+    from app.repositories.artifacts import ArtifactMissingError, MinioArtifactStore
+
+    bucket = f"{TEST_BUCKET_PREFIX}art-{uuid.uuid4().hex[:8]}"
+    minio_client.make_bucket(bucket)
+    try:
+        store = MinioArtifactStore(minio_client, bucket)
+        store.put_bytes("reports/c/f/v1/report.html", b"<html>x</html>", "text/html")
+        assert store.get_bytes("reports/c/f/v1/report.html") == b"<html>x</html>"
+        with pytest.raises(ArtifactMissingError):
+            store.get_bytes("reports/c/f/v1/missing.pdf")
+        with pytest.raises(ArtifactMissingError, match="larger than"):
+            store.get_bytes("reports/c/f/v1/report.html", max_bytes=4)
+    finally:
+        purge_bucket(minio_client, bucket)
