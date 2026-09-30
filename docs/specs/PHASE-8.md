@@ -196,3 +196,11 @@ bash scripts/verify-phase8.sh
 * AI drafts: only sections marked `ai_draft` (not scope, methodology, lessons learned, custody
   statements, handling guidance). An analyst edit after applying marks the section `ai_edited`.
 * Snapshot larger than `REPORT_MAX_CONTEXT_MB` -> 413 `report_too_large`.
+* Render limits (decision 12 was optimistic: a report at every cap takes about a minute of PDF
+  table layout on the dev host): the PDF renderer stops past 2000 pages or `REPORT_RENDER_TIMEOUT_S`
+  (default 120 s, checked per page, output unchanged when it finishes) with 413
+  `report_too_large`; verification reports `rerender_limit`.
+* The 0011 downgrade returns every report to an unreviewed, unsealed draft, because it drops the
+  review trail and seal columns (a signed row would otherwise fail `signed_sealed` on re-upgrade,
+  and an in-review row would lose its submitter for the four-eyes check). The round-trip test
+  includes a signed report.
