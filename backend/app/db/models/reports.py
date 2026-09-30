@@ -4,8 +4,10 @@ A report is one version of a family (``family_id`` = id of version 1). ``context
 snapshot the report renders from; it never changes. Lifecycle: draft -> in_review -> approved ->
 signed. Privileges of the app role (0011): SELECT, INSERT, UPDATE of the workflow columns (no
 DELETE); the ``reports_guard`` trigger keeps the identity/snapshot columns immutable, lets
-sections and findings change only in ``draft``, allows only the lifecycle transitions and freezes
-a ``signed`` row completely.
+sections and findings change only in ``draft``, allows only the lifecycle transitions, lets the
+submitter/approver/seal columns change only with their own transition (approver differs from the
+recorded submitter) and freezes a ``signed`` row completely. CHECKs ``submitted`` and
+``four_eyes`` hold even with triggers bypassed.
 """
 
 from __future__ import annotations
@@ -43,6 +45,15 @@ class Report(Base):
             "status <> 'signed' OR (sha256 IS NOT NULL AND signature IS NOT NULL "
             "AND manifest IS NOT NULL AND key_id IS NOT NULL AND signed_at IS NOT NULL)",
             name="signed_sealed",
+        ),
+        CheckConstraint(
+            "status = 'draft' OR (submitted_by IS NOT NULL AND submitted_at IS NOT NULL)",
+            name="submitted",
+        ),
+        CheckConstraint(
+            "status NOT IN ('approved','signed') OR (approved_by IS NOT NULL "
+            "AND approved_at IS NOT NULL AND approved_by <> submitted_by)",
+            name="four_eyes",
         ),
         UniqueConstraint("family_id", "version"),
         Index("ix_reports_case_id_created_at", "case_id", "created_at"),

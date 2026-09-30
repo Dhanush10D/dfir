@@ -6,10 +6,14 @@ reports
   ``updated_by``, ``submitted_by/at``, ``approved_at``, ``signed_by``, ``signed_at``, ``key_id``,
   ``manifest``; CHECKs on kind and status, a signed row carries its seal; UNIQUE (family_id,
   version); index (case_id, created_at).
+- CHECKs ``submitted`` (a non-draft row names its submitter) and ``four_eyes`` (an approved or
+  signed row names an approver other than the submitter).
 - trigger ``reports_guard`` (BEFORE INSERT OR UPDATE): a new row is an unreviewed draft; identity
   and snapshot columns are immutable; sections, findings and title change only while ``draft``;
   status moves only along draft -> in_review -> approved -> signed (and back to draft from
-  in_review/approved); a ``signed`` row is frozen.
+  in_review/approved); the submitter columns change only on submit or return, the approver columns
+  only on approve (someone other than the recorded submitter) or return, the seal/signer columns
+  only on sign (which needs a four-eyes approval and a signer); a ``signed`` row is frozen.
 
 Privileges for ``dfirbench_app``: reports SELECT, INSERT, and UPDATE of the workflow columns only
 (no UPDATE of identity/snapshot columns, no DELETE/TRUNCATE).
@@ -42,14 +46,32 @@ UPDATE_COLUMNS = (
     "storage_uri, sha256, signature"
 )
 
+SUBMITTED_CHECK = "status = 'draft' OR (submitted_by IS NOT NULL AND submitted_at IS NOT NULL)"
+FOUR_EYES_CHECK = (
+    "status NOT IN ('approved','signed') OR (approved_by IS NOT NULL AND approved_at IS NOT NULL "
+    "AND approved_by <> submitted_by)"
+)
+# Columns of the pre-0011 table that record a review or a seal (used by upgrade and downgrade).
+RESET_TO_DRAFT = (
+    "UPDATE reports SET status = 'draft', approved_by = NULL, storage_uri = NULL, "
+    "sha256 = NULL, signature = NULL WHERE status <> 'draft' OR approved_by IS NOT NULL "
+    "OR storage_uri IS NOT NULL OR sha256 IS NOT NULL OR signature IS NOT NULL"
+)
+
 GUARD_FN = """
 CREATE FUNCTION reports_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
+DECLARE
+  sub_changed boolean;
+  appr_changed boolean;
+  seal_changed boolean;
 BEGIN
   IF TG_OP = 'INSERT' THEN
-    IF NEW.status <> 'draft' OR NEW.submitted_by IS NOT NULL OR NEW.approved_by IS NOT NULL
-       OR NEW.signed_by IS NOT NULL OR NEW.manifest IS NOT NULL OR NEW.signature IS NOT NULL
-       OR NEW.sha256 IS NOT NULL OR NEW.qa IS NOT NULL THEN
+    IF NEW.status <> 'draft' OR NEW.submitted_by IS NOT NULL OR NEW.submitted_at IS NOT NULL
+       OR NEW.approved_by IS NOT NULL OR NEW.approved_at IS NOT NULL
+       OR NEW.signed_by IS NOT NULL OR NEW.signed_at IS NOT NULL OR NEW.key_id IS NOT NULL
+       OR NEW.manifest IS NOT NULL OR NEW.signature IS NOT NULL OR NEW.sha256 IS NOT NULL
+       OR NEW.storage_uri IS NOT NULL OR NEW.qa IS NOT NULL THEN
       RAISE EXCEPTION 'a new report must be an unreviewed draft'
         USING ERRCODE = 'check_violation';
     END IF;
@@ -79,16 +101,51 @@ BEGIN
     RAISE EXCEPTION 'report % content can only change in draft', OLD.id
       USING ERRCODE = 'check_violation';
   END IF;
-  IF NEW.status IS DISTINCT FROM OLD.status AND NOT (
-       (OLD.status = 'draft' AND NEW.status = 'in_review')
-       OR (OLD.status = 'in_review' AND NEW.status IN ('approved', 'draft'))
-       OR (OLD.status = 'approved' AND NEW.status IN ('signed', 'draft'))) THEN
-    RAISE EXCEPTION 'report % cannot move from % to %', OLD.id, OLD.status, NEW.status
-      USING ERRCODE = 'check_violation';
+  sub_changed := NEW.submitted_by IS DISTINCT FROM OLD.submitted_by
+                 OR NEW.submitted_at IS DISTINCT FROM OLD.submitted_at;
+  appr_changed := NEW.approved_by IS DISTINCT FROM OLD.approved_by
+                  OR NEW.approved_at IS DISTINCT FROM OLD.approved_at;
+  seal_changed := NEW.signed_by IS DISTINCT FROM OLD.signed_by
+                  OR NEW.signed_at IS DISTINCT FROM OLD.signed_at
+                  OR NEW.key_id IS DISTINCT FROM OLD.key_id
+                  OR NEW.manifest IS DISTINCT FROM OLD.manifest
+                  OR NEW.storage_uri IS DISTINCT FROM OLD.storage_uri
+                  OR NEW.sha256 IS DISTINCT FROM OLD.sha256
+                  OR NEW.signature IS DISTINCT FROM OLD.signature;
+  IF NEW.status IS NOT DISTINCT FROM OLD.status THEN
+    IF sub_changed OR appr_changed OR seal_changed THEN
+      RAISE EXCEPTION 'report % review and seal columns change only with a lifecycle transition',
+        OLD.id USING ERRCODE = 'check_violation';
+    END IF;
+    RETURN NEW;
   END IF;
-  IF NEW.status = 'approved' AND OLD.status = 'in_review'
-     AND NEW.approved_by IS NOT DISTINCT FROM NEW.submitted_by THEN
-    RAISE EXCEPTION 'report % must be approved by someone other than the submitter', OLD.id
+  IF OLD.status = 'draft' AND NEW.status = 'in_review' THEN
+    IF NEW.submitted_by IS NULL OR NEW.submitted_at IS NULL OR appr_changed OR seal_changed
+       OR NEW.approved_by IS NOT NULL OR NEW.approved_at IS NOT NULL THEN
+      RAISE EXCEPTION 'report % submit must record only the submitter', OLD.id
+        USING ERRCODE = 'check_violation';
+    END IF;
+  ELSIF OLD.status = 'in_review' AND NEW.status = 'approved' THEN
+    IF sub_changed OR seal_changed OR OLD.submitted_by IS NULL
+       OR NEW.approved_by IS NULL OR NEW.approved_at IS NULL
+       OR NEW.approved_by = OLD.submitted_by THEN
+      RAISE EXCEPTION 'report % must be approved by someone other than the submitter', OLD.id
+        USING ERRCODE = 'check_violation';
+    END IF;
+  ELSIF OLD.status = 'approved' AND NEW.status = 'signed' THEN
+    IF sub_changed OR appr_changed OR OLD.submitted_by IS NULL OR OLD.approved_by IS NULL
+       OR OLD.approved_by = OLD.submitted_by OR NEW.signed_by IS NULL THEN
+      RAISE EXCEPTION 'report % can only be signed by a named signer after a four-eyes approval',
+        OLD.id USING ERRCODE = 'check_violation';
+    END IF;
+  ELSIF OLD.status IN ('in_review', 'approved') AND NEW.status = 'draft' THEN
+    IF seal_changed OR NEW.submitted_by IS NOT NULL OR NEW.submitted_at IS NOT NULL
+       OR NEW.approved_by IS NOT NULL OR NEW.approved_at IS NOT NULL THEN
+      RAISE EXCEPTION 'report % returned to draft must clear its review', OLD.id
+        USING ERRCODE = 'check_violation';
+    END IF;
+  ELSE
+    RAISE EXCEPTION 'report % cannot move from % to %', OLD.id, OLD.status, NEW.status
       USING ERRCODE = 'check_violation';
   END IF;
   RETURN NEW;
@@ -143,11 +200,14 @@ def upgrade() -> None:
     op.add_column(
         "reports", sa.Column("manifest", postgresql.JSONB(astext_type=sa.Text()), nullable=True)
     )
-    # Rows from before this revision (if any) become their own family, hashed as stored.
+    # Rows from before this revision (if any) become their own family, hashed as stored. No
+    # earlier code wrote reports, but a row in any other state could not show who submitted or
+    # approved it, so it starts over as an unsealed draft (the same rule as the downgrade).
     op.execute(
         "UPDATE reports SET family_id = id, "
         "context_sha256 = encode(digest(context::text, 'sha256'), 'hex')"
     )
+    op.execute(RESET_TO_DRAFT)
     op.alter_column("reports", "family_id", nullable=False)
     op.alter_column("reports", "context_sha256", nullable=False)
     for col in ("updated_by", "submitted_by", "signed_by"):
@@ -163,6 +223,8 @@ def upgrade() -> None:
         "status <> 'signed' OR (sha256 IS NOT NULL AND signature IS NOT NULL "
         "AND manifest IS NOT NULL AND key_id IS NOT NULL AND signed_at IS NOT NULL)",
     )
+    op.create_check_constraint("submitted", "reports", SUBMITTED_CHECK)
+    op.create_check_constraint("four_eyes", "reports", FOUR_EYES_CHECK)
     op.create_unique_constraint(
         op.f("uq_reports_family_id_version"), "reports", ["family_id", "version"]
     )
@@ -186,13 +248,11 @@ def downgrade() -> None:
     # would let a later upgrade fail ``signed_sealed`` or skip the four-eyes check (submitter
     # unknown), so every report goes back to an unreviewed, unsealed draft. Rendered artifacts
     # already in object storage are not touched.
-    op.execute(
-        "UPDATE reports SET status = 'draft', approved_by = NULL, storage_uri = NULL, "
-        "sha256 = NULL, signature = NULL WHERE status <> 'draft' OR approved_by IS NOT NULL "
-        "OR storage_uri IS NOT NULL OR sha256 IS NOT NULL OR signature IS NOT NULL"
-    )
+    op.execute(RESET_TO_DRAFT)
     op.drop_index("ix_reports_case_id_created_at", table_name="reports")
     op.drop_constraint(op.f("uq_reports_family_id_version"), "reports", type_="unique")
+    op.drop_constraint(op.f("ck_reports_four_eyes"), "reports", type_="check")
+    op.drop_constraint(op.f("ck_reports_submitted"), "reports", type_="check")
     op.drop_constraint(op.f("ck_reports_signed_sealed"), "reports", type_="check")
     op.drop_constraint(op.f("ck_reports_status"), "reports", type_="check")
     op.drop_constraint(op.f("ck_reports_kind"), "reports", type_="check")

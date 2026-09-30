@@ -689,18 +689,24 @@ def test_report_guard_trigger(world: World, db_engine: Engine) -> None:
         run("UPDATE reports SET title = 'x' WHERE id = :i", i=signed["id"])
     with pytest.raises(DBAPIError, match="cannot move from draft to signed"):
         run("UPDATE reports SET status = 'signed' WHERE id = :i", i=draft["id"])
+    submit = (
+        "UPDATE reports SET status = 'in_review', submitted_by = :u, submitted_at = now() "
+        "WHERE id = :i"
+    )
     with pytest.raises(DBAPIError, match="someone other than the submitter"):
         run(
-            "UPDATE reports SET status = 'in_review', submitted_by = :u WHERE id = :i",
-            "UPDATE reports SET status = 'approved', approved_by = :u WHERE id = :i",
+            submit,
+            "UPDATE reports SET status = 'approved', approved_by = :u, approved_at = now() "
+            "WHERE id = :i",
             i=draft["id"],
             u=world.lead.id,
         )
     with pytest.raises(DBAPIError, match="only change in draft"):
         run(
-            "UPDATE reports SET status = 'in_review' WHERE id = :i",
+            submit,
             "UPDATE reports SET sections = '{}'::jsonb WHERE id = :i",
             i=draft["id"],
+            u=world.analyst.id,
         )
     with pytest.raises(DBAPIError, match="unreviewed draft"):
         run(
@@ -713,7 +719,86 @@ def test_report_guard_trigger(world: World, db_engine: Engine) -> None:
         trans = conn.begin()
         conn.execute(text("SET LOCAL session_replication_role = replica"))
         with pytest.raises(DBAPIError, match="signed_sealed"):
-            conn.execute(
-                text("UPDATE reports SET status = 'signed' WHERE id = :i"), {"i": draft["id"]}
+            conn.execute(  # a valid review, so only the missing seal fails
+                text(
+                    "UPDATE reports SET status = 'signed', submitted_by = :a, "
+                    "submitted_at = now(), approved_by = :l, approved_at = now() WHERE id = :i"
+                ),
+                {"i": draft["id"], "a": world.analyst.id, "l": world.lead.id},
             )
         trans.rollback()
+
+
+def test_report_guard_enforces_four_eyes_for_the_app_role(world: World, db_engine: Engine) -> None:
+    """The review columns change only with their own transition (review finding B1)."""
+    h = world.h
+    report = world.fill(world.create("executive"))
+    rid = report["id"]
+    r = h.post(
+        f"/reports/{rid}/submit", world.analyst, json={"expected_revision": report["revision"]}
+    )
+    assert r.status_code == 200, r.text
+    analyst, lead = world.analyst.id, world.lead.id
+
+    def run(*statements: str, bypass_triggers: bool = False) -> None:
+        with db_engine.connect() as conn:
+            trans = conn.begin()
+            if bypass_triggers:
+                conn.execute(text("SET LOCAL session_replication_role = replica"))
+            else:
+                conn.execute(text("SET LOCAL ROLE dfirbench_app"))
+            try:
+                for sql in statements:
+                    conn.execute(text(sql), {"i": rid, "a": analyst, "l": lead})
+            finally:
+                trans.rollback()
+
+    approve_as = (
+        "UPDATE reports SET status = 'approved', approved_by = :{who}, approved_at = now(){extra} "
+        "WHERE id = :i"
+    )
+    # in review (submitted by the analyst): the analyst approves and names the lead as submitter
+    with pytest.raises(DBAPIError, match="someone other than the submitter"):
+        run(approve_as.format(who="a", extra=", submitted_by = :l"))
+    # ... or clears the submitter while approving
+    with pytest.raises(DBAPIError, match="someone other than the submitter"):
+        run(approve_as.format(who="a", extra=", submitted_by = NULL, submitted_at = NULL"))
+    with pytest.raises(DBAPIError, match="someone other than the submitter"):
+        run(approve_as.format(who="l", extra=", submitted_by = NULL"))
+    # the submitter cannot be rewritten while the report waits for review
+    with pytest.raises(DBAPIError, match="only with a lifecycle transition"):
+        run("UPDATE reports SET submitted_by = :l WHERE id = :i")
+    # approving without naming the approver
+    with pytest.raises(DBAPIError, match="someone other than the submitter"):
+        run("UPDATE reports SET status = 'approved' WHERE id = :i")
+    # the normal service flow still works
+    assert h.post(f"/reports/{rid}/approve", world.lead).status_code == 200
+    # after approval: approver and submitter are frozen
+    with pytest.raises(DBAPIError, match="only with a lifecycle transition"):
+        run("UPDATE reports SET approved_by = :a WHERE id = :i")
+    with pytest.raises(DBAPIError, match="only with a lifecycle transition"):
+        run("UPDATE reports SET submitted_by = :l, approved_by = :a WHERE id = :i")
+    seal = (
+        "UPDATE reports SET status = 'signed', signed_at = now(), key_id = 'k', "
+        "manifest = '{{}}'::jsonb, sha256 = repeat('a', 64), signature = 's'{extra} WHERE id = :i"
+    )
+    with pytest.raises(DBAPIError, match="named signer"):
+        run(seal.format(extra=""))  # no signer
+    with pytest.raises(DBAPIError, match="named signer"):
+        run(seal.format(extra=", signed_by = :l, approved_by = :a"))  # swaps the approver
+    # a return to draft must clear the review
+    with pytest.raises(DBAPIError, match="must clear its review"):
+        run("UPDATE reports SET status = 'draft' WHERE id = :i")
+    # the CHECKs hold even with triggers bypassed
+    with pytest.raises(DBAPIError, match="four_eyes"):
+        run("UPDATE reports SET approved_by = submitted_by WHERE id = :i", bypass_triggers=True)
+    with pytest.raises(DBAPIError, match="four_eyes"):
+        run("UPDATE reports SET approved_by = NULL WHERE id = :i", bypass_triggers=True)
+    with pytest.raises(DBAPIError, match="ck_reports_submitted"):
+        run(
+            "UPDATE reports SET status = 'in_review', submitted_by = NULL WHERE id = :i",
+            bypass_triggers=True,
+        )
+    r = h.post(f"/reports/{rid}/sign", world.lead)
+    assert r.status_code == 200 and r.json()["status"] == "signed", r.text
+    assert h.get(f"/reports/{rid}/verify", world.lead).json()["ok"] is True
