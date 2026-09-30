@@ -20,7 +20,7 @@ from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from concurrent.futures import TimeoutError as FutureTimeout
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 import anthropic
 import httpx2
@@ -39,6 +39,7 @@ from app.ai.llm import (
     LLMResponse,
     ProviderError,
 )
+from app.ai.redaction import Policy, Redactor
 from app.config import Settings
 
 log = structlog.stdlib.get_logger("dfirbench.ai.gateway")
@@ -128,10 +129,15 @@ class AnthropicProvider:
             raise ProviderError(f"anthropic: {type(exc).__name__}", transient=True) from exc
         except anthropic.APIStatusError as exc:
             transient = exc.status_code == 429 or exc.status_code >= 500
-            raise ProviderError(
-                f"anthropic: HTTP {exc.status_code} {_short(getattr(exc, 'message', ''))}",
-                transient=transient,
+            # The provider's error body stays in the server log, never in stored/returned errors.
+            log.warning(
+                "ai_provider_http_error",
+                provider=self.name,
                 status=exc.status_code,
+                body=_short(getattr(exc, "message", "")),
+            )
+            raise ProviderError(
+                f"anthropic: HTTP {exc.status_code}", transient=transient, status=exc.status_code
             ) from exc
         except anthropic.AnthropicError as exc:
             raise ProviderError(f"anthropic: {type(exc).__name__}", transient=False) from exc
@@ -176,8 +182,14 @@ class _HttpProvider:
             raise ProviderError(f"{self.name}: {type(exc).__name__}", transient=True) from exc
         if resp.status_code >= 400:
             transient = resp.status_code == 429 or resp.status_code >= 500
+            log.warning(
+                "ai_provider_http_error",
+                provider=self.name,
+                status=resp.status_code,
+                body=_short(resp.text),
+            )
             raise ProviderError(
-                f"{self.name}: HTTP {resp.status_code} {_short(resp.text)}",
+                f"{self.name}: HTTP {resp.status_code}",
                 transient=transient,
                 status=resp.status_code,
             )
@@ -393,6 +405,9 @@ class GatewayConfig:
     timeout_s: float
     max_retries: int
     embedding_model: str
+    redaction_policy: str = "none"  # applied to texts sent to a hosted embedding provider
+    redact_local: bool = False
+    max_embed_batch_chars: int = 2_000_000
 
     @classmethod
     def from_settings(cls, s: Settings) -> GatewayConfig:
@@ -405,6 +420,8 @@ class GatewayConfig:
             timeout_s=s.llm_timeout_s,
             max_retries=s.llm_max_retries,
             embedding_model=s.embedding_model,
+            redaction_policy=s.ai_redaction_policy,
+            redact_local=s.ai_redact_local,
         )
 
 
@@ -479,7 +496,14 @@ class Gateway:
                 error=_short(err),
             )
             if not err.transient or attempt > self.cfg.max_retries:
-                raise AiProviderError(f"The AI provider call failed: {_short(err)}") from err
+                # Generic message only (status code, if any): provider/error details stay in the
+                # server log above, never in the API response or ai_interactions.error.
+                reason = (
+                    f"HTTP {err.status}"
+                    if err.status
+                    else ("temporarily unavailable" if err.transient else "error")
+                )
+                raise AiProviderError(f"The AI provider call failed ({reason}).") from err
             self.sleep(min(1.0 * attempt, max(deadline - self.clock(), 0)))
 
     def complete(
@@ -505,6 +529,16 @@ class Gateway:
         if self.cfg.local_only and self.embedder.hosted:
             raise AiUnavailableError("AI_LOCAL_ONLY is set and the embedding provider is hosted.")
         embedder = self.embedder
+        longest = max((len(t) for t in texts), default=0)
+        if longest > self.cfg.max_input_chars:
+            raise AiInputTooLargeError(longest, self.cfg.max_input_chars)
+        total = sum(len(t) for t in texts)
+        if total > self.cfg.max_embed_batch_chars:
+            raise AiInputTooLargeError(total, self.cfg.max_embed_batch_chars)
+        if embedder.hosted or self.cfg.redact_local:
+            # Same redaction as prompts; placeholders are never restored for vectors.
+            redactor = Redactor(cast(Policy, self.cfg.redaction_policy))
+            texts = [redactor.redact(t) for t in texts]
         vectors, _ = self._call_with_deadline(
             lambda t: embedder.embed(texts, model=self.cfg.embedding_model, timeout_s=t)
         )

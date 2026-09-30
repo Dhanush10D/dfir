@@ -119,7 +119,7 @@ step "alembic upgrade head + drift check (host -> compose Postgres)"
 "$BIN/alembic" current | grep -q '(head)'
 "$BIN/alembic" check
 
-step "alembic round trip of migration 0009 (downgrade 0008 -> upgrade head)"
+step "alembic round trip of migrations 0009-0010 (downgrade 0008 -> upgrade head)"
 "$BIN/alembic" downgrade 0008
 "$BIN/alembic" current | grep -q '0008'
 "$BIN/alembic" upgrade head

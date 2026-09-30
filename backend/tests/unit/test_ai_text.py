@@ -190,7 +190,10 @@ def test_pack_ids_dedup_render_and_hash() -> None:
     ]
     assert pack.input_sha256({"q": 1}) == pack.input_sha256({"q": 1})
     assert pack.input_sha256({"q": 1}) != pack.input_sha256({"q": 2})
-    assert pack.render(transform=str.upper).splitlines()[1].startswith("[A1] ALERT")
+    assert (
+        pack.render(lambda value, field: "X").splitlines()[1]
+        == "[A1] alert rule=X severity=X title=X"
+    )
 
 
 # ------------------------------------------------------------------ validators
@@ -290,3 +293,95 @@ def test_collect_cites_and_provider_schema() -> None:
     assert schema["additionalProperties"] is False
     assert schema["$defs"]["Fact"]["additionalProperties"] is False
     assert set(schema["required"]) == set(AlertExplanation.model_fields)
+
+
+# ------------------------------------------------------------------ redaction through the pack path
+# (Phase 7 review B1: redaction must see RAW values, before quoting, escaping and truncation.)
+
+
+def _sent(provider: object) -> str:
+    return "\n".join(m["content"] for call in provider.calls for m in call.messages)  # type: ignore[attr-defined]
+
+
+def _run_pack(
+    events: list[dict[str, object]], *, policy: str = "standard", hosted: bool = True
+) -> str:
+    from app.ai.fake import FakeProvider
+    from app.ai.features import SPECS, events_pack
+    from app.ai.gateway import Gateway, GatewayConfig, MemoryRateLimiter
+    from app.ai.runner import FeatureRunner
+
+    provider = FakeProvider()
+    provider.hosted = hosted  # type: ignore[misc]  # behave like a hosted provider
+    cfg = GatewayConfig(True, False, "f", "s", 2_000_000, 5.0, 0, "hashing-v1")
+    runner = FeatureRunner(
+        Gateway(provider, cfg, MemoryRateLimiter(100, 100)),
+        redaction_policy=policy,  # type: ignore[arg-type]
+        redact_local=False,
+        max_tokens=500,
+    )
+    pack = events_pack(events, max_records=20, max_field_chars=512)
+    runner.run(SPECS["chat"], pack, user_key="u", case_key="c", question="what happened?")
+    return _sent(provider)
+
+
+def _key_block(body_chars: int, terminated: bool = True) -> str:
+    body = "".join(chr(65 + (i * 7) % 26) for i in range(body_chars))
+    lines = [body[i : i + 64] for i in range(0, len(body), 64)]
+    block = "-----BEGIN RSA PRIVATE KEY-----\n" + "\n".join(lines)
+    return block + ("\n-----END RSA PRIVATE KEY-----" if terminated else "")
+
+
+def test_pack_path_redacts_quoted_secrets_with_spaces() -> None:
+    sent = _run_pack(
+        [
+            _event(cmdline='mysql -u root --password="S3cretPass" db'),
+            _event(cmdline='deploy --password="two words secret" --host x'),
+            _event(message='{"password": "JsonSecret42", "user": "bob"}'),
+            _event(cmdline="curl https://bob:UrlPass77@files.example.com/x"),
+            _event(message="aws_secret_access_key=wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY"),
+            _event(message="Authorization: Bearer abcdefghijklmnop1234567890"),
+        ]
+    )
+    for secret in (
+        "S3cretPass",
+        "two words secret",
+        "JsonSecret42",
+        "UrlPass77",
+        "wJalrXUtnFEMIK7MDENGbPxRfiCYEXAMPLEKEY",
+        "abcdefghijklmnop1234567890",
+    ):
+        assert secret not in sent, secret
+    assert "[SECRET_1]" in sent
+
+
+@pytest.mark.parametrize("terminated", [True, False])
+def test_pack_path_redacts_long_private_keys_before_truncation(terminated: bool) -> None:
+    block = _key_block(2000, terminated)
+    body = block.split("-----", 3)[2]
+    sent = _run_pack([_event(message=f"key dump: {block}"), _event(cmdline=block)])
+    assert "[PRIVATE_KEY_1]" in sent
+    for i in range(0, len(body) - 16, 200):
+        assert body[i : i + 16].strip() not in sent
+
+
+def test_pack_path_redacts_long_and_cut_jwts() -> None:
+    payload = "eyJ" + "a" * 200 + "Zq9"
+    token = f"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.{payload}.{'s' * 300}QQ"
+    sent = _run_pack(
+        [_event(message=f"cookie session={token}"), _event(cmdline=f"x {token[:120]}")]
+    )
+    assert payload[:20] not in sent and "sQQ" not in sent and "hbGciOiJIUzI1NiIs" not in sent
+
+
+def test_pack_path_strict_redacts_user_and_host_fields() -> None:
+    sent = _run_pack(
+        [_event(user="CORP\alice", host="WS-042", src_ip="203.0.113.5")], policy="strict"
+    )
+    assert "alice" not in sent and "WS-042" not in sent and "203.0.113.5" not in sent
+    assert "user=[USER_1]" in sent and "host=[HOST_1]" in sent
+
+
+def test_pack_path_local_provider_is_not_redacted() -> None:
+    sent = _run_pack([_event(cmdline='x --password="S3cretPass"')], hosted=False)
+    assert "S3cretPass" in sent  # AI_REDACT_LOCAL=false and a local provider: nothing leaves

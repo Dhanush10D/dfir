@@ -564,14 +564,17 @@ def test_case_switch_closed_case_rate_limit_and_provider_errors(
         hosted = False
 
         def complete(self, req: LLMRequest, *, model: str, timeout_s: float) -> LLMResponse:
-            raise ProviderError("HTTP 400 bad request", transient=False)
+            raise ProviderError("broken: HTTP 400", transient=False, status=400)
 
     h.ai_provider = Broken()
     r = world.ai("/nlq", case_id=world.cid, question="failed logins")
     assert r.status_code == 502, r.text
+    assert r.json()["error"]["message"] == "The AI provider call failed (HTTP 400)."
     iid = r.json()["error"]["details"]["interaction_id"]
     detail = h.get(f"/ai/interactions/{iid}", world.analyst).json()
-    assert detail["status"] == "error" and "400" in detail["error"]
+    assert (
+        detail["status"] == "error" and detail["error"] == "The AI provider call failed (HTTP 400)."
+    )
     h.ai_provider = FakeProvider()
 
     r = h.post(f"/cases/{world.cid}/close", world.lead, json={"reason": "done"})
@@ -662,3 +665,100 @@ def test_review_trigger_enforces_valid_and_once(world: World, db_engine: Engine)
         with pytest.raises(DBAPIError, match="already reviewed"):
             conn.execute(text(set_review), {"a": False, "u": world.analyst.id, "i": valid})
         trans.rollback()
+
+
+# ---------------------------------------------------------------------------------- review fixes
+
+
+def test_insert_guard_and_accepted_only_if_valid(world: World, db_engine: Engine) -> None:
+    """Review M2: the app role cannot INSERT an already-reviewed interaction; CHECK backs it."""
+    insert = (
+        "INSERT INTO ai_interactions (case_id, feature, provider, model, prompt_version, "
+        "input_refs, output, status, accepted, reviewed_by, reviewed_at) VALUES "
+        "(:c, 'nlq', 'x', 'm', 'v', '{}'::jsonb, '{}'::jsonb, :s, :a, :u, now())"
+    )
+    params = {"c": world.cid, "u": world.analyst.id}
+    with db_engine.connect() as conn:
+        trans = conn.begin()
+        conn.execute(text("SET LOCAL ROLE dfirbench_app"))
+        with pytest.raises(DBAPIError, match="cannot already be reviewed"):
+            conn.execute(text(insert), {**params, "s": "valid", "a": True})
+        trans.rollback()
+    with db_engine.connect() as conn:  # the CHECK holds even with triggers bypassed (owner)
+        trans = conn.begin()
+        conn.execute(text("SET LOCAL session_replication_role = replica"))
+        with pytest.raises(DBAPIError, match="accepted_valid"):
+            conn.execute(text(insert), {**params, "s": "invalid", "a": False})
+        trans.rollback()
+
+
+def test_answer_discarded_if_case_changes_during_the_call(world: World, db_engine: Engine) -> None:
+    """Review M3: a case switched off (or closed) while the model answers gets nothing stored."""
+
+    class SwitchesOff(FakeProvider):
+        def complete(self, req: LLMRequest, *, model: str, timeout_s: float) -> LLMResponse:
+            with db_engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE cases SET ai_enabled = false WHERE id = :c"), {"c": world.cid}
+                )
+            return super().complete(req, model=model, timeout_s=timeout_s)
+
+    before = _count(
+        db_engine, "SELECT count(*) FROM ai_interactions WHERE case_id = :c", c=world.cid
+    )
+    world.h.ai_provider = SwitchesOff()
+    r = world.ai("/nlq", case_id=world.cid, question="failed logins")
+    assert r.status_code == 409 and r.json()["error"]["code"] == "ai_disabled", r.text
+    after = _count(
+        db_engine, "SELECT count(*) FROM ai_interactions WHERE case_id = :c", c=world.cid
+    )
+    assert after == before
+    assert (
+        _count(
+            db_engine,
+            "SELECT count(*) FROM audit_log WHERE action = 'ai.nlq.discarded' AND object_id = :c",
+            c=world.cid,
+        )
+        == 1
+    )
+
+
+def test_hosted_provider_never_sees_secrets_from_evidence(world: World) -> None:
+    """Review B1 end to end: raw evidence values are redacted before quoting and truncation."""
+    key_body = "".join(chr(65 + (i * 11) % 26) for i in range(1800))
+    secret_event = uuid.uuid4()
+    with world.h.sessions() as session:
+        session.add(
+            Event(
+                id=secret_event,
+                case_id=uuid.UUID(world.cid),
+                ts=T0 + timedelta(minutes=3),
+                source_type="evtx",
+                parser_name="synthetic",
+                host="WS-042",
+                event_code="4688",
+                cmdline='mysql -u root --password="S3cret Value 9" -h db01',
+                message=f"-----BEGIN PRIVATE KEY-----\n{key_body}\n-----END PRIVATE KEY-----",
+            )
+        )
+        session.commit()
+    reply = {
+        "summary": "mysql client",
+        "risk": "unknown",
+        "behaviors": [{"description": "runs mysql", "cites": ["S1"]}],
+        "indicators": [],
+        "attack_candidates": [],
+        "limitations": "",
+    }
+    world.h.ai_provider = FixtureProvider([reply], hosted=True)
+    r = world.ai("/script/explain", case_id=world.cid, event_id=str(secret_event))
+    assert r.status_code == 200, r.text
+    sent = "\n".join(
+        m["content"]
+        for call in world.h.ai_provider.calls  # type: ignore[attr-defined]
+        for m in call.messages
+    )
+    assert "S3cret Value 9" not in sent and "S3cret" not in sent
+    for i in range(0, 1780, 150):
+        assert key_body[i : i + 20] not in sent
+    assert "[SECRET_1]" in sent and "[PRIVATE_KEY_1]" in sent

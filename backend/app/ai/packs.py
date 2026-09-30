@@ -63,12 +63,45 @@ def iso(ts: object) -> str | None:
     return str(ts)
 
 
-def _value(value: object, max_chars: int) -> str | None:
+# Redaction hook: (raw value, field label) -> value. Applied to the RAW value before
+# sanitizing, quoting and truncation, so escaping cannot split a secret from its key and
+# truncation cannot cut off the end of a secret block (docs/ai.md, Phase 7 review B1).
+Redact = Callable[[str, str | None], str]
+
+ALERT_FIELDS: tuple[tuple[str, str], ...] = (
+    ("rule", "rule_id"),
+    ("severity", "severity"),
+    ("status", "status"),
+    ("host", "host"),
+    ("user", "user"),
+    ("attack", "attack_tags"),
+    ("first_seen", "first_seen"),
+    ("last_seen", "last_seen"),
+    ("events", "event_count"),
+    ("title", "title"),
+)
+
+
+def _raw(value: object) -> str | None:
+    value = getattr(value, "value", value)  # enums
     if value is None or value == "" or value == []:
         return None
+    if isinstance(value, datetime):
+        return iso(value)
     if isinstance(value, list | tuple):
-        value = ",".join(str(v) for v in value)
-    text = clean_text(value, max_chars)
+        return ",".join(str(v) for v in value)
+    return str(value)
+
+
+def _value(
+    value: object, max_chars: int, redact: Redact | None = None, field: str | None = None
+) -> str | None:
+    raw = _raw(value)
+    if raw is None:
+        return None
+    if redact is not None:
+        raw = redact(raw, field)
+    text = clean_text(raw, max_chars)
     if not text:
         return None
     if any(ch in text for ch in ' ="'):
@@ -76,41 +109,35 @@ def _value(value: object, max_chars: int) -> str | None:
     return text
 
 
-def event_line(ev: Mapping[str, Any], max_chars: int) -> str:
+def _format(
+    head: str, fields: tuple[tuple[str, str], ...], max_chars: int, redact: Redact | None
+) -> str:
+    parts = [head]
+    for label, raw in fields:
+        v = _value(raw, max_chars, redact, label)
+        if v is not None:
+            parts.append(f"{label}={v}")
+    return " ".join(parts)
+
+
+def _fields(
+    mapping: Mapping[str, Any], spec: tuple[tuple[str, str], ...]
+) -> tuple[tuple[str, str], ...]:
+    out = []
+    for label, key in spec:
+        raw = _raw(mapping.get(key))
+        if raw is not None:
+            out.append((label, raw))
+    return tuple(out)
+
+
+def event_line(ev: Mapping[str, Any], max_chars: int, redact: Redact | None = None) -> str:
     """One event as ``<ts> key=value ...`` (no id prefix)."""
-    parts = [iso(ev.get("ts")) or "-"]
-    for label, key in EVENT_FIELDS:
-        v = _value(ev.get(key), max_chars)
-        if v is not None:
-            parts.append(f"{label}={v}")
-    return " ".join(parts)
+    return _format(iso(ev.get("ts")) or "-", _fields(ev, EVENT_FIELDS), max_chars, redact)
 
 
-def alert_line(al: Mapping[str, Any], max_chars: int) -> str:
-    parts = ["alert"]
-    for label, key in (
-        ("rule", "rule_id"),
-        ("severity", "severity"),
-        ("status", "status"),
-        ("host", "host"),
-        ("user", "user"),
-        ("attack", "attack_tags"),
-        ("first_seen", "first_seen"),
-        ("last_seen", "last_seen"),
-        ("events", "event_count"),
-        ("title", "title"),
-    ):
-        raw = al.get(key)
-        if key in ("first_seen", "last_seen"):
-            raw = iso(raw)
-        v = _value(getattr(raw, "value", raw), max_chars)
-        if v is not None:
-            parts.append(f"{label}={v}")
-    return " ".join(parts)
-
-
-def _raw_text(mapping: Mapping[str, Any], keys: tuple[str, ...]) -> str:
-    return "\n".join(str(mapping.get(k)) for k in keys if mapping.get(k) not in (None, "", []))
+def alert_line(al: Mapping[str, Any], max_chars: int, redact: Redact | None = None) -> str:
+    return _format("alert", _fields(al, ALERT_FIELDS), max_chars, redact)
 
 
 @dataclass(frozen=True)
@@ -119,8 +146,17 @@ class PackRecord:
     kind: RecordKind
     ref_id: str | None  # database id (events/alerts) or None
     ts: str | None
-    line: str  # sanitized, without the "[E1] " prefix
+    line: str  # sanitized, unredacted, without the "[E1] " prefix
     flags: tuple[str, ...] = ()
+    head: str = ""
+    fields: tuple[tuple[str, str], ...] = ()  # raw (label, value) pairs
+    max_chars: int = 512
+
+    def render_line(self, redact: Redact | None = None) -> str:
+        """The line as sent: raw values redacted first, then sanitized, quoted, truncated."""
+        if redact is None:
+            return self.line
+        return _format(self.head, self.fields, self.max_chars, redact)
 
     def summary(self, limit: int = 240) -> str:
         return self.line if len(self.line) <= limit else self.line[: limit - 1] + "…"
@@ -143,32 +179,52 @@ class EvidencePack:
         self._counters[kind] = n
         return f"{PREFIX[kind]}{n}"
 
-    def _add(self, kind: RecordKind, ref: str | None, ts: str | None, line: str, raw: str) -> str:
+    def _add(
+        self,
+        kind: RecordKind,
+        ref: str | None,
+        ts: str | None,
+        head: str,
+        fields: tuple[tuple[str, str], ...],
+        max_chars: int,
+    ) -> str:
         if ref is not None and (kind, ref) in self._by_ref:
             return self._by_ref[(kind, ref)]
         sid = self._next_id(kind)
-        self.records.append(PackRecord(sid, kind, ref, ts, line, tuple(detect_injection(raw))))
+        raw = "\n".join(v for _, v in fields)
+        line = _format(head, fields, max_chars, None)
+        self.records.append(
+            PackRecord(
+                sid, kind, ref, ts, line, tuple(detect_injection(raw)), head, fields, max_chars
+            )
+        )
         if ref is not None:
             self._by_ref[(kind, ref)] = sid
         return sid
 
     def add_event(self, ev: Mapping[str, Any]) -> str:
-        raw = _raw_text(ev, tuple(k for _, k in EVENT_FIELDS))
         ref = str(ev["id"]) if ev.get("id") is not None else None
-        return self._add("event", ref, iso(ev.get("ts")), event_line(ev, self.max_field_chars), raw)
+        head = iso(ev.get("ts")) or "-"
+        return self._add(
+            "event", ref, iso(ev.get("ts")), head, _fields(ev, EVENT_FIELDS), self.max_field_chars
+        )
 
     def add_alert(self, al: Mapping[str, Any]) -> str:
-        raw = _raw_text(al, ("title", "host", "user", "rule_id"))
         ref = str(al["id"]) if al.get("id") is not None else None
         return self._add(
-            "alert", ref, iso(al.get("first_seen")), alert_line(al, self.max_field_chars), raw
+            "alert",
+            ref,
+            iso(al.get("first_seen")),
+            "alert",
+            _fields(al, ALERT_FIELDS),
+            self.max_field_chars,
         )
 
     def add_text(
         self, kind: Literal["script", "decoded"], text: str, *, max_chars: int, label: str
     ) -> str:
-        line = f"{label} text={_value(text, max_chars) or '(empty)'}"
-        return self._add(kind, None, None, line, text)
+        fields = (("text", text),) if text else (("text", "(empty)"),)
+        return self._add(kind, None, None, label, fields, max_chars)
 
     # ------------------------------------------------------------------ reading
 
@@ -190,12 +246,15 @@ class EvidencePack:
             if r.flags
         ]
 
-    def render(self, transform: Callable[[str], str] | None = None) -> str:
-        """The ``<evidence>`` block; ``transform`` (redaction) is applied per record line."""
+    def record_text(self, redact: Redact | None = None) -> dict[str, str]:
+        """Short id -> the line the model sees (after redaction)."""
+        return {r.short_id: r.render_line(redact) for r in self.records}
+
+    def render(self, redact: Redact | None = None) -> str:
+        """The ``<evidence>`` block, with ``redact`` applied to every raw value first."""
         lines = [OPEN]
         for r in self.records:
-            text = transform(r.line) if transform else r.line
-            lines.append(f"[{r.short_id}] {text}")
+            lines.append(f"[{r.short_id}] {r.render_line(redact)}")
         lines.append(CLOSE)
         return "\n".join(lines)
 

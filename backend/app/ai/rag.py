@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from typing import Any
 
-from app.ai.packs import event_line, iso
+from app.ai.packs import Redact, event_line, iso
 
 WINDOW = timedelta(minutes=5)
 MAX_EVENTS = 40
@@ -28,11 +28,20 @@ class ChunkDraft:
     ts_end: datetime
     event_ids: list[Any] = field(default_factory=list)
     lines: list[str] = field(default_factory=list)
+    events: list[Mapping[str, Any]] = field(default_factory=list)  # raw, for redacted renders
 
     @property
     def text(self) -> str:
         header = f"host={self.host or '-'} window={iso(self.ts_start)}..{iso(self.ts_end)}"
         return "\n".join([header, *self.lines])
+
+    def render(self, redact: Redact | None) -> str:
+        """The chunk text with ``redact`` applied to raw values first (hosted embeddings)."""
+        if redact is None:
+            return self.text
+        host = redact(self.host, "host") if self.host else "-"
+        header = f"host={host} window={iso(self.ts_start)}..{iso(self.ts_end)}"
+        return "\n".join([header, *(event_line(ev, FIELD_CHARS, redact) for ev in self.events)])
 
     @property
     def content_sha256(self) -> str:
@@ -60,6 +69,7 @@ def iter_chunks(events: Iterable[Mapping[str, Any]]) -> Iterator[ChunkDraft]:
             size = 0
         cur.event_ids.append(ev["id"])
         cur.lines.append(line)
+        cur.events.append(ev)
         cur.ts_end = max(cur.ts_end, ts)
         size += len(line) + 1
     if cur is not None:

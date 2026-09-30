@@ -110,12 +110,20 @@ documents. Defenses (guide 13.6, tested by the injection suite):
    enforces review-once and valid-only even for direct SQL as the app role.
 
 **Privacy.** For hosted providers the prompt is redacted (`AI_REDACTION_POLICY`): `standard` =
-e-mail addresses and secrets (private keys, password/token/API-key assignments, bearer tokens, AWS
-key ids, JWTs); `strict` adds IP addresses and the `user=`/`host=` values of records. Values
-become stable placeholders (`[EMAIL_1]`); the mapping stays in the database and restores the
-answer for display. Regex redaction is best effort (names inside free text are not recognised).
-Local providers are not redacted unless `AI_REDACT_LOCAL=true`. `AI_LOCAL_ONLY=true` refuses
-hosted providers. AI can be switched off per case.
+e-mail addresses and secrets (private-key blocks, including cut/unterminated ones; password,
+token, API-key and secret-access-key assignments in `key=value`, `key: value` and JSON forms,
+quoted values with spaces; URL credentials; bearer/basic tokens; AWS key ids; JWTs, including
+cut ones); `strict` adds IP addresses and the whole `user`/`host` values of records. Redaction is
+applied to every **raw** evidence value (and to the question and context) *before* the value is
+sanitized, quoted and truncated for the prompt, so escaping cannot separate a secret from its
+key and truncation cannot cut off the end of a block. Values become stable placeholders
+(`[EMAIL_1]`); the mapping stays in the database and restores the answer for display. Texts sent
+to a hosted embedding provider get the same redaction (per raw value) and a size cap. Regex
+redaction is best effort (names inside free text are not recognised). Local providers are not
+redacted unless `AI_REDACT_LOCAL=true`. `AI_LOCAL_ONLY=true` refuses hosted providers. AI can be
+switched off per case, and an answer is discarded (audited as `ai.<feature>.discarded`) if the
+case is closed or AI is switched off while the model is answering. Provider error bodies are only
+logged server-side; callers and `ai_interactions.error` get a generic message with the status.
 
 **Provenance** (`ai_interactions`): feature, provider, requested and served model, prompt version
 (`<feature>/v<N>+<sha256(system prompt)[:12]>`), input hash (canonical pack + question), prompt

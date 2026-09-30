@@ -51,6 +51,7 @@ class AiInteraction(Base):
             "accepted IS NULL OR (reviewed_by IS NOT NULL AND reviewed_at IS NOT NULL)",
             name="review_complete",
         ),
+        CheckConstraint("accepted IS NULL OR status = 'valid'", name="accepted_valid"),
         Index("ix_ai_interactions_case_id_created_at", "case_id", "created_at"),
         Index("ix_ai_interactions_user_id_created_at", "user_id", "created_at"),
     )

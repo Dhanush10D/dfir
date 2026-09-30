@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from app.ai.embeddings import HashingEmbedder
 from app.ai.llm import AiUnavailableError
+from app.ai.packs import Redact
 from app.ai.rag import ChunkDraft, iter_chunks, rrf
 from app.config import SCHEMA_EMBEDDING_DIM, Settings
 from app.db.models import AiIndexState, Event, EventChunk
@@ -159,10 +160,13 @@ class AiIndexService:
         settings: Settings,
         *,
         remote_embed: Callable[[list[str]], list[list[float]]] | None = None,
+        redact: Redact | None = None,
     ) -> None:
         self.session = session
         self.settings = settings
         self.remote_embed = remote_embed
+        # Redaction of raw values for a hosted embedding provider (None = local, not needed).
+        self.redact = redact
         self.local = HashingEmbedder(SCHEMA_EMBEDDING_DIM)
 
     @property
@@ -230,7 +234,8 @@ class AiIndexService:
             yield row_map(row)
 
     def _insert(self, case_id: uuid.UUID, batch: list[ChunkDraft]) -> None:
-        vectors = self._embed([c.text for c in batch])
+        remote = self.settings.embedding_provider != "hashing"
+        vectors = self._embed([c.render(self.redact) if remote else c.text for c in batch])
         # Core insert: no ORM identity map growing with the case size.
         self.session.execute(
             insert(EventChunk),
@@ -296,7 +301,9 @@ class AiIndexService:
     def retrieve(self, case_id: uuid.UUID, question: str, *, top_k: int) -> list[EventChunk]:
         """Hybrid retrieval (vector + full text, reciprocal rank fusion), case-scoped."""
         rankings: list[list[uuid.UUID]] = []
-        vec = self._embed([question])[0]
+        remote = self.settings.embedding_provider != "hashing"
+        query = self.redact(question, None) if remote and self.redact else question
+        vec = self._embed([query])[0]
         if vec is not None:
             self.session.execute(text("SET LOCAL hnsw.iterative_scan = relaxed_order"))
             rankings.append(

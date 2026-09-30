@@ -396,3 +396,62 @@ def test_gateway_embed_guards() -> None:
     g2.embedder = OpenAICompatProvider(base_url="https://api.example.com/v1")
     with pytest.raises(AiUnavailableError):
         g2.embed(["x"])
+
+
+def test_provider_error_bodies_never_reach_the_caller() -> None:
+    """Phase 7 review M4: only a status code leaves the gateway; the body is logged."""
+    body = {"type": "error", "error": {"type": "invalid_request_error", "message": "LEAKY-DETAIL"}}
+    cap = Capture([httpx2.Response(400, json=body)])
+    with pytest.raises(AiProviderError) as exc:
+        gateway(anthropic_provider(cap)).complete(REQ, user_key="u", case_key="c")
+    assert exc.value.message == "The AI provider call failed (HTTP 400)."
+    cap = Capture([httpx2.Response(500, text="LEAKY-HTML-PAGE")])
+    p = OllamaProvider(base_url="http://ollama", transport=httpx2.MockTransport(cap))
+    with pytest.raises(AiProviderError) as exc:
+        gateway(p, retries=0).complete(REQ, user_key="u", case_key="c")
+    assert "LEAKY" not in exc.value.message and "HTTP 500" in exc.value.message
+
+
+def test_hosted_embeddings_are_redacted_and_size_capped() -> None:
+    """Phase 7 review M1: texts for a hosted embedding provider get the prompt redaction."""
+    cap = Capture(
+        [httpx2.Response(200, json={"data": [{"embedding": [0.1]}, {"embedding": [0.2]}]})]
+    )
+    gw = gateway(FakeProvider(), redaction_policy="standard")
+    gw.embedder = OpenAICompatProvider(
+        base_url="https://api.example.com/v1", transport=httpx2.MockTransport(cap)
+    )
+    gw.embed(['login --password="S3cret Pass" by bob@corp.example', "plain text"])
+    sent = json.dumps(cap.body())
+    assert "S3cret" not in sent and "bob@corp.example" not in sent and "[EMAIL_1]" in sent
+    with pytest.raises(AiInputTooLargeError):
+        gw.embed(["x" * 200_000])
+    g = gateway(FakeProvider(), max_embed_batch_chars=10)
+    g.embedder = gw.embedder
+    with pytest.raises(AiInputTooLargeError):
+        g.embed(["123456", "789012"])
+    local = Capture([httpx2.Response(200, json={"embeddings": [[1.0]]})])
+    g = gateway(FakeProvider(), redaction_policy="standard")
+    g.embedder = OllamaProvider(
+        base_url="http://ollama:11434", transport=httpx2.MockTransport(local)
+    )
+    g.embed(["token=abc123secret"])
+    assert "abc123secret" in json.dumps(local.body())  # local provider: not redacted by default
+
+
+def test_chunk_render_redacts_raw_values() -> None:
+    from datetime import UTC, datetime
+
+    from app.ai.rag import build_chunks
+    from app.ai.redaction import Redactor
+
+    ev = {
+        "id": "e1",
+        "ts": datetime(2026, 9, 14, tzinfo=UTC),
+        "host": "WS-1",
+        "cmdline": 'mysql --password="Top Secret" db',
+    }
+    chunk = build_chunks([ev])[0]
+    assert "Top Secret" in chunk.text
+    redacted = chunk.render(Redactor("strict").redact_value)
+    assert "Top Secret" not in redacted and "WS-1" not in redacted

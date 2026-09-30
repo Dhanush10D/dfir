@@ -53,7 +53,7 @@ def test_all_core_tables_exist(db_engine: Engine) -> None:
     assert "events_default" in tables
     with db_engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0009"
+    assert version == "0010"
 
 
 def test_app_role_privileges(db_engine: Engine) -> None:

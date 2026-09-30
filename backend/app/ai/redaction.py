@@ -22,25 +22,37 @@ from typing import Any, Literal
 
 Policy = Literal["none", "standard", "strict"]
 
+# Apply these to RAW values (before sanitizing, quoting and truncation: see packs.py), otherwise
+# escaping can split a secret from its key and truncation can cut off the end of a block.
+_CREDENTIAL_NAMES = (  # key names that precede a credential value
+    r"password|passwd|passphrase|passcode|secret|token|api[_-]?key|access[_-]?key"
+    r"|secret[_-]?access[_-]?key|client[_-]?secret|private[_-]?key"
+)
 _SECRET_PATTERNS: list[tuple[str, re.Pattern[str], int]] = [
     # (placeholder type, pattern, group holding the secret value; 0 = whole match)
     (
+        # A complete block, or an unterminated one (cut or partial) up to the end of the value.
         "PRIVATE_KEY",
         re.compile(
-            r"-----BEGIN [A-Z ]{0,40}PRIVATE KEY-----.{0,20000}?"
-            r"-----END [A-Z ]{0,40}PRIVATE KEY-----",
+            r"-----BEGIN [A-Z0-9 ]{0,40}PRIVATE KEY( BLOCK)?-----"
+            r"(?:.{0,20000}?-----END [A-Z0-9 ]{0,40}PRIVATE KEY( BLOCK)?-----|.{0,20000})",
             re.DOTALL,
         ),
         0,
     ),
-    ("JWT", re.compile(r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}"), 0),
+    # JWT/JWS: header and payload are base64url JSON ("eyJ"); the signature may be any length
+    # (or missing if the value was cut).
+    ("JWT", re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}(?:\.[A-Za-z0-9_-]*)?"), 0),
     ("AWS_KEY", re.compile(r"\b(?:AKIA|ASIA)[0-9A-Z]{16}\b"), 0),
-    ("TOKEN", re.compile(r"(?i)\bbearer\s+([A-Za-z0-9._~+/=-]{16,})"), 1),
+    ("TOKEN", re.compile(r"(?i)\b(?:bearer|basic)\s+([A-Za-z0-9._~+/=-]{12,})"), 1),
+    # user:password@host in URLs
+    ("SECRET", re.compile(r"(?i)\b[a-z][a-z0-9+.-]{1,20}://[^/\s:@]{1,100}:([^/\s@]{1,200})@"), 1),
     (
+        # key=value, key: value, "key": "value", --key value-less forms are not recognised.
         "SECRET",
         re.compile(
-            r"(?i)\b(?:password|passwd|pwd|passphrase|secret|token|api[_-]?key|access[_-]?key"
-            r"|client[_-]?secret)\b\s*[=:]\s*(\"[^\"\s]{1,200}\"|'[^'\s]{1,200}'|[^\s\"',;&|]{1,200})"
+            rf"(?i)\b[\w-]{{0,40}}?(?:{_CREDENTIAL_NAMES})\b[\"']?\s*[=:]\s*"
+            r"(\"[^\"\n]{1,200}\"|'[^'\n]{1,200}'|[^\s\"',;&|]{1,200})"
         ),
         1,
     ),
@@ -111,6 +123,20 @@ class Redactor:
             text = IPV4_RE.sub(lambda m: self._placeholder("IP", m.group(0)), text)
             text = IPV6_CANDIDATE_RE.sub(self._ipv6, text)
         return text
+
+    def redact_value(self, value: str, field: str | None = None) -> str:
+        """Redact one RAW evidence value (before sanitizing/quoting/truncation).
+
+        ``strict`` replaces whole ``user``/``host`` values; every policy other than ``none``
+        then applies the secret and e-mail patterns to the value.
+        """
+        if self.policy == "none" or not value:
+            return value
+        if self.policy == "strict" and field in ("user", "host"):
+            if PLACEHOLDER_RE.fullmatch(value):
+                return value
+            return self._placeholder("USER" if field == "user" else "HOST", value)
+        return self.redact(value)
 
     def _ipv6(self, m: re.Match[str]) -> str:
         value = m.group(0)

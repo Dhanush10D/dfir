@@ -34,6 +34,7 @@ from app.ai.gateway import Gateway
 from app.ai.llm import AiDisabledForCaseError, AiProviderError, AiRateLimitedError
 from app.ai.packs import EvidencePack
 from app.ai.prompts import TEMPLATES, prompt_versions
+from app.ai.redaction import Redactor
 from app.ai.runner import FeatureRunner, RunOutcome
 from app.config import Settings
 from app.core.exceptions import AppError, ConflictError, InvalidStateError, NotFoundError
@@ -216,6 +217,29 @@ class AiService:
         except AiProviderError as exc:
             row = self._record_error(feature, principal, case_id, pack, started, exc, meta)
             raise AiProviderError(exc.message, interaction_id=str(row.id)) from exc
+
+        # The model call took a while without locks: re-check the case under FOR SHARE (closing
+        # takes FOR UPDATE) and refuse to store an answer for a case closed or switched off
+        # meanwhile. The discarded call is still audited.
+        state = self.session.execute(
+            select(Case.status, Case.ai_enabled)
+            .where(Case.id == case_id)
+            .with_for_update(read=True)
+        ).one()
+        if state.status is CaseStatus.closed or not state.ai_enabled:
+            reason = "case_closed" if state.status is CaseStatus.closed else "ai_disabled"
+            self.audit.record(
+                f"ai.{feature}.discarded",
+                user_id=principal.user_id,
+                meta=meta,
+                object_type="case",
+                object_id=case_id,
+                detail={"reason": reason, "input_sha256": outcome.input_sha256},
+            )
+            self.session.commit()
+            if reason == "case_closed":
+                raise InvalidStateError("The case was closed while the AI was answering.")
+            raise AiDisabledForCaseError()
 
         citations: dict[str, dict[str, Any]] = {}
         if pack is not None and outcome.citations is not None:
@@ -467,9 +491,13 @@ class AiService:
 
     def index_service(self) -> AiIndexService:
         remote = None
+        redact = None
         if self.settings.embedding_provider != "hashing":
             remote = self.gateway.embed
-        return AiIndexService(self.session, self.settings, remote_embed=remote)
+            embedder = self.gateway.embedder
+            if embedder is not None and (embedder.hosted or self.settings.ai_redact_local):
+                redact = Redactor(self.settings.ai_redaction_policy).redact_value
+        return AiIndexService(self.session, self.settings, remote_embed=remote, redact=redact)
 
     def index_info(self, principal: Principal, case_id: uuid.UUID) -> IndexInfo:
         self._access(principal, case_id)

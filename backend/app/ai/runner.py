@@ -104,18 +104,20 @@ class FeatureRunner:
     ) -> RunOutcome:
         template = TEMPLATES[spec.feature]
         redactor = self._redactor()
+        # Redaction runs on RAW values (evidence fields, question, context) before they are
+        # sanitized, quoted and truncated, never on the rendered text.
+        redact = redactor.redact_value if redactor.policy != "none" else None
         record_text: dict[str, str] = {}
         evidence = None
         if pack is not None:
-            record_text = {r.short_id: redactor.redact(r.line) for r in pack.records}
-            evidence = pack.render(transform=lambda line: redactor.redact(line))
+            record_text = pack.record_text(redact)
+            evidence = pack.render(redact)
         user = render_user(
             evidence=evidence,
-            question=question,
-            context=context,
+            question=redactor.redact(question) if question is not None else None,
+            context={k: redactor.redact(v) for k, v in context.items()} if context else None,
             max_question_chars=self.max_question_chars,
         )
-        user = redactor.redact(user)  # the question/context (record lines are already redacted)
         schema = provider_schema(spec.output)
         messages: list[dict[str, str]] = [{"role": "user", "content": user}]
         outcome = RunOutcome(
