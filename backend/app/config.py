@@ -196,6 +196,14 @@ class Settings(BaseSettings):
     ai_chat_top_k: int = Field(default=8, ge=1, le=50)
     ai_chat_max_events: int = Field(default=120, ge=1, le=1000)
 
+    # Reporting (Phase 8, guide 18): snapshot caps and the organisation shown in reports/STIX
+    report_max_key_events: int = Field(default=500, ge=1, le=10_000)
+    report_max_alerts: int = Field(default=500, ge=1, le=10_000)
+    report_max_iocs: int = Field(default=1000, ge=1, le=100_000)
+    report_max_notes: int = Field(default=200, ge=0, le=5000)
+    report_max_context_mb: int = Field(default=8, ge=1, le=64)
+    report_org_name: str = Field(default="dfirbench", min_length=1, max_length=200)
+
     # Integrations (Phase 9)
     vt_api_key: SecretStr | None = None
     misp_url: str | None = None

@@ -17,7 +17,7 @@ In scope:
   Markdown), PDF renderer (ReportLab, deterministic), STIX 2.1 / CSV / JSON exporters, QA checks,
   manifest + signature, offline verifier (`python -m app.reports.verify`), evidence export package.
 * `services/reports.py` (lifecycle, edits with optimistic concurrency, QA, approval, sign, verify,
-  versions, downloads, AI draft apply), migration 0010, API, AI feature `report_draft` (A4).
+  versions, downloads, AI draft apply), migration 0011, API, AI feature `report_draft` (A4).
 * Frontend: Reports case tab (create, edit sections and findings, QA, submit/return/approve/sign,
   sandboxed preview, downloads, verification, AI drafts) and "Export package" on evidence.
 * Tests, `docs/reports.md`, live smoke, verify script.
@@ -114,18 +114,22 @@ deterministic QA gate is in scope), report comments/review threads.
 | `backend/app/services/reports.py` | `ReportService` |
 | `backend/app/api/v1/reports.py`, `backend/app/schemas/reports.py` | API |
 | `backend/app/ai/*` | feature `report_draft` (prompt, schema, spec) |
-| `backend/alembic/versions/0010_reporting.py`, `backend/app/db/models/reports.py` | schema |
+| `backend/alembic/versions/0011_reporting.py`, `backend/app/db/models/reports.py` | schema |
 | `frontend/src/features/reports/*` | Reports tab; evidence "Export package" |
 | `docs/reports.md` | report kinds, workflow, verification, exports |
 
-## Data model changes (migration 0010)
+## Data model changes (migration 0011, after `0010_ai_review_guard`)
 `reports` + `title`, `family_id` (NOT NULL; the first version's id), `supersedes_id` (FK reports),
 `revision` (int, edit counter), `sections` JSONB, `findings` JSONB, `context_sha256`, `qa` JSONB,
 `updated_at`, `updated_by`, `submitted_by/at`, `approved_at`, `signed_by`, `signed_at`, `key_id`,
 `manifest` JSONB; UNIQUE (`family_id`, `version`); CHECK kind in
 (technical, executive, custody, ioc) and status in (draft, in_review, approved, signed); index
-(`case_id`, `created_at`); trigger `reports_guard` (immutable columns, signed rows frozen, sections
-and findings change only in draft). App role: SELECT, INSERT, UPDATE; no DELETE/TRUNCATE.
+(`case_id`, `created_at`); CHECK `signed_sealed` (a signed row has sha256, signature, manifest,
+key_id, signed_at); trigger `reports_guard` BEFORE INSERT OR UPDATE (a new row is an unreviewed
+draft; identity/snapshot columns immutable; sections, findings and title change only in draft;
+only the lifecycle transitions of decision 4; approver differs from submitter; signed rows frozen).
+App role: SELECT, INSERT, and UPDATE of the workflow/content columns only (column grant); no
+UPDATE of identity/snapshot columns, no DELETE/TRUNCATE.
 
 ## API changes
 | Method | Path | Access |
@@ -156,7 +160,7 @@ and report cover).
   edit 409, signed row frozen (trigger), new version, RBAC (viewer read-only, analyst cannot
   approve, outsider 404), closed case read-only, AI draft -> accept -> apply (labelled), reject
   path cannot be applied, custody and IOC kinds, evidence export package + custody `exported`
-  entry, app-role grants, migration round trip.
+  entry, app-role grants, migration round trip (0011).
 * Live: `scripts/phase8-smoke.py` (API + MinIO artifacts bucket).
 
 ## Acceptance criteria (executable)

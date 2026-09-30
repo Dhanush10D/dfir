@@ -43,6 +43,11 @@ dependencies = [
   # Ollama / OpenAI-compatible providers (BSD-3). Only app/ai/gateway.py imports them.
   "anthropic==1.9.0",
   "httpx2==2.13.1",
+  # Phase 8 reporting: HTML templates with autoescape (BSD-3), CommonMark with raw HTML disabled
+  # (MIT), deterministic PDF with built-in fonts and no network/file fetching (BSD).
+  "Jinja2==3.1.6",
+  "markdown-it-py==4.2.0",
+  "reportlab==5.0.1",
 ]
 
 [project.optional-dependencies]
@@ -56,6 +61,8 @@ dev = [
   "hypothesis==6.168.3",
   "types-defusedxml==0.7.0.20260504",
   "types-PyYAML==6.0.12.20260906",
+  # Phase 8: tests validate the generated STIX 2.1 bundle with the OASIS library (BSD-3).
+  "stix2==3.0.2",
 ]
 
 [tool.setuptools.packages.find]
