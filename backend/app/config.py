@@ -15,7 +15,7 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 S3_MAX_PARTS = 10_000
 
 AppEnv = Literal["dev", "test", "prod"]
-SandboxMode = Literal["docker", "k8s", "none"]
+SandboxMode = Literal["none", "spool"]
 LLMProvider = Literal["anthropic", "ollama", "openai_compat", "fake"]
 EmbeddingProvider = Literal["hashing", "ollama", "openai_compat"]
 RedactionPolicy = Literal["none", "standard", "strict"]
@@ -33,6 +33,8 @@ DEV_PLACEHOLDERS = frozenset(
         "dev-only-jwt-secret-change-me",
         "dev-only-totp-key-change-me",
         "dev-only-integration-kek-change-me",
+        "dfir_app_dev_password",
+        "dev-only-metrics-token-change-me",
     }
 )
 
@@ -58,6 +60,11 @@ class Settings(BaseSettings):
     # Least-privilege role every app session runs as (SET ROLE at connect). Created by migration
     # 0002 with no UPDATE/DELETE/TRUNCATE on custody_log/audit_log. None = connect as the login.
     database_app_role: str | None = None
+    # Owner login used only by Alembic and `python -m app.cli provision-app-login` (the migrate
+    # job). Unset = DATABASE_URL (tests, CI and host scripts migrate with the owner login there).
+    # With it set, DATABASE_URL logs in as DATABASE_APP_ROLE itself (Phase 10), so the app cannot
+    # RESET ROLE back to the owner.
+    database_migrate_url: SecretStr | None = None
     redis_url: str = "redis://127.0.0.1:6379/0"
     enable_opensearch: bool = False
     opensearch_url: str | None = None
@@ -93,6 +100,10 @@ class Settings(BaseSettings):
     login_lockout_threshold: int = Field(default=5, ge=1)
     login_lockout_base_s: int = Field(default=60, ge=1)
     login_lockout_max_s: int = Field(default=3600, ge=1)
+    # Per client IP (Phase 10, guide 14.3), fixed one-minute windows in Redis: login and MFA
+    # attempts share the first limit, token refreshes have their own.
+    auth_rate_limit_per_minute: int = Field(default=30, ge=1, le=100_000)
+    auth_refresh_rate_limit_per_minute: int = Field(default=120, ge=1, le=100_000)
     auditor_all_cases: bool = True  # auditors may read every case without membership (16.1)
     audit_http_requests: bool = True  # AuditMiddleware writes one audit_log row per API request
 
@@ -109,7 +120,13 @@ class Settings(BaseSettings):
     upload_part_size_mb: int = Field(default=8, ge=5, le=512)  # S3 multipart part (memory bound)
     parser_timeout_s: int = Field(default=3600, ge=1)
     parser_max_output_mb: int = Field(default=2048, ge=1)
+    # Parser isolation (Phase 10, guide 10.7): "none" parses in the worker process (tests, dev
+    # host); "spool" runs every parse job in the parser-sandbox container (no network, read-only
+    # root and evidence mount) through the two spool directories below. Prod requires "spool".
     sandbox_mode: SandboxMode = "none"
+    sandbox_in_dir: str | None = None  # worker read-write, sandbox read-only (evidence, request)
+    sandbox_out_dir: str | None = None  # written by the sandbox (events, exit record)
+    sandbox_start_timeout_s: int = Field(default=120, ge=5, le=3600)
 
     # Processing pipeline (Phase 2, guide 10.6)
     # Per-job scratch directories are created (0700) under this root and removed afterwards.
@@ -244,6 +261,11 @@ class Settings(BaseSettings):
     # Readiness probe
     ready_timeout_s: float = Field(default=2.0, gt=0)
 
+    # Prometheus metrics at GET /metrics (Phase 10, guide 21.4): 404 unless a token is set, then
+    # `Authorization: Bearer <token>`. Database/Redis gauges are cached for METRICS_CACHE_S.
+    metrics_token: SecretStr | None = None
+    metrics_cache_s: float = Field(default=15.0, ge=0, le=600)
+
     @field_validator("cors_origins", "outbound_allow_hosts", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
@@ -305,6 +327,15 @@ class Settings(BaseSettings):
         return url
 
     @model_validator(mode="after")
+    def _sandbox_consistent(self) -> Settings:
+        if self.sandbox_mode == "spool":
+            if not (self.sandbox_in_dir and self.sandbox_out_dir):
+                raise ValueError("SANDBOX_MODE=spool needs SANDBOX_IN_DIR and SANDBOX_OUT_DIR")
+            if self.sandbox_in_dir == self.sandbox_out_dir:
+                raise ValueError("SANDBOX_IN_DIR and SANDBOX_OUT_DIR must differ")
+        return self
+
+    @model_validator(mode="after")
     def _allowlist_parses(self) -> Settings:
         from app.integrations.outbound import parse_allowlist  # imports this module
 
@@ -350,9 +381,44 @@ class Settings(BaseSettings):
             problems.append("OUTBOUND_ALLOW_HTTP is for development only")
         if self.enrichment_fake:
             problems.append("ENRICHMENT_FAKE is for tests and demos only")
+        if self.sandbox_mode != "spool":
+            problems.append("SANDBOX_MODE must be 'spool' (parsers run in the sandbox container)")
+        problems.extend(self._prod_database_login())
+        if self.metrics_token is not None:
+            token = self.metrics_token.get_secret_value().strip()
+            if token.lower() in DEV_PLACEHOLDERS or len(token) < 32:
+                problems.append("METRICS_TOKEN must be at least 32 random characters")
         if problems:
             raise ValueError("invalid prod configuration: " + "; ".join(problems))
         return self
+
+    def _prod_database_login(self) -> list[str]:
+        """The API/worker login must be the least-privilege role itself, not the owner."""
+        from sqlalchemy.engine import make_url
+        from sqlalchemy.exc import ArgumentError
+
+        try:
+            url = make_url(self.database_url)
+        except ArgumentError:
+            return ["DATABASE_URL is not a valid database URL"]
+        problems: list[str] = []
+        if not self.database_app_role:
+            problems.append("DATABASE_APP_ROLE must be set")
+        elif url.username != self.database_app_role:
+            problems.append(
+                "DATABASE_URL must log in as DATABASE_APP_ROLE (the owner login belongs only in "
+                "DATABASE_MIGRATE_URL)"
+            )
+        if (url.password or "").strip().lower() in DEV_PLACEHOLDERS:
+            problems.append("DATABASE_URL has no password or a placeholder password")
+        return problems
+
+    @property
+    def migrate_database_url(self) -> str:
+        """Owner URL for Alembic and role provisioning (falls back to DATABASE_URL)."""
+        if self.database_migrate_url is not None:
+            return self.database_migrate_url.get_secret_value()
+        return self.database_url
 
     @property
     def is_prod(self) -> bool:

@@ -10,7 +10,12 @@
    recorded vault version into a private scratch file while hashing, and the SHA-256/size must
    equal the value in the *signed* ``ingested`` custody entry (and ``evidence.sha256``). A
    mismatch fails the job, writes ``verification_failed`` custody and notifies admins.
-3. The scratch copy is made read-only (0400) and handed to the pure parser.
+3. The scratch copy is made read-only (0400) and handed to the pure parser: in-process with
+   ``SANDBOX_MODE=none``, or with ``SANDBOX_MODE=spool`` in the parser sandbox container (no
+   network, read-only root and evidence mount; Phase 10). In spool mode the copy is written
+   straight to the sandbox spool while this worker holds the spool slot, and the sandbox output
+   is untrusted: it is checked against the server's exit record, decoded strictly and normalised
+   by the same ``to_row`` as in-process events.
 4. **Replace**: under the job row lock (token re-checked) the previous events of this
    ``(evidence, parser)`` are deleted; the new rows use deterministic ids + ``ON CONFLICT DO
    NOTHING``, so retries and reprocessing never duplicate.
@@ -25,6 +30,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import importlib.metadata
 import os
@@ -35,7 +41,7 @@ import stat
 import tempfile
 import time
 import uuid
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -54,10 +60,32 @@ from app.core.hashing import MultiHasher
 from app.core.signing import CustodySigner
 from app.db.models import Case, CaseStatus, Evidence, Job, JobStatus
 from app.db.models import Event as EventRow
-from app.parsers.base import ParseContext, ParseLimits, ParserInputError, ParseStats, ToolConfig
+from app.parsers.base import (
+    Event,
+    ParseContext,
+    ParseLimits,
+    ParserInputError,
+    ParseStats,
+    ToolConfig,
+)
 from app.parsers.normalize import NormalizationError, to_row
 from app.parsers.registry import UnknownParserError, get_parser
 from app.repositories.vault import VaultObjectMissingError, VaultStore
+from app.sandbox.client import (
+    BadLine,
+    SandboxClient,
+    SandboxUnavailableError,
+    SlotDirs,
+    hold_slot,
+)
+from app.sandbox.protocol import (
+    EVIDENCE_FILE,
+    LimitsSpec,
+    ProtocolError,
+    SandboxRequest,
+    ToolsSpec,
+    merge_stats,
+)
 from app.services.custody import Actor, CustodyService, canonical
 from app.services.evidence import safe_filename
 from app.services.notifications import notify_admins
@@ -95,6 +123,14 @@ class IntegrityFailureError(Exception):
 
 class OutputLimitError(Exception):
     pass
+
+
+class SandboxFailedError(Exception):
+    """The parser sandbox ended the job abnormally (crash, kill, protocol violation)."""
+
+
+class SandboxTimeoutError(Exception):
+    """The parser ran out of its wall-clock budget inside the sandbox (partial result)."""
 
 
 @dataclass
@@ -371,10 +407,144 @@ class ProcessingService:
             finally:
                 shutil.rmtree(scratch, ignore_errors=True)
 
-    def _scratch_dir(self, job_id: uuid.UUID) -> Path:
+    def _scratch_root(self) -> Path:
         root = Path(self.settings.scratch_dir or Path(tempfile.gettempdir()) / "dfirbench-scratch")
         root.mkdir(mode=0o700, parents=True, exist_ok=True)
-        return Path(tempfile.mkdtemp(prefix=f"job-{job_id}-", dir=root))
+        return root
+
+    def _scratch_dir(self, job_id: uuid.UUID) -> Path:
+        return Path(tempfile.mkdtemp(prefix=f"job-{job_id}-", dir=self._scratch_root()))
+
+    def _touch(self, session: Session, job_id: uuid.UUID, token: int, progress: float) -> None:
+        """Heartbeat under the job lock (raises when the job was cancelled or taken over)."""
+        try:
+            self.lock_running(session, job_id, token)
+            session.execute(
+                update(Job)
+                .where(Job.id == job_id)
+                .values(
+                    progress=func.greatest(Job.progress, round(progress, 4)),
+                    heartbeat_at=func.now(),
+                )
+            )
+            session.commit()
+        except (JobCancelledError, JobFencedError):
+            session.rollback()
+            raise
+        except OperationalError as exc:
+            session.rollback()
+            raise TransientJobError(f"database unavailable: {type(exc).__name__}") from exc
+
+    @contextlib.contextmanager
+    def _evidence_slot(
+        self, session: Session, job_id: uuid.UUID, token: int
+    ) -> Iterator[SlotDirs | None]:
+        """Spool mode: exclusive use of the sandbox spool for this job; otherwise None."""
+        if self.settings.sandbox_mode != "spool":
+            yield None
+            return
+        if not (self.settings.sandbox_in_dir and self.settings.sandbox_out_dir):
+            raise ParserInputError("SANDBOX_IN_DIR and SANDBOX_OUT_DIR are not configured")
+        interval = self.settings.ingest_flush_interval_s
+        last = [time.monotonic()]
+
+        def wait_tick() -> None:  # another job holds the sandbox: keep this job's lease alive
+            if time.monotonic() - last[0] >= interval:
+                last[0] = time.monotonic()
+                self._touch(session, job_id, token, 0.0)
+
+        with hold_slot(
+            self._scratch_root(),
+            Path(self.settings.sandbox_in_dir),
+            Path(self.settings.sandbox_out_dir),
+            tick=wait_tick,
+        ) as slot:
+            yield slot
+
+    def _sandboxed(
+        self,
+        slot: SlotDirs,
+        ctx: ParseContext,
+        job_id: uuid.UUID,
+        sink: EventSink,
+        manifest: dict[str, Any],
+    ) -> Iterator[Event]:
+        """Run the parser in the sandbox and yield its untrusted, re-validated events.
+
+        Outcomes map to the in-process ones: input errors fail the job with the parser's message,
+        a timeout or output overflow keeps a partial result, a crash, kill or protocol violation
+        fails the job.
+        """
+        request = SandboxRequest(
+            job_id=job_id,
+            parser=str(manifest["parser"]),
+            evidence_id=uuid.UUID(ctx.evidence_id),
+            case_id=uuid.UUID(ctx.case_id),
+            source_file=ctx.source_file,
+            host_hint=ctx.host_hint,
+            timezone=ctx.timezone,
+            year=ctx.year,
+            reference_time=ctx.reference_time,
+            reference_source=ctx.reference_source,
+            params=dict(ctx.params),
+            limits=LimitsSpec.of(ctx.limits),
+            tools=ToolsSpec.of(ctx.tools),
+            timeout_s=self.settings.parser_timeout_s,
+            max_output_bytes=2 * sink.max_output,  # JSON lines are larger than row estimates
+        )
+        client = SandboxClient(start_timeout_s=self.settings.sandbox_start_timeout_s)
+        try:
+            output = client.run(slot, request, tick=lambda f: sink.tick(f * 0.9))
+        except SandboxUnavailableError as exc:
+            raise TransientJobError(str(exc)) from exc
+        manifest["sandbox"] = {"mode": "spool", **output.exit.summary()}
+        try:
+            output.verify()
+        except (ProtocolError, OSError) as exc:
+            raise SandboxFailedError(f"parser sandbox output rejected: {exc}") from exc
+        stats = ctx.stats
+        event_lines = 0
+        try:
+            for item in output.items():
+                if isinstance(item, BadLine):
+                    if not item.reason.startswith("bad result"):
+                        event_lines += 1
+                    stats.error(f"sandbox:line:{item.number}", "sandbox_bad_output", item.reason)
+                    continue
+                event_lines += 1
+                yield item
+        except (ProtocolError, OSError) as exc:
+            raise SandboxFailedError(f"parser sandbox output rejected: {exc}") from exc
+        result = output.result
+        exit_info = output.exit
+        if result is not None:
+            merge_stats(stats, result.stats)
+            if result.yielded != event_lines:
+                stats.warn(
+                    "sandbox_event_count_mismatch", detail=f"{result.yielded}!={event_lines}"
+                )
+                stats.assumptions.setdefault("incomplete", "sandbox_output")
+        if exit_info.reason == "ok" and result is not None:
+            if result.status == "input_error":
+                raise ParserInputError(result.message or "the parser rejected the input")
+            if result.status == "crash":
+                raise SandboxFailedError(
+                    f"internal error: {result.error_type or 'unknown'} (in the parser sandbox)"
+                )
+            return
+        if exit_info.reason == "timeout":
+            raise SandboxTimeoutError("parser sandbox time limit")
+        if exit_info.reason == "output_limit":
+            raise OutputLimitError("parser output exceeded the sandbox output cap")
+        if exit_info.reason == "killed":
+            signal_no = -(exit_info.returncode or 0)
+            raise SandboxFailedError(
+                f"parser sandbox: the parser process was killed (signal {signal_no}; "
+                "memory or CPU limit)"
+            )
+        if exit_info.reason == "ok":
+            raise SandboxFailedError("parser sandbox: no valid result")
+        raise SandboxFailedError(f"parser sandbox: {exit_info.reason}")
 
     def _run_claimed(
         self,
@@ -430,70 +600,78 @@ class ProcessingService:
                 raise ParserInputError("the case is closed")
             source_file = safe_filename(ev.original_name)
             manifest["source_file"] = source_file
-            path = scratch / "evidence.bin"  # fixed name: evidence content never names a path
-            digest = self._fetch_verified(session, ev, path)
-            read_evidence = True
-            manifest.update(
-                evidence_sha256=digest["sha256"],
-                evidence_size=digest["size"],
-                evidence_version_id=ev.storage_version_id,
-            )
-            os.chmod(path, stat.S_IRUSR)  # read-only for the parser
-            deleted = self._replace_previous(session, job_id, claim)
-            manifest["replaced_previous_events"] = deleted
-            reference, ref_source = (
-                (ev.acquired_at, "acquired_at")
-                if ev.acquired_at
-                else (ev.created_at, "uploaded_at")
-            )
-            sink = EventSink(self, session, job_id, claim.token, stats)
-            work_dir = scratch / "work"  # external engines write only here (0700, removed after)
-            work_dir.mkdir(mode=0o700)
-            ctx = ParseContext(
-                path=path,
-                evidence_id=str(ev.id),
-                case_id=str(ev.case_id),
-                source_file=source_file,
-                host_hint=ev.source_host,
-                timezone=str(claim.params.get("timezone", "UTC")),
-                year=claim.params.get("year"),
-                reference_time=reference,
-                reference_source=ref_source,
-                params=claim.params,
-                stats=stats,
-                limits=parse_limits(self.settings),
-                tools=tool_config(self.settings),
-                work_dir=work_dir,
-                progress=sink.tick,
-            )
-            manifest["limits"] = {
-                "max_line_bytes": ctx.limits.max_line_bytes,
-                "max_decompressed_bytes": ctx.limits.max_decompressed_bytes,
-                "max_decompression_ratio": ctx.limits.max_decompression_ratio,
-                "max_structured_bytes": ctx.limits.max_structured_bytes,
-                "max_records": ctx.limits.max_records,
-                "max_output_bytes": sink.max_output,
-                "tool_timeout_s": ctx.tools.timeout_s,
-                "tool_max_output_bytes": ctx.tools.max_output_bytes,
-            }
-            for event in parser.parse(ctx):
-                try:
-                    row, size = to_row(
-                        event,
-                        case_id=str(ev.case_id),
-                        evidence_id=str(ev.id),
-                        job_id=str(job_id),
-                        parser_name=parser.name,
-                        parser_version=parser.version,
-                    )
-                except NormalizationError as exc:
-                    stats.error(event.record_key or "?", "normalize_failed", str(exc))
-                    continue
-                if row["raw"].get("_truncated") is True:
-                    stats.warn("raw_truncated", event.record_key)
-                stats.events_emitted += 1
-                sink.add(row, size)
-            sink.flush()
+            with self._evidence_slot(session, job_id, claim.token) as slot:
+                # Fixed name: evidence content never names a path. In spool mode the copy goes
+                # straight to this job's spool directory (read-only inside the sandbox).
+                path = (slot.in_dir if slot else scratch) / EVIDENCE_FILE
+                digest = self._fetch_verified(session, ev, path)
+                read_evidence = True
+                manifest.update(
+                    evidence_sha256=digest["sha256"],
+                    evidence_size=digest["size"],
+                    evidence_version_id=ev.storage_version_id,
+                )
+                os.chmod(path, stat.S_IRUSR)  # read-only for the parser
+                deleted = self._replace_previous(session, job_id, claim)
+                manifest["replaced_previous_events"] = deleted
+                reference, ref_source = (
+                    (ev.acquired_at, "acquired_at")
+                    if ev.acquired_at
+                    else (ev.created_at, "uploaded_at")
+                )
+                sink = EventSink(self, session, job_id, claim.token, stats)
+                work_dir = scratch / "work"  # external engines write only here (0700, removed)
+                work_dir.mkdir(mode=0o700)
+                ctx = ParseContext(
+                    path=path,
+                    evidence_id=str(ev.id),
+                    case_id=str(ev.case_id),
+                    source_file=source_file,
+                    host_hint=ev.source_host,
+                    timezone=str(claim.params.get("timezone", "UTC")),
+                    year=claim.params.get("year"),
+                    reference_time=reference,
+                    reference_source=ref_source,
+                    params=claim.params,
+                    stats=stats,
+                    limits=parse_limits(self.settings),
+                    tools=tool_config(self.settings),
+                    work_dir=work_dir,
+                    progress=sink.tick,
+                )
+                manifest["limits"] = {
+                    "max_line_bytes": ctx.limits.max_line_bytes,
+                    "max_decompressed_bytes": ctx.limits.max_decompressed_bytes,
+                    "max_decompression_ratio": ctx.limits.max_decompression_ratio,
+                    "max_structured_bytes": ctx.limits.max_structured_bytes,
+                    "max_records": ctx.limits.max_records,
+                    "max_output_bytes": sink.max_output,
+                    "tool_timeout_s": ctx.tools.timeout_s,
+                    "tool_max_output_bytes": ctx.tools.max_output_bytes,
+                }
+                if slot is None:
+                    manifest["sandbox"] = {"mode": "none"}
+                    events: Iterator[Event] = iter(parser.parse(ctx))
+                else:
+                    events = self._sandboxed(slot, ctx, job_id, sink, manifest)
+                for event in events:
+                    try:
+                        row, size = to_row(
+                            event,
+                            case_id=str(ev.case_id),
+                            evidence_id=str(ev.id),
+                            job_id=str(job_id),
+                            parser_name=parser.name,
+                            parser_version=parser.version,
+                        )
+                    except NormalizationError as exc:
+                        stats.error(event.record_key or "?", "normalize_failed", str(exc))
+                        continue
+                    if row["raw"].get("_truncated") is True:
+                        stats.warn("raw_truncated", event.record_key)
+                    stats.events_emitted += 1
+                    sink.add(row, size)
+                sink.flush()
             incomplete = stats.assumptions.get("incomplete")
             if incomplete:
                 outcome, error = "partial", f"input not fully readable: {incomplete}"
@@ -512,6 +690,12 @@ class ProcessingService:
         except OutputLimitError as exc:
             self._flush_quietly(sink)
             outcome, error = "partial", str(exc)
+        except SandboxTimeoutError as exc:
+            self._flush_quietly(sink)
+            outcome, error = "partial", f"stopped: {exc}"
+        except SandboxFailedError as exc:
+            session.rollback()
+            outcome, error = "failed", str(exc)
         except TransientJobError as exc:
             session.rollback()
             if allow_retry and self._requeue(session, job_id, claim.token, str(exc)):

@@ -282,25 +282,6 @@ class BundleIngestService(ProcessingService):
 
         return tick
 
-    def _touch(self, session: Session, job_id: uuid.UUID, token: int, progress: float) -> None:
-        try:
-            self.lock_running(session, job_id, token)
-            session.execute(
-                update(Job)
-                .where(Job.id == job_id)
-                .values(
-                    progress=func.greatest(Job.progress, round(progress, 4)),
-                    heartbeat_at=func.now(),
-                )
-            )
-            session.commit()
-        except (JobCancelledError, JobFencedError):
-            session.rollback()
-            raise
-        except OperationalError as exc:
-            session.rollback()
-            raise TransientJobError(f"database unavailable: {type(exc).__name__}") from exc
-
     @staticmethod
     def _summary(tm: TriageManifest, tm_sha: str, trust: dict[str, Any]) -> dict[str, Any]:
         return {

@@ -125,10 +125,14 @@ def test_prod_refuses_a_placeholder_kek(bare_env: None) -> None:
         "jwt_secret": "x" * 40,
         "totp_enc_key": "y" * 40,
         "s3_secret_key": "z" * 20,
-        "database_url": "postgresql+psycopg://u:p@db/d",
+        "database_url": "postgresql+psycopg://dfirbench_app:app-db-pass-0123@db/d",
+        "database_app_role": "dfirbench_app",
         "cors_origins": ["https://dfir.example"],
         "custody_signing_key_path": "/k.pem",
         "custody_key_id": "k1",
+        "sandbox_mode": "spool",
+        "sandbox_in_dir": "/spool/in",
+        "sandbox_out_dir": "/spool/out",
     }
     with pytest.raises(ValueError, match="INTEGRATION_KEK"):
         Settings(_env_file=None, **base, integration_kek="dev-only-integration-kek-change-me")  # type: ignore[arg-type]
@@ -144,10 +148,14 @@ def test_prod_refuses_a_weak_kek_file(bare_env: None, tmp_path: Path) -> None:
         "jwt_secret": "x" * 40,
         "totp_enc_key": "y" * 40,
         "s3_secret_key": "z" * 20,
-        "database_url": "postgresql+psycopg://u:p@db/d",
+        "database_url": "postgresql+psycopg://dfirbench_app:app-db-pass-0123@db/d",
+        "database_app_role": "dfirbench_app",
         "cors_origins": ["https://dfir.example"],
         "custody_signing_key_path": "/k.pem",
         "custody_key_id": "k1",
+        "sandbox_mode": "spool",
+        "sandbox_in_dir": "/spool/in",
+        "sandbox_out_dir": "/spool/out",
     }
     path = tmp_path / "kek"
     for weak in ("dev-only-integration-kek-change-me", "k" * 20):

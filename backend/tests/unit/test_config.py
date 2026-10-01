@@ -17,6 +17,23 @@ def make(**kwargs: object) -> Settings:
     return Settings(_env_file=None, **kwargs)  # type: ignore[arg-type]
 
 
+# A complete production configuration (Phase 10: sandboxed parsers, app-role database login).
+PROD: dict[str, object] = {
+    "app_env": "prod",
+    "jwt_secret": "a-real-secret-0123456789-abcdefghijkl",
+    "totp_enc_key": "another-real-secret-0123456789-abcdef",
+    "s3_secret_key": "real-minio-secret",
+    "database_url": "postgresql+psycopg://dfirbench_app:strong-app-pass@db:5432/dfirbench",
+    "database_app_role": "dfirbench_app",
+    "custody_signing_key_path": "/run/secrets/custody.key",
+    "custody_key_id": "custody-2026-01",
+    "cors_origins": ["https://dfir.example"],
+    "sandbox_mode": "spool",
+    "sandbox_in_dir": "/var/lib/dfirbench/spool/in",
+    "sandbox_out_dir": "/var/lib/dfirbench/spool/out",
+}
+
+
 def test_defaults_are_local_dev() -> None:
     s = make()
     assert s.app_env == "dev"
@@ -108,17 +125,52 @@ def test_prod_rejects_wildcard_cors() -> None:
 
 
 def test_prod_accepts_real_configuration() -> None:
-    s = make(
-        app_env="prod",
-        jwt_secret="a-real-secret-0123456789-abcdefghijkl",
-        totp_enc_key="another-real-secret-0123456789-abcdef",
-        s3_secret_key="real-minio-secret",
-        database_url="postgresql+psycopg://dfir:strong@db:5432/dfirbench",
-        custody_signing_key_path="/run/secrets/custody.key",
-        custody_key_id="custody-2026-01",
-        cors_origins=["https://dfir.example"],
-    )
+    s = make(**PROD)
     assert s.is_prod
+    assert s.migrate_database_url == s.database_url
+    s = make(**PROD, database_migrate_url="postgresql+psycopg://dfir:owner-pass@db/dfirbench")
+    assert s.migrate_database_url.startswith("postgresql+psycopg://dfir:")
+    assert "owner-pass" not in repr(s)
+
+
+def test_prod_requires_the_parser_sandbox() -> None:
+    with pytest.raises(ValidationError, match="SANDBOX_MODE must be 'spool'"):
+        make(**{**PROD, "sandbox_mode": "none"})
+
+
+def test_spool_mode_needs_two_distinct_spool_dirs() -> None:
+    with pytest.raises(ValidationError, match="SANDBOX_IN_DIR and SANDBOX_OUT_DIR"):
+        make(sandbox_mode="spool", sandbox_in_dir="/in")
+    with pytest.raises(ValidationError, match="must differ"):
+        make(sandbox_mode="spool", sandbox_in_dir="/x", sandbox_out_dir="/x")
+    with pytest.raises(ValidationError):
+        make(sandbox_mode="docker")  # the never-implemented placeholder values are gone
+    assert make(sandbox_mode="spool", sandbox_in_dir="/i", sandbox_out_dir="/o").sandbox_mode
+
+
+@pytest.mark.parametrize(
+    ("overrides", "message"),
+    [
+        (
+            {"database_url": "postgresql+psycopg://dfir:strong@db:5432/dfirbench"},
+            "must log in as DATABASE_APP_ROLE",
+        ),
+        ({"database_app_role": None}, "DATABASE_APP_ROLE must be set"),
+        (
+            {"database_url": "postgresql+psycopg://dfirbench_app:dfir_app_dev_password@db/x"},
+            "placeholder password",
+        ),
+        ({"database_url": "postgresql+psycopg://dfirbench_app@db/x"}, "placeholder password"),
+        ({"metrics_token": "short"}, "METRICS_TOKEN"),
+        ({"metrics_token": "dev-only-metrics-token-change-me"}, "METRICS_TOKEN"),
+    ],
+)
+def test_prod_refuses_owner_logins_and_weak_values(
+    overrides: dict[str, object], message: str
+) -> None:
+    with pytest.raises(ValidationError, match=message):
+        make(**{**PROD, **overrides})
+    assert make(**{**PROD, "metrics_token": "m" * 40}).metrics_token is not None
 
 
 def test_get_settings_is_cached() -> None:
@@ -184,16 +236,7 @@ def test_llm_api_key_not_in_repr() -> None:
 
 
 def test_prod_refuses_fake_llm_provider() -> None:
-    real = {
-        "app_env": "prod",
-        "jwt_secret": "a-real-secret-0123456789-abcdefghijkl",
-        "totp_enc_key": "another-real-secret-0123456789-abcdef",
-        "s3_secret_key": "real-minio-secret",
-        "database_url": "postgresql+psycopg://dfir:strong@db:5432/dfirbench",
-        "custody_signing_key_path": "/run/secrets/custody.key",
-        "custody_key_id": "custody-2026-01",
-        "cors_origins": ["https://dfir.example"],
-    }
+    real = dict(PROD)
     with pytest.raises(ValidationError, match="LLM_PROVIDER=fake"):
         make(**real, enable_ai=True, llm_provider="fake")
     assert make(**real, enable_ai=True, llm_provider="anthropic").enable_ai

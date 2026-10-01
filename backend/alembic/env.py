@@ -1,4 +1,4 @@
-"""Alembic environment: online/offline migrations against Settings.database_url."""
+"""Alembic environment: migrations against DATABASE_MIGRATE_URL (else DATABASE_URL)."""
 
 from __future__ import annotations
 
@@ -24,7 +24,11 @@ _IGNORED_TABLE_PREFIXES = ("events_",)
 
 def _db_url() -> str:
     x_args = context.get_x_argument(as_dictionary=True)
-    url = x_args.get("db_url") or config.attributes.get("db_url") or get_settings().database_url
+    url = (
+        x_args.get("db_url")
+        or config.attributes.get("db_url")
+        or get_settings().migrate_database_url
+    )
     return str(url)
 
 

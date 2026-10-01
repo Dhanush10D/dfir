@@ -93,6 +93,57 @@ def event_id(
     )
 
 
+def clean_raw(value: Any) -> tuple[Any, str]:
+    """JSON-safe ``raw`` and its compact encoding, replaced by a summary above MAX_RAW_BYTES."""
+    raw = clean_json(value or {})
+    encoded = json.dumps(raw, ensure_ascii=False, separators=(",", ":"))
+    if len(encoded.encode("utf-8")) > MAX_RAW_BYTES:
+        raw = {"_truncated": True, "_bytes": len(encoded), "summary": clean_text(encoded, 4096)}
+        encoded = json.dumps(raw)
+    return raw, encoded
+
+
+def clean_event(event: Event) -> Event:
+    """``event`` with every column value cleaned exactly as ``to_row`` stores it.
+
+    Idempotent (``clean_event(clean_event(e)) == clean_event(e)``: truncation keeps the marker,
+    replacement characters stay), so the parser sandbox can send cleaned events and the worker
+    normalises them again without changing a byte. ``ts``, ``record_key`` and ``source_file`` are
+    left as they are: the deterministic event id is computed from the parser's own values.
+    """
+    raw, _ = clean_raw(event.raw)
+    tags = event.tags[:MAX_TAGS] if isinstance(event.tags, list | tuple | str) else []
+    return Event(
+        ts=event.ts,
+        source_type=clean_text(event.source_type, 64) or "unknown",
+        message=clean_text(event.message) or "",
+        record_key=event.record_key,
+        host=clean_text(event.host, 255),
+        user=clean_text(event.user, 512),
+        event_code=clean_text(event.event_code, 128),
+        event_category=clean_text(event.event_category, 64),
+        action=clean_text(event.action, 64),
+        outcome=clean_text(event.outcome, 32),
+        process_name=clean_text(event.process_name, MAX_SHORT),
+        pid=clean_int(event.pid),
+        ppid=clean_int(event.ppid),
+        cmdline=clean_text(event.cmdline),
+        file_path=clean_text(event.file_path, 4096),
+        file_hash=clean_text(event.file_hash, 256),
+        src_ip=clean_ip(event.src_ip),
+        dst_ip=clean_ip(event.dst_ip),
+        src_port=clean_int(event.src_port, 0, 65535),
+        dst_port=clean_int(event.dst_port, 0, 65535),
+        protocol=clean_text(event.protocol, 32),
+        registry_key=clean_text(event.registry_key, 4096),
+        source_file=event.source_file,
+        source_record_id=clean_text(event.source_record_id, 256),
+        ts_original=clean_text(event.ts_original, MAX_SHORT),
+        tags=[t for t in (clean_text(x, 128) for x in tags) if t],
+        raw=raw,
+    )
+
+
 def to_row(
     event: Event,
     *,
@@ -108,41 +159,38 @@ def to_row(
         raise NormalizationError("naive timestamp")
     if not event.record_key:
         raise NormalizationError("missing record_key")
-    raw = clean_json(event.raw or {})
-    encoded = json.dumps(raw, ensure_ascii=False, separators=(",", ":"))
-    if len(encoded.encode("utf-8")) > MAX_RAW_BYTES:
-        raw = {"_truncated": True, "_bytes": len(encoded), "summary": clean_text(encoded, 4096)}
-        encoded = json.dumps(raw)
+    clean = clean_event(event)
+    raw, encoded = clean_raw(clean.raw)
     row: dict[str, Any] = {
         "id": event_id(evidence_id, parser_name, event.source_file, event.record_key),
         "case_id": case_id,
         "evidence_id": evidence_id,
         "job_id": job_id,
         "ts": ts.astimezone(UTC),
-        "ts_original": clean_text(event.ts_original, MAX_SHORT),
-        "source_type": clean_text(event.source_type, 64) or "unknown",
+        "ts_original": clean.ts_original,
+        "source_type": clean.source_type,
         "source_file": clean_text(event.source_file, MAX_SHORT),
-        "source_record_id": clean_text(event.source_record_id, 256),
-        "host": clean_text(event.host, 255),
-        "user": clean_text(event.user, 512),
-        "event_code": clean_text(event.event_code, 128),
-        "event_category": clean_text(event.event_category, 64),
-        "action": clean_text(event.action, 64),
-        "outcome": clean_text(event.outcome, 32),
-        "process_name": clean_text(event.process_name, MAX_SHORT),
-        "pid": clean_int(event.pid),
-        "ppid": clean_int(event.ppid),
-        "cmdline": clean_text(event.cmdline),
-        "file_path": clean_text(event.file_path, 4096),
-        "file_hash": clean_text(event.file_hash, 256),
-        "src_ip": clean_ip(event.src_ip),
-        "dst_ip": clean_ip(event.dst_ip),
-        "src_port": clean_int(event.src_port, 0, 65535),
-        "dst_port": clean_int(event.dst_port, 0, 65535),
-        "protocol": clean_text(event.protocol, 32),
-        "registry_key": clean_text(event.registry_key, 4096),
-        "message": clean_text(event.message) or "",
-        "tags": [t for t in (clean_text(x, 128) for x in event.tags[:MAX_TAGS]) if t],
+        "source_record_id": clean.source_record_id,
+        "host": clean.host,
+        "user": clean.user,
+        "event_code": clean.event_code,
+        "event_category": clean.event_category,
+        "action": clean.action,
+        "outcome": clean.outcome,
+        "process_name": clean.process_name,
+        "pid": clean.pid,
+        "ppid": clean.ppid,
+        "cmdline": clean.cmdline,
+        "file_path": clean.file_path,
+        "file_hash": clean.file_hash,
+        "src_ip": clean.src_ip,
+        "dst_ip": clean.dst_ip,
+        "src_port": clean.src_port,
+        "dst_port": clean.dst_port,
+        "protocol": clean.protocol,
+        "registry_key": clean.registry_key,
+        "message": clean.message,
+        "tags": clean.tags,
         "raw": raw,
         "parser_name": parser_name,
         "parser_version": parser_version,
