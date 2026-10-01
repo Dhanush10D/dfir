@@ -13,8 +13,10 @@ Runs on the Docker host with the backend venv (for ``app.ops.backupcrypt``). Ste
 4. ``objects.tar.enc``: the MinIO volume, copied with MinIO stopped and mounted read-only, so
    object versions, Object Lock retention and metadata are restored exactly;
 5. ``keys.tar.enc``: the custody key volume (the private signing key);
-6. ``index.json``: names, sizes and SHA-256 of the encrypted files;
-7. start what was running before (also after an error).
+6. ``integrity-at-backup.json``: ``integrity-check`` on the live stack at that moment (findings a
+   restore must reproduce exactly, e.g. evidence a tamper demo damaged on purpose);
+7. ``index.json``: names, sizes and SHA-256 of the encrypted files;
+8. start what was running before (also after an error).
 
 Encryption: AES-256-GCM STREAM with a scrypt key from BACKUP_PASSPHRASE (never printed). Original
 evidence is only ever read (read-only volume mount); nothing in the live stack is modified.
@@ -116,6 +118,15 @@ def backup(out: Path, compose: Compose, passphrase: str) -> dict[str, Any]:
         )
         document = json.loads(manifest)
         (out / "manifest.json").write_text(manifest, encoding="utf-8")
+        # Integrity at backup time (read-only): a restore must reproduce exactly these findings
+        # (a live store can hold known tamper evidence, e.g. from the Phase 1 demo).
+        baseline = compose.run(
+            "run", "--rm", "--no-deps", "-T", "api", "python", "-m", "app.cli", "integrity-check",
+            check=False,
+        )
+        (out / "integrity-at-backup.json").write_text(
+            json.dumps(json.loads(baseline), indent=2) + "\n", encoding="utf-8"
+        )
         pg_dump = [*compose.base, "exec", "-T", "postgres", "pg_dump", "-U", "dfir", "-d",
                    "dfirbench", "-Fc", "--no-password"]
         files["db.dump.enc"] = {"plain_sha256": encrypt_from(pg_dump, out / "db.dump.enc",
@@ -153,6 +164,9 @@ def backup(out: Path, compose: Compose, passphrase: str) -> dict[str, Any]:
         "manifest_sha256": document["sha256"],
         "signing_key_id": document["signature"]["key_id"],
         "files": files,
+        "documents": {
+            name: sha256_file(out / name) for name in ("manifest.json", "integrity-at-backup.json")
+        },
     }
     (out / "index.json").write_text(json.dumps(index, indent=2) + "\n", encoding="utf-8")
     return index

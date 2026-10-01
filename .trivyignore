@@ -1,0 +1,2 @@
+# Trivy ignore list (Phase 10, scripts/scan.sh). One advisory id per line, each with a reason and
+# a review date in the comment above it. Empty: nothing is ignored.

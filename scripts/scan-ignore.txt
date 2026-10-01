@@ -1,0 +1,2 @@
+# pip-audit ignore list (Phase 10, scripts/scan.sh): "<advisory id> <reason>" per line.
+# Empty: nothing is ignored.

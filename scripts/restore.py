@@ -25,7 +25,6 @@ The trusted keys file ({key_id: public key PEM}) must come from outside the back
 from __future__ import annotations
 
 import argparse
-import contextlib
 import json
 import os
 import shutil
@@ -42,6 +41,20 @@ sys.path.insert(0, str(ROOT / "backend"))
 from app.ops.backupcrypt import check_passphrase, decrypt_stream  # noqa: E402
 
 FILES = ("db.dump.enc", "objects.tar.enc", "keys.tar.enc")
+DOCUMENTS = ("manifest.json", "integrity-at-backup.json")
+# Problems that mean the restored state is not the backed-up state.
+MANIFEST_CODES = frozenset(
+    {
+        "manifest_invalid",
+        "revision_mismatch",
+        "count_mismatch",
+        "evidence_missing",
+        "evidence_unexpected",
+        "evidence_changed",
+        "chain_head_mismatch",
+        "reports_changed",
+    }
+)
 VOLUMES = ("pgdata", "miniodata", "custodykeys")
 TAR_IMAGE = "dfirbench/api:dev"
 
@@ -119,7 +132,26 @@ def verify_index(source: Path) -> dict[str, Any]:
             raise RuntimeError(f"{name} is missing")
         if path.stat().st_size != info["bytes"] or sha256_file(path) != info["sha256"]:
             raise RuntimeError(f"{name} does not match index.json (size or SHA-256)")
+    for name in DOCUMENTS:
+        path = source / name
+        if not path.is_file() or sha256_file(path) != index.get("documents", {}).get(name):
+            raise RuntimeError(f"{name} is missing or does not match index.json")
     return index
+
+
+def judge(result: dict[str, Any], baseline: dict[str, Any]) -> tuple[bool, str]:
+    """Restored = backed up: the manifest matches and the integrity findings are the same."""
+    codes = {p["code"] for p in result.get("problems", [])}
+    if not result.get("manifest_checked") or codes & MANIFEST_CODES:
+        return False, f"restored state differs from the backup manifest: {sorted(codes)}"
+    found = {(p["code"], p.get("evidence_id")) for p in result["problems"]}
+    expected = {(p["code"], p.get("evidence_id")) for p in baseline.get("problems", [])}
+    if found != expected:
+        return False, (
+            f"integrity findings differ from the backup: unexpected {sorted(found - expected)}, "
+            f"missing {sorted(expected - found)}"
+        )
+    return True, f"{len(found)} findings recorded at backup time reproduced exactly"
 
 
 def decrypt_all(source: Path, work: Path, index: dict[str, Any], passphrase: str) -> None:
@@ -145,6 +177,13 @@ def untar_into(volume: str, archive: Path) -> None:
         raise RuntimeError(f"untar into {volume} failed: {proc.stderr.decode()[-1000:]}")
 
 
+STARTED = time.monotonic()
+
+
+def stage(message: str) -> None:
+    print(f"[{time.monotonic() - STARTED:7.1f}s] {message}", file=sys.stderr, flush=True)
+
+
 def restore(args: argparse.Namespace, passphrase: str) -> dict[str, Any]:
     source: Path = args.source
     index = verify_index(source)
@@ -157,18 +196,23 @@ def restore(args: argparse.Namespace, passphrase: str) -> dict[str, Any]:
         raise RuntimeError(f"project {args.project!r} already has volumes {existing}; use --force")
     if args.project == "dfirbench" and not args.force:
         raise RuntimeError("restoring over the live project needs --force")
+    if args.project == "dfirbench":
+        args.keep = True  # never tear the live project down after restoring it
     work = Path(tempfile.mkdtemp(prefix="dfir-restore-", dir=args.tmp_dir))
     try:
         os.chmod(work, 0o700)
+        stage("decrypting and authenticating every file")
         decrypt_all(source, work, index, passphrase)
         if existing:
             project.compose("down", "-v", check=False)
+        stage("creating the project and filling the MinIO and key volumes")
         project.compose("create", "postgres", "minio")
         untar_into(project.volume_name("miniodata"), work / "objects.tar")
         project.compose("create", "keygen")  # creates the custodykeys volume
         untar_into(project.volume_name("custodykeys"), work / "keys.tar")
         project.compose("up", "-d", "postgres", "minio")
         project.wait_healthy(("postgres", "minio"))
+        stage("postgres and MinIO are healthy; restoring the database")
         project.compose(
             "exec", "-T", "postgres", "psql", "-U", "dfir", "-d", "dfirbench", "-v",
             "ON_ERROR_STOP=1", "-c",
@@ -181,7 +225,9 @@ def restore(args: argparse.Namespace, passphrase: str) -> dict[str, Any]:
                 "exec", "-T", "postgres", "pg_restore", "-U", "dfir", "-d", "dfirbench",
                 "--exit-on-error", "--no-password", stdin=dump,
             )
+        stage("running the read-only integrity check against the restored project")
         check = run_integrity_check(args, source)
+        stage("integrity check finished")
         return {"project": args.project, "index": index, "integrity": check}
     finally:
         shutil.rmtree(work, ignore_errors=True)
@@ -247,11 +293,16 @@ def main() -> int:
     except Exception as exc:  # noqa: BLE001 - operator tool: one clear line
         print(f"restore failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1
-    print(json.dumps(outcome["integrity"], indent=2))
-    with contextlib.suppress(KeyError):
-        if outcome["integrity"]["ok"] and outcome["integrity"]["manifest_checked"]:
-            print(f"RESTORE VERIFIED: project {outcome['project']}", file=sys.stderr)
-            return 0
+    result = outcome["integrity"]
+    baseline = json.loads((args.source / "integrity-at-backup.json").read_text(encoding="utf-8"))
+    print(json.dumps(result, indent=2))
+    ok, reason = judge(result, baseline)
+    summary = {k: result.get(k) for k in ("evidence_checked", "objects_hashed", "bytes_hashed")}
+    if ok:
+        print(f"RESTORE VERIFIED: project {outcome['project']}: {reason}; {summary}",
+              file=sys.stderr)
+        return 0
+    print(f"RESTORE NOT VERIFIED: {reason}", file=sys.stderr)
     return 1
 
 
