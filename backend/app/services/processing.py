@@ -33,6 +33,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import importlib.metadata
+import json
 import os
 import platform
 import shutil
@@ -50,7 +51,6 @@ from typing import Any
 import structlog
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from sqlalchemy import delete, func, select, text, update
-from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import DBAPIError, OperationalError
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -205,6 +205,46 @@ def tool_config(settings: Settings) -> ToolConfig:
     )
 
 
+STAGE_TABLE = "dfir_event_stage"
+_CREATE_STAGE = (
+    f"CREATE TEMP TABLE IF NOT EXISTS {STAGE_TABLE} (LIKE events INCLUDING DEFAULTS) "
+    "ON COMMIT DELETE ROWS"
+)
+
+
+def insert_event_rows(session: Session, rows: list[dict[str, Any]]) -> int:
+    """Insert ``to_row`` rows in the session's transaction; returns how many were new.
+
+    Phase 10 (the benchmark showed ~2.5 s per 1000 rows spent compiling a 32 000-parameter
+    multi-row VALUES statement): the batch is COPYed into a per-session temporary staging table
+    (emptied on commit) and moved with ``INSERT ... SELECT ... ON CONFLICT (id, ts) DO NOTHING
+    RETURNING id``, about ten times faster with the same semantics: the same transaction (so the
+    caller's job-row lock still fences it), deterministic ids, duplicates skipped and counted.
+    """
+    if not rows:
+        return 0
+    columns = list(rows[0])
+    column_sql = ", ".join(f'"{name}"' for name in columns)  # names from to_row, not from data
+    raw_index = columns.index("raw")
+    driver = session.connection().connection.driver_connection
+    if driver is None:  # cannot happen with a live session connection
+        raise TransientJobError("database connection unavailable")
+    with driver.cursor() as cur:
+        cur.execute(_CREATE_STAGE)
+        with cur.copy(f"COPY {STAGE_TABLE} ({column_sql}) FROM STDIN") as copy:
+            for row in rows:
+                values = [row[name] for name in columns]
+                values[raw_index] = json.dumps(values[raw_index], ensure_ascii=False)
+                copy.write_row(values)
+        cur.execute(
+            f"INSERT INTO events ({column_sql}) SELECT {column_sql} FROM {STAGE_TABLE} "  # noqa: S608 - fixed names
+            "ON CONFLICT (id, ts) DO NOTHING RETURNING id"
+        )
+        inserted = len(cur.fetchall())
+        cur.execute(f"TRUNCATE {STAGE_TABLE}")
+    return inserted
+
+
 class EventSink:
     """Buffers normalized rows and flushes them in fenced, lock-protected batches."""
 
@@ -279,15 +319,8 @@ class EventSink:
                 self._ensure_partitions(rows)
             self.svc.lock_running(self.session, self.job_id, self.token)
             if rows:
-                # RETURNING counts the rows really inserted (rowcount is -1 for multi-VALUES).
-                inserted = len(
-                    self.session.execute(
-                        pg_insert(EventRow)
-                        .values(rows)
-                        .on_conflict_do_nothing(index_elements=["id", "ts"])
-                        .returning(EventRow.id)
-                    ).all()
-                )
+                # In this transaction, after lock_running: a cancel cannot interleave.
+                inserted = insert_event_rows(self.session, rows)
                 self.inserted += inserted
                 if inserted < len(rows):
                     self.stats.warn("duplicate_event_id", detail=str(len(rows) - inserted))
