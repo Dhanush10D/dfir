@@ -209,7 +209,7 @@ def test_two_admins_demoting_each_other_keep_one_admin(h: Harness, db_engine: En
             conn.execute(text("UPDATE users SET is_active = false WHERE role = 'admin'"))
         admins = [h.make_user(UserRole.admin, login=False) for _ in range(2)]
 
-        def demote(i: int) -> Any:
+        def demote(i: int, admins: list[UserCtx] = admins) -> Any:
             actor, target = admins[i], admins[1 - i]
             principal = Principal(actor.id, actor.email, "Admin", UserRole.admin)
             with h.sessions() as session:

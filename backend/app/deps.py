@@ -181,6 +181,11 @@ def get_ai_limiter() -> RateLimiter:
 # ------------------------------------------------------------------ integrations (Phase 9)
 
 
+def get_queue_inspector() -> Redis | None:
+    """Redis client for queue depths in /metrics (tests override this)."""
+    return get_redis()
+
+
 def get_auth_limiter() -> WindowLimiter:
     """Per-IP limits on /auth (Phase 10), shared through Redis (tests override this)."""
     return RedisWindowLimiter(get_redis(), prefix="dfir:auth")

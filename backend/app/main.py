@@ -6,11 +6,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
+from app.api.metrics import router as metrics_router
 from app.api.v1 import router as api_v1_router
 from app.config import Settings, get_settings
 from app.core.audit_middleware import AuditMiddleware
 from app.core.errors import register_handlers
 from app.core.logging import get_logger, setup_logging
+from app.core.metrics import MetricsMiddleware
 from app.core.middleware import RequestIdMiddleware
 from app.deps import get_audit_sink
 
@@ -58,9 +60,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         ],
     )
     app.add_middleware(AuditMiddleware, sink_getter=lambda: getattr(app.state, "audit_sink", None))
+    app.add_middleware(MetricsMiddleware, prefix=API_PREFIX)
     app.add_middleware(RequestIdMiddleware)
     register_handlers(app)
     app.include_router(api_v1_router, prefix=API_PREFIX)
+    app.include_router(metrics_router)  # /metrics, outside /api/v1 (not proxied by nginx)
 
     get_logger("dfirbench").info("app_created", env=settings.app_env, version=__version__)
     return app
