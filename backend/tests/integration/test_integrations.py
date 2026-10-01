@@ -495,11 +495,20 @@ def test_delivery_retries_with_backoff_then_fails_for_good(world: World, db_engi
         (HttpResponse(410, {}, b""), "http_410"),
         (HttpResponse(302, {"location": "https://evil.test/"}, b""), "http_302"),
     ):
-        world.emit("report.signed", {"report_id": str(uuid.uuid4())})
+        report_id = str(uuid.uuid4())
+        world.emit("report.signed", {"report_id": report_id})
         h.transport.responses = [response]
         result = h.deliver(clock=lambda: now["t"])
         assert (result.attempted, result.failed) == (1, 1)
-        last = world.deliveries(hook["id"])[-1]
+        with h.sessions() as session:  # by its event, not by time (clocks can step back)
+            last = session.execute(
+                select(OutboundDelivery)
+                .join(OutboundEvent, OutboundEvent.id == OutboundDelivery.event_id)
+                .where(
+                    OutboundDelivery.integration_id == uuid.UUID(hook["id"]),
+                    OutboundEvent.payload["report_id"].astext == report_id,
+                )
+            ).scalar_one()
         assert (last.status, last.attempts, last.last_error) == ("failed", 1, error)
     assert all(r.target.host == "hooks.example.test" for r in h.transport.requests)  # type: ignore[attr-defined]
 
@@ -575,7 +584,8 @@ def test_ssrf_blocked_delivery_never_leaves(world: World) -> None:
         session.commit()
     world.emit("report.signed", {"report_id": str(uuid.uuid4())})
     h.deliver()
-    assert world.deliveries(hooks[0]["id"])[-1].last_error == "blocked:http_not_allowed"
+    errors = [d.last_error for d in world.deliveries(hooks[0]["id"])]  # order-free
+    assert errors.count("blocked:http_not_allowed") == 1
     assert h.transport.requests == []
 
 
@@ -771,7 +781,8 @@ def test_notification_dedup_rate_limit_and_content(world: World) -> None:
     alert("DFIR-WIN-0003")
     limited = h.deliver(notify_rate_limit_per_hour=2)
     assert limited.suppressed == 1 and limited.attempted == 0
-    assert world.deliveries(slack["id"])[-1].last_error == "rate_limited"
+    errors = [d.last_error for d in world.deliveries(slack["id"])]  # order-free
+    assert errors.count("rate_limited") == 1
     # With details switched on, evidence text is escaped for Slack.
     assert (
         h.patch(
