@@ -236,8 +236,10 @@ def markdown(data: dict[str, Any]) -> str:
     lines.append("|---|---|---|---|---|---|---|---|---|---|")
     for p in data["parsers"]:
         c = p["counts"]
+        params = ", ".join(f"{k}={v}" for k, v in sorted(p["params"].items()))
+        fixture = f"`{p['fixture']}`" + (f" ({params})" if params else "")
         lines.append(
-            f"| {p['parser']} | {p['parser_version']} | `{p['fixture']}` | {c['records_read']} | "
+            f"| {p['parser']} | {p['parser_version']} | {fixture} | {c['records_read']} | "
             f"{c['events_emitted']} | {c['skipped']} | {c['errors']} | `{p['output_sha256'][:16]}` "
             f"| {'match' if p['matches_golden'] else 'DIFFERS'} | {p['engine']} |"
         )

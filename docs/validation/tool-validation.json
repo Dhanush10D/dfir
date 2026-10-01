@@ -1,0 +1,803 @@
+{
+ "format": "dfirbench-tool-validation",
+ "integrity": [
+  {
+   "proved_by": [
+    "backend/tests/integration/test_evidence_api.py::test_full_lifecycle",
+    "backend/tests/integration/test_vault_minio.py::test_streaming_multipart_upload_hash_matches_independent_digest",
+    "scripts/phase1-smoke.py"
+   ],
+   "requirement": "Upload a file; the stored hash equals an independent SHA-256"
+  },
+  {
+   "proved_by": [
+    "backend/tests/integration/test_tamper.py::test_flipped_byte_in_stored_version_is_detected",
+    "backend/tests/integration/test_integrity.py::test_flipped_byte_and_edited_custody_row_are_found"
+   ],
+   "requirement": "Flip one byte in the vault copy; verify fails and logs hash_failed"
+  },
+  {
+   "proved_by": [
+    "backend/tests/integration/test_tamper.py::test_edited_custody_detail_is_detected_at_its_seq",
+    "backend/tests/integration/test_tamper.py::test_owner_publishing_attacker_key_and_resigning_whole_chain_fails",
+    "scripts/phase1-smoke.py"
+   ],
+   "requirement": "Modify a custody row as a privileged user; chain verification fails"
+  },
+  {
+   "proved_by": [
+    "backend/tests/integration/test_tamper.py::test_app_role_cannot_mutate_custody_or_audit",
+    "scripts/verify-phase10.sh"
+   ],
+   "requirement": "UPDATE/DELETE on custody_log as the app role is denied"
+  },
+  {
+   "proved_by": [
+    "backend/tests/integration/test_processing.py::test_idempotent_submit_and_reprocess"
+   ],
+   "requirement": "Process evidence twice; no duplicate events, original hash unchanged"
+  },
+  {
+   "proved_by": [
+    "scripts/phase10-smoke.py"
+   ],
+   "requirement": "Writing to the evidence mount from the parser container fails"
+  },
+  {
+   "proved_by": [
+    "backend/tests/integration/test_integrity.py::test_manifest_round_trip_and_tail_truncation",
+    "scripts/verify-phase10.sh"
+   ],
+   "requirement": "A restored backup is re-verified (hashes, custody chains, chain heads) before use"
+  }
+ ],
+ "parsers": [
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 4,
+    "records_read": 4,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/evtx/new_user_security.evtx",
+   "fixture_sha256": "6f9fe51d0a5dec63dc68f819e23bc14da5db0b75db4a68dfdf6b39f02868a379",
+   "golden": "tests/fixtures/golden/evtx_new_user_security.json",
+   "matches_golden": true,
+   "output_sha256": "765c1d57c75a70106ba3172da1eef2d450f4401822a0b9072e2929c2d53f400c",
+   "params": {},
+   "parser": "evtx",
+   "parser_version": "1.0.1",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 7,
+    "records_read": 7,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/evtx/security_short_selected.evtx",
+   "fixture_sha256": "50c87926d2dfed9776906ffbcc77e61577940910a71fb1c1871860a4e2213456",
+   "golden": "tests/fixtures/golden/evtx_security_short_selected.json",
+   "matches_golden": true,
+   "output_sha256": "9b42476271a993c87b667fb12524c1732bb205a819cefcef14636eab66e7cad2",
+   "params": {},
+   "parser": "evtx",
+   "parser_version": "1.0.1",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 1,
+    "events_emitted": 22,
+    "records_read": 24,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/linux/auth.log",
+   "fixture_sha256": "ce65b443a1765c41816bf3b485079273d8411f5c65c313226603a56f3142fa8b",
+   "golden": "tests/fixtures/golden/linux_auth_utc.json",
+   "matches_golden": true,
+   "output_sha256": "71e0e982a0e77f506cfe6023665c1c99b5a477842b67b86bb8fd93a28a09b0d5",
+   "params": {
+    "timezone": "UTC"
+   },
+   "parser": "linux_auth",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 1,
+    "events_emitted": 22,
+    "records_read": 24,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/linux/auth.log",
+   "fixture_sha256": "ce65b443a1765c41816bf3b485079273d8411f5c65c313226603a56f3142fa8b",
+   "golden": "tests/fixtures/golden/linux_auth_kolkata.json",
+   "matches_golden": true,
+   "output_sha256": "9091dac06b93abb4ba1c52b1ac450b7d02ecf92c2b02ea002b6004d0340e46f1",
+   "params": {
+    "timezone": "Asia/Kolkata"
+   },
+   "parser": "linux_auth",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 9,
+    "records_read": 11,
+    "skipped": 2
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/SYSTEM",
+   "fixture_sha256": "b294e2fa5d68a39e356e247bf995c658348871f0343a857eaac1ebc81b36ce1d",
+   "golden": "tests/fixtures/golden/deep_registry_system.json",
+   "matches_golden": true,
+   "output_sha256": "ce6d34b2306c99586b7fa560731968db2d69b52f1b30f4eed283c7d2d2709b02",
+   "params": {},
+   "parser": "registry_hive",
+   "parser_version": "1.0.0",
+   "warnings": 2
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 6,
+    "records_read": 7,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/SOFTWARE",
+   "fixture_sha256": "a68c93019277b26ff4ec554e1b6f22fd365ed0920812d6bebdd238194497ec9c",
+   "golden": "tests/fixtures/golden/deep_registry_software.json",
+   "matches_golden": true,
+   "output_sha256": "260865bf1c6b9c13df25548701e65e64463bc171d75d69c836d9714286867ca8",
+   "params": {},
+   "parser": "registry_hive",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 8,
+    "records_read": 10,
+    "skipped": 2
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/NTUSER.DAT",
+   "fixture_sha256": "7c63794799ca9ae8d95ecb7aa2e5c2d4106104848bdc5a12bfd9faa1186d2c21",
+   "golden": "tests/fixtures/golden/deep_registry_ntuser.json",
+   "matches_golden": true,
+   "output_sha256": "12cf174dd2119bc673c97bc32ecb04f0206c752a31157770dc8a2804ca23b973",
+   "params": {},
+   "parser": "registry_hive",
+   "parser_version": "1.0.0",
+   "warnings": 2
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 5,
+    "records_read": 6,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/Amcache.hve",
+   "fixture_sha256": "2a978485be794c57afac9ff14a073db04e7f405170386147b0056e70da28d22d",
+   "golden": "tests/fixtures/golden/deep_amcache.json",
+   "matches_golden": true,
+   "output_sha256": "e276ca21e2f92c30000ecbd2514ef62e16da97f1b7c12089938065d842e3aae4",
+   "params": {},
+   "parser": "amcache",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 2,
+    "records_read": 8,
+    "skipped": 6
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/EVIL.EXE-1A2B3C4D.pf",
+   "fixture_sha256": "b218d1b355d8847596a2c1532a1f59027a81009a759239331018423a296e663c",
+   "golden": "tests/fixtures/golden/deep_prefetch_v30.json",
+   "matches_golden": true,
+   "output_sha256": "de10d594ee3788f5ba829c116227efac9035e006f7334cf636dfdecf810b27e1",
+   "params": {},
+   "parser": "prefetch",
+   "parser_version": "1.0.0",
+   "warnings": 6
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 1,
+    "records_read": 1,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/XPTOOL.EXE-0BADF00D.pf",
+   "fixture_sha256": "6738ff9c2a75d39e3190ffe9fe20abe1ffa307251593eb593ae84e3b4ddc8b3e",
+   "golden": "tests/fixtures/golden/deep_prefetch_v17.json",
+   "matches_golden": true,
+   "output_sha256": "70bfb0e467a19b954b6d14d0b1ab3939af2990ad5eeaa23fd4d6b492900d7ab0",
+   "params": {},
+   "parser": "prefetch",
+   "parser_version": "1.0.0",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 2,
+    "records_read": 3,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/evil.lnk",
+   "fixture_sha256": "09f5459f1e775438e773e03431e3c7afb37cbe9d0cdb5c5a411834aaf3883388",
+   "golden": "tests/fixtures/golden/deep_lnk.json",
+   "matches_golden": true,
+   "output_sha256": "b6c5fadc258c7ba72e70e817372c2ee3ad5c1276a04e6bf23cb9dac95bae6077",
+   "params": {},
+   "parser": "lnk",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 4,
+    "records_read": 5,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/History",
+   "fixture_sha256": "880582f3817de69e3ebaf4d46e5780b4aeeb9104f72ffe74596196c5f57c9f11",
+   "golden": "tests/fixtures/golden/deep_browser_chromium.json",
+   "matches_golden": true,
+   "output_sha256": "0b77a211e7caa1e6553616be3d072cce419e09b0aad55cca4eedb6492e61b917",
+   "params": {},
+   "parser": "browser",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 3,
+    "records_read": 3,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/places.sqlite",
+   "fixture_sha256": "87fcfa13978bc38fb9fa9f4a99e8447b3546da6a184dcd6fe04d42d61670e4fc",
+   "golden": "tests/fixtures/golden/deep_browser_firefox.json",
+   "matches_golden": true,
+   "output_sha256": "1f3e3a91bbfdffc3e4c76263d25841ffe97218a0f88084042ef0a8df77109365",
+   "params": {},
+   "parser": "browser",
+   "parser_version": "1.0.0",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 1,
+    "records_read": 1,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/sample.exe",
+   "fixture_sha256": "a07c589f06905b4c58c14a8dd5f6daba0b87a7a954fcaa7411988ae014fde45e",
+   "golden": "tests/fixtures/golden/deep_pe_static.json",
+   "matches_golden": true,
+   "output_sha256": "060a1363a25510967c850ac5a9afa6504112fe7a4382e4cb9993f9f062117b32",
+   "params": {},
+   "parser": "pe_static",
+   "parser_version": "1.0.0",
+   "warnings": 2
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 2,
+    "records_read": 2,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/eicar_mimikatz.txt",
+   "fixture_sha256": "20235c8f1c350f180e67eaffe1d11ec62a8382f6a52c6975e5fcdcda6b38e5b4",
+   "golden": "tests/fixtures/golden/deep_yara_scan.json",
+   "matches_golden": true,
+   "output_sha256": "c9f97ddf49c3fb1c68a88961b149fb48c6eeac7500ee0bbde875bf52d7964755",
+   "params": {},
+   "parser": "yara_scan",
+   "parser_version": "1.0.0",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 1,
+    "events_emitted": 7,
+    "records_read": 9,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/capture.pcap",
+   "fixture_sha256": "fd53e48fce8f5a35d0ce85ae016bd22a2dac7591767bcfb92319d9d0bf144459",
+   "golden": "tests/fixtures/golden/deep_pcap.json",
+   "matches_golden": true,
+   "output_sha256": "30f0a1f4fc42df00f95317d7da1c32e04cae3af06c709a993e5c4ae984dc64b9",
+   "params": {},
+   "parser": "pcap",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 2,
+    "records_read": 2,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/capture.pcapng",
+   "fixture_sha256": "1ebd86ac234e6d0d98c81879cc05fa9d93845c2777c68b36f67205d56fe73e58",
+   "golden": "tests/fixtures/golden/deep_pcapng.json",
+   "matches_golden": true,
+   "output_sha256": "7e621a35a45d442361988d0cd216c49a5d441b5805e8cf316d80e5358b631f13",
+   "params": {},
+   "parser": "pcap",
+   "parser_version": "1.0.0",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 4,
+    "records_read": 5,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/wtmp",
+   "fixture_sha256": "d2c2183c94ef944f0188767e7a9b7c697eb221d500cf34977004755b7ffae552",
+   "golden": "tests/fixtures/golden/deep_wtmp.json",
+   "matches_golden": true,
+   "output_sha256": "bda4991e12bdcf2eae6cbe67b0839a4ec6abcbf9e62c16f27a2e8a287d97311d",
+   "params": {},
+   "parser": "wtmp",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 1,
+    "records_read": 1,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/btmp",
+   "fixture_sha256": "b2c9b533fab6ffc48ddf0b29a048cf5da3fa1474b40c34eda2b910e4ab1dd1a8",
+   "golden": "tests/fixtures/golden/deep_btmp.json",
+   "matches_golden": true,
+   "output_sha256": "820ffe416270894f2703266d0091f429893212b453ad8fba2d9e2db3b5eeaf73",
+   "params": {},
+   "parser": "wtmp",
+   "parser_version": "1.0.0",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 3,
+    "records_read": 6,
+    "skipped": 3
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/.bash_history",
+   "fixture_sha256": "a376eccf4be30d8c501fa11f18530cff295123567a7dcd7b11a68361e2969ab3",
+   "golden": "tests/fixtures/golden/deep_shell_bash.json",
+   "matches_golden": true,
+   "output_sha256": "580b0c38973e448bd5df3f037f08ee31a5f89d42b37965583a6ad739f5d3881c",
+   "params": {},
+   "parser": "shell_history",
+   "parser_version": "1.0.0",
+   "warnings": 3
+  },
+  {
+   "counts": {
+    "errors": 1,
+    "events_emitted": 1,
+    "records_read": 2,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/.zsh_history",
+   "fixture_sha256": "61dcefcbade9be39a7c85691a8abb7b9d7b9c80890eabf6dfdb133b71c05986e",
+   "golden": "tests/fixtures/golden/deep_shell_zsh.json",
+   "matches_golden": true,
+   "output_sha256": "8f753782a19a7304adfea62ad2509f8cd425c6c4bf734523b8de98e72aa8eef3",
+   "params": {},
+   "parser": "shell_history",
+   "parser_version": "1.0.0",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 2,
+    "records_read": 2,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/ConsoleHost_history.txt",
+   "fixture_sha256": "a43b6198dd91631f0ecee2894368e20a03f66ee0bbb9e5b97ad82a42b3a4a98b",
+   "golden": "tests/fixtures/golden/deep_shell_powershell.json",
+   "matches_golden": true,
+   "output_sha256": "c3392574e028815d2d568b61853796a2c6320651fda7e5be002230c2b88a80e7",
+   "params": {},
+   "parser": "shell_history",
+   "parser_version": "1.0.0",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 2,
+    "events_emitted": 2,
+    "records_read": 4,
+    "skipped": 0
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/deep/bin/journal.json",
+   "fixture_sha256": "277f6c5bfc3988e66b7642d00b4da5ccda71db3bc7b456b96b3403af0cd7be25",
+   "golden": "tests/fixtures/golden/deep_journal_json.json",
+   "matches_golden": true,
+   "output_sha256": "0a77d67c536acbcc2db26285d919701dd590e30db53e2fe6e07905b46016acec",
+   "params": {},
+   "parser": "journal_json",
+   "parser_version": "1.0.0",
+   "warnings": 0
+  },
+  {
+   "counts": {
+    "errors": 1,
+    "events_emitted": 5,
+    "records_read": 7,
+    "skipped": 1
+   },
+   "engine": "recorded fls/mmls output (fake binary); wrapper validated",
+   "fixture": "tests/fixtures/deep/bin/fat12.img",
+   "fixture_sha256": "7b06ede6ed785f4f818a1579aa0133109804cb6446770b4a01697d70fea35793",
+   "golden": "tests/fixtures/golden/deep_tsk_fs.json",
+   "matches_golden": true,
+   "output_sha256": "146215f1f99f90bd8bf598b6ba6959c166ea6dbaee176162cf98860a3133a118",
+   "params": {
+    "timezone": "UTC"
+   },
+   "parser": "tsk_fs",
+   "parser_version": "1.0.0",
+   "warnings": 2
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 6,
+    "records_read": 6,
+    "skipped": 0
+   },
+   "engine": "recorded vol output (fake binary); wrapper validated",
+   "fixture": "tests/fixtures/deep/bin/fat12.img",
+   "fixture_sha256": "7b06ede6ed785f4f818a1579aa0133109804cb6446770b4a01697d70fea35793",
+   "golden": "tests/fixtures/golden/deep_volatility.json",
+   "matches_golden": true,
+   "output_sha256": "2be12b70f07b24351cad074aaaa76a32c557f318644d69f976d4bbfb85de9d6b",
+   "params": {
+    "os": "windows",
+    "plugins": [
+     "info",
+     "pslist",
+     "cmdline",
+     "netscan",
+     "malfind"
+    ]
+   },
+   "parser": "volatility",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 1,
+    "events_emitted": 3,
+    "records_read": 4,
+    "skipped": 0
+   },
+   "engine": "recorded zeek output (fake binary); wrapper validated",
+   "fixture": "tests/fixtures/deep/bin/capture.pcap",
+   "fixture_sha256": "fd53e48fce8f5a35d0ce85ae016bd22a2dac7591767bcfb92319d9d0bf144459",
+   "golden": "tests/fixtures/golden/deep_zeek.json",
+   "matches_golden": true,
+   "output_sha256": "dbe619e442e2536c558e177c6bdde84c70c4eabe498663224f040d084ce0f0e1",
+   "params": {},
+   "parser": "zeek",
+   "parser_version": "1.0.0",
+   "warnings": 0
+  }
+ ],
+ "rules": [
+  {
+   "attack": [
+    "T1070.006"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-AF-0001",
+   "rule_sha256": "79ece5ff9d7448839e1eca90595752c6a374e2d355536999b10aef3e243edd4f"
+  },
+  {
+   "attack": [
+    "T1070"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-AF-0002",
+   "rule_sha256": "786dad9f59851bead1d477fa78a827aeff0783b4916f7f27e3a630051133c20f"
+  },
+  {
+   "attack": [
+    "T1070.002"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-AF-0003",
+   "rule_sha256": "6afef439d5f366a30c7c8b349dde6f91f0f2f3dc6a120b34e5096c8822b46f76"
+  },
+  {
+   "attack": [],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 3,
+   "rule": "DFIR-IOC-0001",
+   "rule_sha256": "adfdc0a0938d6f4ba4ff16a714121df806c0814d61d440677666ff8c1d827890"
+  },
+  {
+   "attack": [
+    "T1110"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-LNX-0001",
+   "rule_sha256": "a242bf07de2acb5c028b050e61c0fc32264383920959279787c2168b6832223c"
+  },
+  {
+   "attack": [
+    "T1110"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-LNX-0002",
+   "rule_sha256": "58eb6c4926d02db0b2d829538f4adfe7ac40b3a54bed94b001585a96fa70a817"
+  },
+  {
+   "attack": [
+    "T1078"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-LNX-0003",
+   "rule_sha256": "e799d0052c02377d16f46432cf5ac1fd4900ddfdd4dc782066543ce193f0ebfb"
+  },
+  {
+   "attack": [
+    "T1136.001"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-LNX-0004",
+   "rule_sha256": "d07f68e97826b5dc52f4e6ed8bba2e94af2245f1df24cf62ad41f06371694b72"
+  },
+  {
+   "attack": [
+    "T1098"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-LNX-0011",
+   "rule_sha256": "9bef94704a94e4b845be74be2d2d38abac9202146a7955de27fc0084a1fd6ae0"
+  },
+  {
+   "attack": [
+    "T1070.001"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0001",
+   "rule_sha256": "d2f960147ded0b33a4d4655c6d9e6ed4deecd2ef5d9877eacee00e7f60e20fc1"
+  },
+  {
+   "attack": [
+    "T1070.001"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0002",
+   "rule_sha256": "ef1c9b789d09128a0dfecbacb098a0fe546d6e97b7f0862b64c618ba72a642ca"
+  },
+  {
+   "attack": [
+    "T1110"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0003",
+   "rule_sha256": "eeb2bb65c795e819aa687c72b07290cc24adc9c1192f3b080e03925ae78ef45e"
+  },
+  {
+   "attack": [
+    "T1110"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0004",
+   "rule_sha256": "536bd4bfca34be08c011bda20fc3317b907772aacc8e1495705a37bbdfb18ea2"
+  },
+  {
+   "attack": [
+    "T1110.003"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0005",
+   "rule_sha256": "d7e032b1714d18faa22f6bc82f18e85535f1b76ea63eb7c3f60faa880573551c"
+  },
+  {
+   "attack": [
+    "T1543.003"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0006",
+   "rule_sha256": "d27fc8f597c3c1c89246473686c934ff58854f8d1d00220b93341d952e49e283"
+  },
+  {
+   "attack": [
+    "T1053.005"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0007",
+   "rule_sha256": "5fb4e5cc298ade18af76253178451a6cf15722b451677812125d19be984e9148"
+  },
+  {
+   "attack": [
+    "T1136.001"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0008",
+   "rule_sha256": "a7b80cdea4d0b6065c8752b14d3282e916866292e7a9e675f775647c09cf1442"
+  },
+  {
+   "attack": [
+    "T1098"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0009",
+   "rule_sha256": "f00c19f8efb9f3b38b81b2d48d4f567f9a1e484ee4053c548daab67fd7ccbbb7"
+  },
+  {
+   "attack": [
+    "T1490"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0010",
+   "rule_sha256": "db39ff7488cde2d9704f49369cfc3ff7207458fbb8fa902de1e2604377e12f4c"
+  },
+  {
+   "attack": [
+    "T1490"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0011",
+   "rule_sha256": "63de3a05505559dc914d4ebe623cd6200ce82cb29315db565154dacc91be423c"
+  },
+  {
+   "attack": [
+    "T1059.001"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0012",
+   "rule_sha256": "6083cdaf00c8dfd70fc031219277079859685d778bca6adc44696a1e82aa7657"
+  },
+  {
+   "attack": [
+    "T1070.006"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0026",
+   "rule_sha256": "733a6ce377e9f2684db5da8236f7e0bfe15585f65be11458be85b855d1495424"
+  },
+  {
+   "attack": [
+    "T1070.001"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0027",
+   "rule_sha256": "25d5f9c543652e8e57a0186e2f7bc667d6ba0a095ca06cea4389d21e7ed2771b"
+  },
+  {
+   "attack": [
+    "T1562.002"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0029",
+   "rule_sha256": "dd5fd5cb8f0c2e4f07bcbc7d704096a15f267f0b2efc3a61f7c3e4071ed58ac2"
+  },
+  {
+   "attack": [
+    "T1070.001"
+   ],
+   "negative_alerts": 0,
+   "passed": true,
+   "positive_alerts": 1,
+   "rule": "DFIR-WIN-0030",
+   "rule_sha256": "20709d1bff580dad9ff7f6313d7347b74575318b00f3df05a716047490a48602"
+  }
+ ],
+ "version": 1,
+ "versions": {
+  "LnkParse3": "1.6.0",
+  "PyYAML": "6.0.3",
+  "defusedxml": "0.7.1",
+  "dpkt": "1.9.8",
+  "google-re2": "1.1.20251105",
+  "pefile": "2024.8.26",
+  "python-evtx": "0.8.1",
+  "sleuthkit (worker image)": "4.11.1+dfsg-1+b1",
+  "tzdata": "2026.4",
+  "volatility3 (worker image)": "2.28.2",
+  "yara-python": "4.5.4"
+ }
+}

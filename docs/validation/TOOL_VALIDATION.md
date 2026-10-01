@@ -32,6 +32,94 @@ the test suite, so a parser, fixture, golden file or rule change that is not re-
 ## Results
 
 <!-- BEGIN GENERATED (scripts/tool-validation.py) -->
+### Parsers (known inputs -> recorded outputs)
+
+| Parser | Version | Fixture | Read | Emitted | Skipped | Errors | Output SHA-256 | Golden | Engine |
+|---|---|---|---|---|---|---|---|---|---|
+| evtx | 1.0.1 | `tests/fixtures/evtx/new_user_security.evtx` | 4 | 4 | 0 | 0 | `765c1d57c75a7010` | match | in-process (pinned Python packages) |
+| evtx | 1.0.1 | `tests/fixtures/evtx/security_short_selected.evtx` | 7 | 7 | 0 | 0 | `9b42476271a993c8` | match | in-process (pinned Python packages) |
+| linux_auth | 1.0.0 | `tests/fixtures/linux/auth.log` (timezone=UTC) | 24 | 22 | 1 | 1 | `71e0e982a0e77f50` | match | in-process (pinned Python packages) |
+| linux_auth | 1.0.0 | `tests/fixtures/linux/auth.log` (timezone=Asia/Kolkata) | 24 | 22 | 1 | 1 | `9091dac06b93abb4` | match | in-process (pinned Python packages) |
+| registry_hive | 1.0.0 | `tests/fixtures/deep/bin/SYSTEM` | 11 | 9 | 2 | 0 | `ce6d34b2306c9958` | match | in-process (pinned Python packages) |
+| registry_hive | 1.0.0 | `tests/fixtures/deep/bin/SOFTWARE` | 7 | 6 | 1 | 0 | `260865bf1c6b9c13` | match | in-process (pinned Python packages) |
+| registry_hive | 1.0.0 | `tests/fixtures/deep/bin/NTUSER.DAT` | 10 | 8 | 2 | 0 | `12cf174dd2119bc6` | match | in-process (pinned Python packages) |
+| amcache | 1.0.0 | `tests/fixtures/deep/bin/Amcache.hve` | 6 | 5 | 1 | 0 | `e276ca21e2f92c30` | match | in-process (pinned Python packages) |
+| prefetch | 1.0.0 | `tests/fixtures/deep/bin/EVIL.EXE-1A2B3C4D.pf` | 8 | 2 | 6 | 0 | `de10d594ee3788f5` | match | in-process (pinned Python packages) |
+| prefetch | 1.0.0 | `tests/fixtures/deep/bin/XPTOOL.EXE-0BADF00D.pf` | 1 | 1 | 0 | 0 | `70bfb0e467a19b95` | match | in-process (pinned Python packages) |
+| lnk | 1.0.0 | `tests/fixtures/deep/bin/evil.lnk` | 3 | 2 | 1 | 0 | `b6c5fadc258c7ba7` | match | in-process (pinned Python packages) |
+| browser | 1.0.0 | `tests/fixtures/deep/bin/History` | 5 | 4 | 1 | 0 | `0b77a211e7caa1e6` | match | in-process (pinned Python packages) |
+| browser | 1.0.0 | `tests/fixtures/deep/bin/places.sqlite` | 3 | 3 | 0 | 0 | `1f3e3a91bbfdffc3` | match | in-process (pinned Python packages) |
+| pe_static | 1.0.0 | `tests/fixtures/deep/bin/sample.exe` | 1 | 1 | 0 | 0 | `060a1363a2551096` | match | in-process (pinned Python packages) |
+| yara_scan | 1.0.0 | `tests/fixtures/deep/bin/eicar_mimikatz.txt` | 2 | 2 | 0 | 0 | `c9f97ddf49c3fb1c` | match | in-process (pinned Python packages) |
+| pcap | 1.0.0 | `tests/fixtures/deep/bin/capture.pcap` | 9 | 7 | 1 | 1 | `30f0a1f4fc42df00` | match | in-process (pinned Python packages) |
+| pcap | 1.0.0 | `tests/fixtures/deep/bin/capture.pcapng` | 2 | 2 | 0 | 0 | `7e621a35a45d4423` | match | in-process (pinned Python packages) |
+| wtmp | 1.0.0 | `tests/fixtures/deep/bin/wtmp` | 5 | 4 | 1 | 0 | `bda4991e12bdcf2e` | match | in-process (pinned Python packages) |
+| wtmp | 1.0.0 | `tests/fixtures/deep/bin/btmp` | 1 | 1 | 0 | 0 | `820ffe416270894f` | match | in-process (pinned Python packages) |
+| shell_history | 1.0.0 | `tests/fixtures/deep/bin/.bash_history` | 6 | 3 | 3 | 0 | `580b0c38973e448b` | match | in-process (pinned Python packages) |
+| shell_history | 1.0.0 | `tests/fixtures/deep/bin/.zsh_history` | 2 | 1 | 0 | 1 | `8f753782a19a7304` | match | in-process (pinned Python packages) |
+| shell_history | 1.0.0 | `tests/fixtures/deep/bin/ConsoleHost_history.txt` | 2 | 2 | 0 | 0 | `c3392574e028815d` | match | in-process (pinned Python packages) |
+| journal_json | 1.0.0 | `tests/fixtures/deep/bin/journal.json` | 4 | 2 | 0 | 2 | `0a77d67c536acbcc` | match | in-process (pinned Python packages) |
+| tsk_fs | 1.0.0 | `tests/fixtures/deep/bin/fat12.img` (timezone=UTC) | 7 | 5 | 1 | 1 | `146215f1f99f90bd` | match | recorded fls/mmls output (fake binary); wrapper validated |
+| volatility | 1.0.0 | `tests/fixtures/deep/bin/fat12.img` (os=windows, plugins=['info', 'pslist', 'cmdline', 'netscan', 'malfind']) | 6 | 6 | 0 | 0 | `2be12b70f07b2435` | match | recorded vol output (fake binary); wrapper validated |
+| zeek | 1.0.0 | `tests/fixtures/deep/bin/capture.pcap` | 4 | 3 | 0 | 1 | `dbe619e442e2536c` | match | recorded zeek output (fake binary); wrapper validated |
+
+### Detection rules (25/25 pass: the positive fixture alerts, the near-miss negative fixture does not)
+
+| Rule | ATT&CK | Positive alerts | Negative alerts | Result |
+|---|---|---|---|---|
+| DFIR-AF-0001 | T1070.006 | 1 | 0 | pass |
+| DFIR-AF-0002 | T1070 | 1 | 0 | pass |
+| DFIR-AF-0003 | T1070.002 | 1 | 0 | pass |
+| DFIR-IOC-0001 | - | 3 | 0 | pass |
+| DFIR-LNX-0001 | T1110 | 1 | 0 | pass |
+| DFIR-LNX-0002 | T1110 | 1 | 0 | pass |
+| DFIR-LNX-0003 | T1078 | 1 | 0 | pass |
+| DFIR-LNX-0004 | T1136.001 | 1 | 0 | pass |
+| DFIR-LNX-0011 | T1098 | 1 | 0 | pass |
+| DFIR-WIN-0001 | T1070.001 | 1 | 0 | pass |
+| DFIR-WIN-0002 | T1070.001 | 1 | 0 | pass |
+| DFIR-WIN-0003 | T1110 | 1 | 0 | pass |
+| DFIR-WIN-0004 | T1110 | 1 | 0 | pass |
+| DFIR-WIN-0005 | T1110.003 | 1 | 0 | pass |
+| DFIR-WIN-0006 | T1543.003 | 1 | 0 | pass |
+| DFIR-WIN-0007 | T1053.005 | 1 | 0 | pass |
+| DFIR-WIN-0008 | T1136.001 | 1 | 0 | pass |
+| DFIR-WIN-0009 | T1098 | 1 | 0 | pass |
+| DFIR-WIN-0010 | T1490 | 1 | 0 | pass |
+| DFIR-WIN-0011 | T1490 | 1 | 0 | pass |
+| DFIR-WIN-0012 | T1059.001 | 1 | 0 | pass |
+| DFIR-WIN-0026 | T1070.006 | 1 | 0 | pass |
+| DFIR-WIN-0027 | T1070.001 | 1 | 0 | pass |
+| DFIR-WIN-0029 | T1562.002 | 1 | 0 | pass |
+| DFIR-WIN-0030 | T1070.001 | 1 | 0 | pass |
+
+### Integrity tests (guide 22.3)
+
+| Requirement | Proved by |
+|---|---|
+| Upload a file; the stored hash equals an independent SHA-256 | `backend/tests/integration/test_evidence_api.py::test_full_lifecycle`<br>`backend/tests/integration/test_vault_minio.py::test_streaming_multipart_upload_hash_matches_independent_digest`<br>`scripts/phase1-smoke.py` |
+| Flip one byte in the vault copy; verify fails and logs hash_failed | `backend/tests/integration/test_tamper.py::test_flipped_byte_in_stored_version_is_detected`<br>`backend/tests/integration/test_integrity.py::test_flipped_byte_and_edited_custody_row_are_found` |
+| Modify a custody row as a privileged user; chain verification fails | `backend/tests/integration/test_tamper.py::test_edited_custody_detail_is_detected_at_its_seq`<br>`backend/tests/integration/test_tamper.py::test_owner_publishing_attacker_key_and_resigning_whole_chain_fails`<br>`scripts/phase1-smoke.py` |
+| UPDATE/DELETE on custody_log as the app role is denied | `backend/tests/integration/test_tamper.py::test_app_role_cannot_mutate_custody_or_audit`<br>`scripts/verify-phase10.sh` |
+| Process evidence twice; no duplicate events, original hash unchanged | `backend/tests/integration/test_processing.py::test_idempotent_submit_and_reprocess` |
+| Writing to the evidence mount from the parser container fails | `scripts/phase10-smoke.py` |
+| A restored backup is re-verified (hashes, custody chains, chain heads) before use | `backend/tests/integration/test_integrity.py::test_manifest_round_trip_and_tail_truncation`<br>`scripts/verify-phase10.sh` |
+
+### Versions under test
+
+| Component | Version |
+|---|---|
+| LnkParse3 | 1.6.0 |
+| PyYAML | 6.0.3 |
+| defusedxml | 0.7.1 |
+| dpkt | 1.9.8 |
+| google-re2 | 1.1.20251105 |
+| pefile | 2024.8.26 |
+| python-evtx | 0.8.1 |
+| sleuthkit (worker image) | 4.11.1+dfsg-1+b1 |
+| tzdata | 2026.4 |
+| volatility3 (worker image) | 2.28.2 |
+| yara-python | 4.5.4 |
 <!-- END GENERATED -->
 
 ## Limitations

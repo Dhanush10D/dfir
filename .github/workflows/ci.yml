@@ -100,10 +100,23 @@ jobs:
 
   compose-smoke:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 45
     needs: [backend, frontend]
+    env:
+      # Phase 7/9/10 smokes: offline AI and enrichment, outbound only to the api container,
+      # metrics on, a low refresh limit the Phase 10 smoke can reach (login limit high).
+      ENABLE_AI: "true"
+      LLM_PROVIDER: fake
+      ENABLE_ENRICHMENT: "true"
+      ENRICHMENT_FAKE: "true"
+      OUTBOUND_ALLOW_HTTP: "true"
+      OUTBOUND_ALLOW_HOSTS: api
+      AUTH_RATE_LIMIT_PER_MINUTE: "1000"
+      AUTH_REFRESH_RATE_LIMIT_PER_MINUTE: "40"
     steps:
       - uses: actions/checkout@v5
+      - name: Metrics token for this run
+        run: echo "METRICS_TOKEN=ci-metrics-$(openssl rand -hex 24)" >> "$GITHUB_ENV"
       - name: Build and start the stack
         run: docker compose -f infra/compose.yaml up -d --build
       - name: Wait for healthy services
@@ -113,19 +126,63 @@ jobs:
           curl -fsS http://127.0.0.1:8000/api/v1/health
           curl -fsS http://127.0.0.1:8000/api/v1/ready
           curl -fsS http://127.0.0.1:8080/api/v1/health
-      - name: Phase 1-3 live smoke (tamper demo, parsing, detection)
+      - name: Phase 1-3, 7, 9 and 10 live smokes
         run: |
           export DFIR_ADMIN_PASSWORD="CiSmoke-$RANDOM-Passphrase-$(date +%s)"  # must not contain the e-mail name
           docker compose -f infra/compose.yaml exec -T -e DFIR_ADMIN_PASSWORD api \
             python -m app.cli create-admin --email ci-admin@dfirbench.test
           python3 scripts/phase1-smoke.py --admin-email ci-admin@dfirbench.test
-          # Phase 2: real API -> Redis -> Celery worker (parse queue) -> events -> timeline.
+          # Phase 2: real API -> Redis -> Celery worker -> parser sandbox -> events -> timeline.
           python3 scripts/phase2-smoke.py --admin-email ci-admin@dfirbench.test
           # Phase 3: parse -> automatic detection (detect queue) -> alerts, lifecycle, IOC match.
           python3 scripts/phase3-smoke.py --admin-email ci-admin@dfirbench.test
+          # Phase 7: AI features with the offline provider (citations, injection handling).
+          python3 scripts/phase7-smoke.py --admin-email ci-admin@dfirbench.test
+          # Phase 9: playbooks, four eyes, signed webhooks to a receiver in the api container.
+          python3 scripts/phase9-smoke.py --admin-email ci-admin@dfirbench.test
+          # Phase 10: sandbox container properties, sandboxed jobs, app login, metrics, limits.
+          python3 scripts/phase10-smoke.py --admin-email ci-admin@dfirbench.test
       - name: Logs on failure
         if: failure()
         run: docker compose -f infra/compose.yaml logs --no-color
       - name: Tear down
         if: always()
         run: docker compose -f infra/compose.yaml down -v
+
+  security:
+    # Phase 10 scans (scripts/scan.sh, docs/hardening.md): gitleaks over the history, pip-audit,
+    # npm audit, Trivy on the api and worker images (gate: fixable CRITICAL in language
+    # packages), CycloneDX SBOMs as artifacts.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0  # gitleaks scans every commit
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v5
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Backend environment (the dependency set pip-audit checks)
+        run: |
+          python -m venv backend/.venv
+          backend/.venv/bin/python -m pip install -e "backend[dev]"
+      - name: Frontend dependencies
+        run: cd frontend && npm ci
+      - name: Build the api and worker images
+        run: docker compose -f infra/compose.yaml build api worker
+      - name: Scans
+        run: bash scripts/scan.sh
+      - name: SBOMs and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: security-reports
+          path: |
+            var/scan/*.json
+            var/scan/*.txt
+          if-no-files-found: warn
