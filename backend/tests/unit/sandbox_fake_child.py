@@ -73,10 +73,10 @@ def main() -> int:
         out.flush()
         time.sleep(120)
     elif mode == "sleep_tree":
-        subprocess.Popen(SLEEPER, stdout=subprocess.DEVNULL)  # noqa: S603
+        subprocess.Popen(SLEEPER, stdout=subprocess.DEVNULL)
         time.sleep(120)
     elif mode == "orphan":  # a grandchild keeps stdout open after the child exits
-        subprocess.Popen(SLEEPER, start_new_session=True)  # noqa: S603
+        subprocess.Popen(SLEEPER, start_new_session=True)
         out.write(encode_result("ok", ParseStats(), 0))
     elif mode == "flood":
         line = _event(1)

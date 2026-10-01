@@ -149,7 +149,9 @@ def test_run_without_a_sandbox_is_transient(roots: tuple[Path, Path, Path]) -> N
 
 def _event(i: int) -> bytes:
     return encode_event(
-        Event(ts=datetime(2026, 1, 1, tzinfo=UTC), source_type="t", message=f"m{i}", record_key=str(i))
+        Event(
+            ts=datetime(2026, 1, 1, tzinfo=UTC), source_type="t", message=f"m{i}", record_key=str(i)
+        )
     )
 
 

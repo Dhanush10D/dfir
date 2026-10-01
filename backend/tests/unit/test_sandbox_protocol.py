@@ -98,7 +98,7 @@ def test_every_registered_parser_is_covered() -> None:
 
 def _hostile_event(**overrides: Any) -> Event:
     values: dict[str, Any] = {
-        "ts": datetime(2026, 3, 1, 10, 0, 0, 123456, tzinfo=timezone(timedelta(hours=5, minutes=30))),
+        "ts": datetime(2026, 3, 1, 10, 0, 0, 123456, tzinfo=timezone(timedelta(hours=5.5))),
         "source_type": "x" * 100,
         "message": "nul\x00here \ud800 lone" + "m" * 40_000,
         "record_key": "offset:42",
@@ -154,7 +154,7 @@ def test_clean_event_is_idempotent() -> None:
 
 
 def test_naive_timestamp_still_fails_normalisation() -> None:
-    event = _hostile_event(ts=datetime(2026, 1, 1, 0, 0))  # noqa: DTZ001 - the point of the test
+    event = _hostile_event(ts=datetime(2026, 1, 1, 0, 0))
     decoded = _round_trip(event)
     with pytest.raises(NormalizationError):
         _row(decoded)

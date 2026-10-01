@@ -311,9 +311,7 @@ def test_descendants_follow_parent_links(tmp_path: Path) -> None:
     tree = {1: 0, 10: 1, 11: 10, 12: 11, 13: 10, 20: 1, 21: 20}
     for pid, ppid in tree.items():
         (proc / str(pid)).mkdir(parents=True)
-        (proc / str(pid) / "stat").write_bytes(
-            f"{pid} (odd (name) x) S {ppid} 1 1 0".encode()
-        )
+        (proc / str(pid) / "stat").write_bytes(f"{pid} (odd (name) x) S {ppid} 1 1 0".encode())
     (proc / "self").mkdir()
     (proc / "99").mkdir()  # vanished between listing and reading
     assert descendants(10, proc) == [11, 12, 13]

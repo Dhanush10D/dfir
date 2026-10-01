@@ -29,7 +29,7 @@ FIXTURES = BACKEND / "tests" / "fixtures"
 AUTH_LOG = (FIXTURES / "linux" / "auth.log").read_bytes()
 AUTH_COUNTS = {"records_read": 24, "events_emitted": 22, "skipped": 1, "errors": 1}
 COLUMNS = (
-    "ts, ts_original, source_type, source_file, host, \"user\", event_code, action, outcome, "
+    'ts, ts_original, source_type, source_file, host, "user", event_code, action, outcome, '
     "process_name, pid, cmdline, src_ip, dst_ip, src_port, message, tags, raw, parser_name"
 )
 
@@ -197,9 +197,7 @@ def test_protocol_violation_fails_the_job(h: Harness, analyst: UserCtx, tmp_path
     assert result.outcome == "failed" and result.error == "parser sandbox: protocol"
 
 
-def test_cancel_stops_the_sandboxed_parser(
-    h: Harness, analyst: UserCtx, tmp_path: Path
-) -> None:
+def test_cancel_stops_the_sandboxed_parser(h: Harness, analyst: UserCtx, tmp_path: Path) -> None:
     with Sandbox(tmp_path / "cancel", fake_mode="sleep") as box:
         job = _job(h, analyst, AUTH_LOG)
         outcome: list[str] = []
