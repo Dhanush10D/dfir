@@ -471,7 +471,10 @@ def test_delivery_retries_with_backoff_then_fails_for_good(world: World, db_engi
         500,
     )
     assert row.next_attempt_at == now["t"] + timedelta(seconds=30) and row.locked_until is None
-    assert h.deliver(clock=lambda: now["t"]).attempted == 0  # not due yet
+    idle = h.deliver(clock=lambda: now["t"])
+    # Not due yet: nothing is sent, but the run says when to come back (a follow-up that
+    # starts early must not leave the retry waiting for the next event).
+    assert (idle.attempted, idle.retry_in_s) == (0, 31)
     now["t"] += timedelta(seconds=31)
     h.transport.responses = [OutboundError("timeout", transient=True)]
     second = h.deliver(clock=lambda: now["t"])

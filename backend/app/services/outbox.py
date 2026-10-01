@@ -555,6 +555,7 @@ class OutboundService:
         for _ in range(self.settings.outbound_batch_size):
             attempt = self._claim()
             if attempt is None:
+                self._note_next_due(result)
                 return
             result.attempted += 1
             status: int | None = None
@@ -575,6 +576,33 @@ class OutboundService:
                 error = exc.category
             self._record(attempt, status, error, transient, result)
         result.more = True
+
+    def _note_next_due(self, result: ProcessResult) -> None:
+        """Set ``retry_in_s`` to when the next pending delivery falls due (or its lease ends).
+
+        A follow-up run can start a little before its delivery is due (timer slack, clock
+        steps); without this it would find nothing to do, schedule nothing, and the retry would
+        wait for the next event.
+        """
+        now = self.clock()
+        with self.sessions() as session:
+            due = session.execute(
+                select(
+                    func.min(
+                        func.greatest(
+                            OutboundDelivery.next_attempt_at,
+                            func.coalesce(
+                                OutboundDelivery.locked_until, OutboundDelivery.next_attempt_at
+                            ),
+                        )
+                    )
+                ).where(OutboundDelivery.status == "pending")
+            ).scalar_one_or_none()
+            session.commit()
+        if due is None:
+            return
+        wait = max(int((due - now).total_seconds()) + 1, 1)
+        result.retry_in_s = min(result.retry_in_s or wait, wait)
 
     def _claim(self) -> _Attempt | None:
         """Take the next due delivery: count the attempt, set a lease, build what to send."""

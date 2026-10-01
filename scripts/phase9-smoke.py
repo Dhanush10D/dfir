@@ -174,6 +174,9 @@ def main() -> int:
     port = random.randint(20000, 29999)  # noqa: S311 - not security relevant
     compose("exec", "-d", "-e", f"HOOK_SECRET={hook_secret}", "-e", f"HOOK_PORT={port}",
             "-e", f"HOOK_LOG={HOOK_LOG}", "api", "python", "-c", RECEIVER)
+    probe = f"import socket; socket.create_connection(('127.0.0.1', {port}), 2).close()"
+    wait_for("the webhook receiver to listen",
+             lambda: compose("exec", "-T", "api", "python", "-c", probe, check=False).returncode == 0, 60)
     status, body, _ = api.call("GET", "/integrations", lead)
     expect(status == 403, "only admins manage integrations (403)", body)
     status, body, _ = api.call("POST", "/integrations", admin, {
