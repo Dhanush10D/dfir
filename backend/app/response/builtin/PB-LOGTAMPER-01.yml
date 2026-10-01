@@ -1,0 +1,22 @@
+id: PB-LOGTAMPER-01
+title: Log tampering
+description: Treat cleared or altered logs as an attempt to hide activity and recover what was removed.
+trigger:
+  attack: [T1070, T1070.001, T1070.002, T1070.006, T1562.002]
+  rules: [DFIR-WIN-0001, DFIR-WIN-0002, DFIR-WIN-0030, DFIR-WIN-0029, DFIR-AF-0001, DFIR-AF-0002, DFIR-AF-0003]
+phases:
+  - name: Triage
+    steps:
+      - { id: t1, text: "Identify the account and process that cleared or changed the logs", manual: true }
+      - { id: t2, text: "Establish the time window that is missing", manual: true }
+  - name: Evidence
+    steps:
+      - { id: e1, text: "Collect remaining logs and a triage bundle before more is lost", action: agent.collect_triage }
+      - { id: e2, text: "Obtain forwarded copies (SIEM, syslog collector, backups) for the gap", manual: true }
+  - name: Containment
+    steps:
+      - { id: c1, text: "Disable the account that tampered with the logs", action: agent.disable_account }
+  - name: Recovery
+    steps:
+      - { id: r1, text: "Restore audit policy and log forwarding, verify events arrive", manual: true }
+notify: { channels: [in_app], roles: [lead] }

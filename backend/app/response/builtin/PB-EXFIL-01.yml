@@ -1,0 +1,21 @@
+id: PB-EXFIL-01
+title: Insider data exfiltration
+description: Preserve evidence quietly, involve the right stakeholders and stop further loss.
+trigger: { attack: [T1041, T1048, T1052, T1567, T1074] }
+phases:
+  - name: Triage
+    steps:
+      - { id: t1, text: "Confirm the legal and HR authorisation for the investigation", manual: true }
+      - { id: t2, text: "Identify the data, the destination and the volume transferred", manual: true }
+  - name: Evidence
+    steps:
+      - { id: e1, text: "Collect a triage bundle from the workstation of the user", action: agent.collect_triage }
+      - { id: e2, text: "Preserve proxy, DLP, mail and cloud storage logs for the period", manual: true }
+  - name: Containment
+    steps:
+      - { id: c1, text: "Disable the account of the user", action: agent.disable_account }
+      - { id: c2, text: "Revoke access to the destination (shares, tokens, removable media)", manual: true }
+  - name: Recovery
+    steps:
+      - { id: r1, text: "Assess notification duties with legal and record the decision", manual: true }
+notify: { channels: [in_app], roles: [lead, admin] }

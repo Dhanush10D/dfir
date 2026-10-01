@@ -1,0 +1,23 @@
+id: PB-PHISHING-01
+title: Phishing or business e-mail compromise
+description: Scope who received and opened the message, remove it, and reset exposed credentials.
+trigger: { attack: [T1566, T1566.001, T1566.002, T1114] }
+phases:
+  - name: Triage
+    steps:
+      - { id: t1, text: "Record sender, subject, URLs and attachment hashes as IOCs of the case", manual: true }
+      - { id: t2, text: "Identify every recipient and who clicked or opened the attachment", manual: true }
+  - name: Containment
+    steps:
+      - { id: c1, text: "Block the sender, URLs and attachment hashes at the mail gateway and proxy", manual: true }
+      - { id: c2, text: "Disable or reset accounts that entered credentials", action: agent.disable_account }
+      - { id: c3, text: "Purge the message from mailboxes", manual: true }
+  - name: Evidence
+    steps:
+      - { id: e1, text: "Export the original message with full headers and add it as evidence", manual: true }
+      - { id: e2, text: "Collect a triage bundle from hosts that opened the attachment", action: agent.collect_triage }
+  - name: Recovery
+    steps:
+      - { id: r1, text: "Review mailbox rules, forwarding and OAuth grants of affected accounts", manual: true }
+      - { id: r2, text: "Inform affected users and record lessons learned", manual: true }
+notify: { channels: [in_app, email], roles: [lead] }

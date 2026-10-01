@@ -113,7 +113,20 @@ class SavedQuery(Base):
 
 
 class Notification(Base):
+    """In-app notification. The app role may INSERT and set ``read_at`` only (migration 0012)."""
+
     __tablename__ = "notifications"
+    __table_args__ = (
+        # One notification per user and dedup key (the key carries the time bucket).
+        Index(
+            "uq_notifications_user_id_dedup_key",
+            "user_id",
+            "dedup_key",
+            unique=True,
+            postgresql_where=text("dedup_key IS NOT NULL"),
+        ),
+        Index("ix_notifications_user_id_created_at", "user_id", "created_at"),
+    )
 
     id: Mapped[uuid.UUID] = uuid_pk()
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -123,3 +136,6 @@ class Notification(Base):
     payload: Mapped[dict[str, Any]] = jsonb_obj()
     read_at: Mapped[datetime | None] = mapped_column(TSTZ)
     created_at: Mapped[datetime] = created_at()
+    # Phase 9 (migration 0012)
+    case_id: Mapped[uuid.UUID | None] = mapped_column(UUID_T, ForeignKey("cases.id"))
+    dedup_key: Mapped[str | None] = mapped_column(Text)

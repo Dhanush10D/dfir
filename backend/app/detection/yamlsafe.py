@@ -21,7 +21,13 @@ class YamlInputError(ValueError):
     """The text is not acceptable YAML (syntax, size, aliases, depth)."""
 
 
-def safe_yaml(text: str, *, max_bytes: int = MAX_YAML_BYTES, max_nodes: int = MAX_NODES) -> Any:
+def safe_yaml(
+    text: str,
+    *,
+    max_bytes: int = MAX_YAML_BYTES,
+    max_nodes: int = MAX_NODES,
+    max_depth: int = MAX_DEPTH,
+) -> Any:
     if not isinstance(text, str):
         raise YamlInputError("YAML input must be text")
     if len(text.encode("utf-8", errors="replace")) > max_bytes:
@@ -36,8 +42,8 @@ def safe_yaml(text: str, *, max_bytes: int = MAX_YAML_BYTES, max_nodes: int = MA
                 raise YamlInputError("YAML anchors (&name) are not allowed")
             if isinstance(event, yaml.MappingStartEvent | yaml.SequenceStartEvent):
                 depth += 1
-                if depth > MAX_DEPTH:
-                    raise YamlInputError(f"YAML nesting deeper than {MAX_DEPTH}")
+                if depth > max_depth:
+                    raise YamlInputError(f"YAML nesting deeper than {max_depth}")
             elif isinstance(event, yaml.MappingEndEvent | yaml.SequenceEndEvent):
                 depth -= 1
             if isinstance(event, yaml.NodeEvent):

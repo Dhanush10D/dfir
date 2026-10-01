@@ -13,6 +13,14 @@ from app.db.models.evidence import CustodyLog, Evidence
 from app.db.models.jobs import Job
 from app.db.models.ops import Agent, AgentTask, Integration, Playbook, PlaybookRun, Setting
 from app.db.models.reports import Report
+from app.db.models.response import (
+    ActionRequest,
+    InboundDelivery,
+    IocEnrichment,
+    OutboundDelivery,
+    OutboundEvent,
+    PlaybookRunStep,
+)
 from app.db.models.users import ApiKey, MfaRecoveryCode, RefreshToken, User
 
 # Tables whose rows may never be updated, deleted or truncated (enforced by DB triggers).
@@ -23,10 +31,12 @@ APPEND_ONLY_TABLES = (
     "alert_history",
     "note_versions",
     "bundle_members",
+    "inbound_deliveries",
 )
 
 __all__ = [
     "APPEND_ONLY_TABLES",
+    "ActionRequest",
     "Agent",
     "AgentTask",
     "AiIndexState",
@@ -50,16 +60,21 @@ __all__ = [
     "Event",
     "EventChunk",
     "Evidence",
+    "InboundDelivery",
     "Integration",
     "Ioc",
+    "IocEnrichment",
     "Job",
     "JobStatus",
     "MfaRecoveryCode",
     "Note",
     "NoteVersion",
     "Notification",
+    "OutboundDelivery",
+    "OutboundEvent",
     "Playbook",
     "PlaybookRun",
+    "PlaybookRunStep",
     "RefreshToken",
     "Report",
     "Rule",

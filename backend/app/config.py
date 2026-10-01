@@ -32,6 +32,7 @@ DEV_PLACEHOLDERS = frozenset(
         "minio_dev_password",
         "dev-only-jwt-secret-change-me",
         "dev-only-totp-key-change-me",
+        "dev-only-integration-kek-change-me",
     }
 )
 
@@ -206,21 +207,44 @@ class Settings(BaseSettings):
     # below the web proxy's 300 s read timeout.
     report_render_timeout_s: int = Field(default=120, ge=5, le=280)
 
-    # Integrations (Phase 9)
-    vt_api_key: SecretStr | None = None
-    misp_url: str | None = None
-    misp_key: SecretStr | None = None
-    slack_webhook_url: SecretStr | None = None
-    smtp_host: str | None = None
-    smtp_port: int = 587
-    smtp_user: str | None = None
-    smtp_password: SecretStr | None = None
-    smtp_from: str | None = None
+    # Response + integrations (Phase 9, guide 19). Integration credentials are configured through
+    # the API and stored encrypted; only the key-encryption key lives here (outside the database).
+    integration_kek: SecretStr | None = None  # key material (>= 32 characters in prod)
+    integration_kek_path: str | None = None  # file with the key material (wins over the variable)
+    integration_kek_id: str = Field(default="kek-1", pattern=r"^[A-Za-z0-9_.-]{1,64}$")
+    integration_kek_previous_path: str | None = None  # JSON {key_id: key material} of retired KEKs
+    # Outbound policy (app/integrations/outbound.py): https only, public addresses only.
+    outbound_allow_http: bool = False  # dev: also allow http:// and SMTP without TLS
+    # Host names or CIDRs that may be private (e.g. an internal mail relay or MISP).
+    outbound_allow_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    outbound_connect_timeout_s: float = Field(default=5.0, gt=0, le=60)
+    outbound_read_timeout_s: float = Field(default=10.0, gt=0, le=120)
+    outbound_max_response_kb: int = Field(default=256, ge=1, le=16384)
+    outbound_max_request_kb: int = Field(default=256, ge=1, le=16384)
+    outbound_max_attempts: int = Field(default=5, ge=1, le=10)  # then the delivery is 'failed'
+    outbound_backoff_base_s: int = Field(default=30, ge=1, le=3600)  # base * 2^(attempt-1)
+    outbound_batch_size: int = Field(default=50, ge=1, le=500)  # deliveries per task run
+    public_base_url: str | None = None  # links in notifications, e.g. https://dfir.example
+    notify_dedup_window_s: int = Field(default=900, ge=0, le=86400)
+    notify_rate_limit_per_hour: int = Field(default=30, ge=1, le=10000)  # per channel
+    webhook_rate_limit_per_hour: int = Field(default=1000, ge=1, le=1_000_000)  # per webhook
+    # Inbound SIEM/EDR webhook ingest
+    ingest_max_body_kb: int = Field(default=256, ge=1, le=8192)
+    ingest_max_items: int = Field(default=200, ge=1, le=5000)
+    ingest_timestamp_window_s: int = Field(default=300, ge=10, le=3600)
+    ingest_rate_limit_per_minute: int = Field(default=60, ge=1, le=100000)  # per source
+    # Playbook approvals
+    approval_ttl_minutes: int = Field(default=240, ge=1, le=10080)
+    # Enrichment (VirusTotal/MISP): off by default; also needs the provider's integration enabled.
+    enable_enrichment: bool = False
+    enrichment_fake: bool = False  # deterministic offline provider (tests, smokes; not prod)
+    enrichment_cache_ttl_h: int = Field(default=24, ge=1, le=8760)
+    enrichment_max_per_request: int = Field(default=20, ge=1, le=200)
 
     # Readiness probe
     ready_timeout_s: float = Field(default=2.0, gt=0)
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "outbound_allow_hosts", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:
         if isinstance(value, str):
@@ -265,6 +289,28 @@ class Settings(BaseSettings):
             raise ValueError("EMBEDDING_PROVIDER=hashing only provides EMBEDDING_MODEL=hashing-v1")
         return self
 
+    @field_validator("public_base_url")
+    @classmethod
+    def _base_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        from urllib.parse import urlsplit
+
+        url = value.strip().rstrip("/")
+        parts = urlsplit(url)
+        if parts.scheme not in ("http", "https") or not parts.hostname or parts.username:
+            raise ValueError("PUBLIC_BASE_URL must be an http(s) URL without credentials")
+        if parts.query or parts.fragment or any(c <= " " or c in "\"'<>\\" for c in url):
+            raise ValueError("PUBLIC_BASE_URL must not contain a query, fragment or quotes")
+        return url
+
+    @model_validator(mode="after")
+    def _allowlist_parses(self) -> Settings:
+        from app.integrations.outbound import parse_allowlist  # imports this module
+
+        parse_allowlist(self.outbound_allow_hosts)  # ValueError on a malformed entry
+        return self
+
     @model_validator(mode="after")
     def _prod_fail_fast(self) -> Settings:
         if self.app_env != "prod":
@@ -296,6 +342,14 @@ class Settings(BaseSettings):
             problems.append("CUSTODY_SIGNING_KEY_PATH and CUSTODY_KEY_ID must be set")
         if self.enable_ai and self.llm_provider == "fake":
             problems.append("LLM_PROVIDER=fake is for tests and demos only")
+        if self.integration_kek is not None and not self.integration_kek_path:
+            kek = self.integration_kek.get_secret_value().strip()
+            if kek.lower() in DEV_PLACEHOLDERS or len(kek) < 32:
+                problems.append("INTEGRATION_KEK must be at least 32 random characters")
+        if self.outbound_allow_http:
+            problems.append("OUTBOUND_ALLOW_HTTP is for development only")
+        if self.enrichment_fake:
+            problems.append("ENRICHMENT_FAKE is for tests and demos only")
         if problems:
             raise ValueError("invalid prod configuration: " + "; ".join(problems))
         return self

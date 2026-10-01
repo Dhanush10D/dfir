@@ -1,0 +1,20 @@
+id: PB-CLOUD-01
+title: Cloud account takeover
+description: Remove the access of the attacker to the tenant and find what they changed.
+trigger: { attack: [T1078.004, T1098, T1136.003, T1528] }
+phases:
+  - name: Containment
+    steps:
+      - { id: c1, text: "Disable the compromised cloud account", action: agent.disable_account }
+      - { id: c2, text: "Revoke sessions, refresh tokens, API keys and OAuth grants", manual: true }
+      - { id: c3, text: "Notify the response team", action: notify.team }
+  - name: Evidence
+    steps:
+      - { id: e1, text: "Export sign-in and audit logs for the account and add them as evidence", manual: true }
+  - name: Eradication
+    steps:
+      - { id: x1, text: "Remove rogue users, roles, access keys, forwarding rules and applications", manual: true }
+  - name: Recovery
+    steps:
+      - { id: r1, text: "Reset credentials, enforce MFA and review conditional access", manual: true }
+notify: { channels: [in_app, teams], roles: [lead] }

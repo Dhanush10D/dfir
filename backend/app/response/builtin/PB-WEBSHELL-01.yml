@@ -1,0 +1,18 @@
+id: PB-WEBSHELL-01
+title: Web shell on a server
+description: Take the server out of reach, keep the shell and logs as evidence, close the entry point.
+trigger: { attack: [T1505.003, T1190] }
+phases:
+  - name: Containment
+    steps:
+      - { id: c1, text: "Isolate the web server from the network", action: agent.isolate_host }
+      - { id: c2, text: "Kill processes spawned by the web server account", action: agent.kill_process }
+  - name: Evidence
+    steps:
+      - { id: e1, text: "Collect memory from the server", action: agent.memory_dump }
+      - { id: e2, text: "Preserve the web shell file, web access logs and the web root listing", manual: true }
+  - name: Eradication and recovery
+    steps:
+      - { id: r1, text: "Patch the exploited vulnerability and rotate application secrets", manual: true }
+      - { id: r2, text: "Rebuild the server from a known-good image", manual: true }
+notify: { channels: [in_app, slack], roles: [lead] }

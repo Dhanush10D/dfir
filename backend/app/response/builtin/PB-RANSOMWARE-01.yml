@@ -1,0 +1,19 @@
+id: PB-RANSOMWARE-01
+title: Suspected ransomware
+description: Contain spreading encryption, preserve volatile evidence, then recover from verified backups.
+trigger: { attack: [T1486, T1490], rules: [DFIR-WIN-0010, DFIR-WIN-0011] }
+phases:
+  - name: Containment
+    steps:
+      - { id: c1, text: "Isolate affected hosts from the network", action: agent.isolate_host, requires_approval: true }
+      - { id: c2, text: "Disable compromised accounts", manual: true }
+      - { id: c3, text: "Notify the response team that containment has started", action: notify.team }
+  - name: Evidence
+    steps:
+      - { id: e1, text: "Collect memory before shutdown", action: agent.memory_dump }
+      - { id: e2, text: "Preserve ransom notes and encrypted samples", manual: true }
+  - name: Eradication and recovery
+    steps:
+      - { id: r1, text: "Restore from verified backups", manual: true }
+      - { id: r2, text: "Reset credentials and rotate secrets", manual: true }
+notify: { channels: [in_app, slack, email], roles: [lead] }
