@@ -53,7 +53,7 @@ def test_all_core_tables_exist(db_engine: Engine) -> None:
     assert "events_default" in tables
     with db_engine.connect() as conn:
         version = conn.execute(text("SELECT version_num FROM alembic_version")).scalar_one()
-    assert version == "0011"
+    assert version == "0012"
 
 
 def test_app_role_privileges(db_engine: Engine) -> None:
@@ -89,6 +89,38 @@ def test_app_role_privileges(db_engine: Engine) -> None:
     assert privileges("ai_index_state") == {"SELECT", "INSERT", "UPDATE"}
     # 0011: reports are never deleted; UPDATE only on the workflow/content columns.
     assert privileges("reports") == {"SELECT", "INSERT"}
+    # 0012: response and integration tables. Nothing is deleted; UPDATE only where a workflow
+    # needs it (column grants are checked in test_response.py / below).
+    assert privileges("playbooks") == {"SELECT", "INSERT", "UPDATE"}
+    assert privileges("playbook_runs") == {"SELECT", "INSERT"}
+    assert privileges("playbook_run_steps") == {"SELECT", "INSERT"}
+    assert privileges("action_requests") == {"SELECT", "INSERT"}
+    assert privileges("integrations") == {"SELECT", "INSERT", "UPDATE"}
+    assert privileges("outbound_events") == {"SELECT", "INSERT"}
+    assert privileges("outbound_deliveries") == {"SELECT", "INSERT"}
+    assert privileges("inbound_deliveries") == {"SELECT", "INSERT"}
+    assert privileges("ioc_enrichments") == {"SELECT", "INSERT", "UPDATE"}
+    assert privileges("notifications") == {"SELECT", "INSERT"}
+    with db_engine.connect() as conn:
+
+        def updatable(table: str) -> set[str]:
+            return set(
+                conn.execute(
+                    text(
+                        "SELECT column_name FROM information_schema.columns WHERE table_name = :t "
+                        "AND has_column_privilege('dfirbench_app', :t, column_name, 'UPDATE')"
+                    ),
+                    {"t": table},
+                ).scalars()
+            )
+
+        assert updatable("notifications") == {"read_at"}
+        assert updatable("outbound_events") == {"fanned_out_at"}
+        assert updatable("outbound_deliveries") == {
+            "status", "attempts", "next_attempt_at", "locked_until", "last_error",
+            "response_status", "updated_at", "delivered_at",
+        }  # fmt: skip
+        assert updatable("inbound_deliveries") == set()
     with db_engine.connect() as conn:
 
         def report_col(c: str) -> bool:
@@ -413,6 +445,296 @@ def test_downgrade_and_reupgrade_roundtrip(admin_engine: Engine) -> None:
             engine.dispose()
         assert len(rows) == 3
         assert all(row == ("draft", None, None, None, None, None, None, None) for row in rows)
+        command.downgrade(cfg, "0008")
+        command.upgrade(cfg, "head")
+    finally:
+        drop_temp_database(admin_engine, db_url)
+
+
+def test_response_migration_roundtrip_with_rows_in_every_state(admin_engine: Engine) -> None:
+    """0012 down and up again with data in every lifecycle state.
+
+    The downgrade drops the step, approval, outbox and enrichment tables and the columns that
+    make an integration secret readable. It must leave rows the re-upgrade's CHECKs accept:
+    steps are archived into ``playbook_runs.step_states``, a run that was still running is
+    cancelled, integration secrets are cleared and those integrations disabled.
+    """
+    from sqlalchemy import create_engine
+
+    db_url = create_temp_database(admin_engine)
+    try:
+        cfg = alembic_config(db_url)
+        command.upgrade(cfg, "head")
+        engine = create_engine(db_url)
+        try:
+            with engine.begin() as conn:
+                # Rows are written in their final states (the guards are tested elsewhere);
+                # CHECK constraints still apply.
+                conn.execute(text("SET LOCAL session_replication_role = replica"))
+                u1, u2 = (
+                    conn.execute(
+                        text(
+                            "INSERT INTO users (email, display_name) VALUES (:e, 'rt') RETURNING id"
+                        ),
+                        {"e": f"rt{i}@x.test"},
+                    ).scalar_one()
+                    for i in (1, 2)
+                )
+                cid = conn.execute(
+                    text(
+                        "INSERT INTO cases (case_number, title) VALUES ('IR-RT-9', 'rt') "
+                        "RETURNING id"
+                    )
+                ).scalar_one()
+                conn.execute(
+                    text(
+                        "INSERT INTO playbooks (id, title, origin, sha256) "
+                        "VALUES ('PB-RT-01', 'rt', 'custom', repeat('a', 64))"
+                    )
+                )
+                runs = {}
+                for status, finished in (
+                    ("running", None),
+                    ("completed", "now()"),
+                    ("cancelled", "now()"),
+                ):
+                    runs[status] = conn.execute(
+                        text(
+                            "INSERT INTO playbook_runs (case_id, playbook_id, status, finished_at, "
+                            f"started_by, definition) VALUES (:c, 'PB-RT-01', :s, {finished or 'NULL'}, "
+                            ":u, '{\"id\": \"PB-RT-01\"}'::jsonb) RETURNING id"
+                        ),
+                        {"c": cid, "s": status, "u": u1},
+                    ).scalar_one()
+                steps = {}
+                step_rows = [
+                    ("pending", None, False, False),
+                    ("awaiting_approval", None, True, False),
+                    ("approved", None, True, False),
+                    ("not_executed", "not_executed", True, False),
+                    ("failed", "failed", False, False),
+                    ("done", "completed", False, True),
+                    ("skipped", "skipped", False, True),
+                    ("rejected_again", None, True, False),
+                    ("expired_again", None, True, False),
+                ]
+                for pos, (status, outcome, approval, done) in enumerate(step_rows):
+                    real = status if not status.endswith("_again") else "pending"
+                    steps[status] = conn.execute(
+                        text(
+                            "INSERT INTO playbook_run_steps (run_id, case_id, position, phase, "
+                            "step_key, text, kind, action, requires_approval, status, outcome, "
+                            "completed_by, completed_at, notes) VALUES (:r, :c, :p, 'Phase', :k, "
+                            "'do it', 'action', 'agent.isolate_host', :a, :s, :o, :by, "
+                            "CASE WHEN :done THEN now() END, 'note') RETURNING id"
+                        ),
+                        {
+                            "r": runs["running"],
+                            "c": cid,
+                            "p": pos,
+                            "k": f"s{pos}",
+                            "a": approval,
+                            "s": real,
+                            "o": outcome,
+                            "by": u1 if done else None,
+                            "done": done,
+                        },
+                    ).scalar_one()
+                request_rows = [
+                    ("awaiting_approval", "pending", None, False),
+                    ("approved", "approved", u2, False),
+                    ("not_executed", "finished", u2, True),
+                    ("rejected_again", "rejected", u2, False),
+                    ("expired_again", "expired", None, False),
+                ]
+                for n, (step, status, decider, executed) in enumerate(request_rows):
+                    conn.execute(
+                        text(
+                            "INSERT INTO action_requests (case_id, run_id, step_id, action, "
+                            "params_sha256, idempotency_key, status, requested_by, expires_at, "
+                            "decided_by, decided_at, executed_by, executed_at, outcome) VALUES "
+                            "(:c, :r, :s, 'agent.isolate_host', repeat('0', 64), :k, :st, :u, "
+                            "now() + interval '1 hour', :d, CASE WHEN :st <> 'pending' THEN now() "
+                            "END, :x, CASE WHEN :ex THEN now() END, "
+                            "CASE WHEN :ex THEN 'not_executed' END)"
+                        ),
+                        {
+                            "c": cid,
+                            "r": runs["running"],
+                            "s": steps[step],
+                            "k": f"rt-{n}",
+                            "st": status,
+                            "u": u1,
+                            "d": decider,
+                            "x": u1 if executed else None,
+                            "ex": executed,
+                        },
+                    )
+                hook = conn.execute(
+                    text(
+                        "INSERT INTO integrations (type, name, enabled, config, config_encrypted, "
+                        "secret_wrapped_key, secret_key_id, secret_fingerprint, last_status) "
+                        "VALUES ('webhook_out', 'rt-hook', true, '{\"url\": \"https://h.test/\"}'::jsonb, "
+                        "'\\x01'::bytea, '\\x02'::bytea, 'kek-1', 'abcdef012345', 'ok') RETURNING id"
+                    )
+                ).scalar_one()
+                source = conn.execute(
+                    text(
+                        "INSERT INTO integrations (type, name, enabled, case_id, config_encrypted, "
+                        "secret_wrapped_key, secret_key_id) VALUES ('webhook_in', 'rt-source', "
+                        "true, :c, '\\x01'::bytea, '\\x02'::bytea, 'kek-1') RETURNING id"
+                    ),
+                    {"c": cid},
+                ).scalar_one()
+                conn.execute(
+                    text("INSERT INTO integrations (type, name) VALUES ('slack', 'rt-plain')")
+                )
+                event = conn.execute(
+                    text(
+                        "INSERT INTO outbound_events (event_type, case_id, dedup_key) "
+                        "VALUES ('report.signed', :c, 'rt-event') RETURNING id"
+                    ),
+                    {"c": cid},
+                ).scalar_one()
+                for n, (status, delivered) in enumerate(
+                    (("pending", False), ("delivered", True), ("failed", False), ("suppressed", False))
+                ):
+                    other = conn.execute(
+                        text(
+                            "INSERT INTO integrations (type, name) VALUES ('teams', :n) RETURNING id"
+                        ),
+                        {"n": f"rt-t{n}"},
+                    ).scalar_one()
+                    conn.execute(
+                        text(
+                            "INSERT INTO outbound_deliveries (event_id, integration_id, kind, "
+                            "event_type, status, max_attempts, next_attempt_at, delivered_at) "
+                            "VALUES (:e, :i, 'teams', 'report.signed', :s, 5, "
+                            "CASE WHEN :s = 'pending' THEN now() END, "
+                            "CASE WHEN :d THEN now() END)"
+                        ),
+                        {"e": event, "i": other, "s": status, "d": delivered},
+                    )
+                conn.execute(
+                    text(
+                        "INSERT INTO inbound_deliveries (integration_id, case_id, nonce, "
+                        "body_sha256, items, created) VALUES (:i, :c, repeat('b', 64), "
+                        "repeat('c', 64), 2, 2)"
+                    ),
+                    {"i": source, "c": cid},
+                )
+                conn.execute(
+                    text(
+                        "INSERT INTO ioc_enrichments (provider, ioc_type, value_sha256, value, "
+                        "verdict, expires_at) VALUES ('virustotal', 'ip', repeat('d', 64), "
+                        "'198.51.100.1', 'harmless', now() + interval '1 day')"
+                    )
+                )
+                conn.execute(
+                    text(
+                        "INSERT INTO notifications (user_id, kind, case_id, dedup_key) "
+                        "VALUES (:u, 'alert.created', :c, 'rt-key')"
+                    ),
+                    {"u": u1, "c": cid},
+                )
+        finally:
+            engine.dispose()
+
+        command.downgrade(cfg, "0011")
+        engine = create_engine(db_url)
+        try:
+            with engine.connect() as conn:
+                tables = set(inspect(conn).get_table_names())
+                assert not tables & {
+                    "playbook_run_steps",
+                    "action_requests",
+                    "outbound_events",
+                    "outbound_deliveries",
+                    "inbound_deliveries",
+                    "ioc_enrichments",
+                }
+                rows = dict(
+                    conn.execute(
+                        text("SELECT id, status FROM playbook_runs WHERE case_id = :c"), {"c": cid}
+                    ).all()
+                )
+                assert rows == {
+                    runs["running"]: "cancelled",
+                    runs["completed"]: "completed",
+                    runs["cancelled"]: "cancelled",
+                }
+                archive = conn.execute(
+                    text("SELECT step_states FROM playbook_runs WHERE id = :r"),
+                    {"r": runs["running"]},
+                ).scalar_one()
+                assert len(archive) == 9
+                assert archive["s5"]["status"] == "done" and archive["s5"]["notes"] == "note"
+                assert archive["s3"]["outcome"] == "not_executed"
+                kept = conn.execute(
+                    text(
+                        "SELECT name, enabled, config_encrypted IS NULL FROM integrations "
+                        "WHERE name IN ('rt-hook', 'rt-source')"
+                    )
+                ).all()
+                assert sorted(kept) == [("rt-hook", False, True), ("rt-source", False, True)]
+                assert conn.execute(text("SELECT count(*) FROM notifications")).scalar_one() == 1
+        finally:
+            engine.dispose()
+
+        command.upgrade(cfg, "head")  # the CHECKs and guards of 0012 accept what is left
+        engine = create_engine(db_url)
+        try:
+            with engine.connect() as conn:
+                ctx = MigrationContext.configure(
+                    conn,
+                    opts={
+                        "compare_type": True,
+                        "include_object": lambda obj, name, type_, *_: not (
+                            type_ == "table" and name is not None and name.startswith("events_")
+                        ),
+                    },
+                )
+                assert compare_metadata(ctx, Base.metadata) == []
+                statuses = conn.execute(
+                    text(
+                        "SELECT status, finished_at IS NOT NULL FROM playbook_runs "
+                        "WHERE case_id = :c ORDER BY status"
+                    ),
+                    {"c": cid},
+                ).all()
+                assert statuses == [("cancelled", True), ("cancelled", True), ("completed", True)]
+                rows = conn.execute(
+                    text(
+                        "SELECT name, enabled, case_id, config_encrypted, secret_key_id, config::text "
+                        "FROM integrations WHERE name IN ('rt-hook', 'rt-source') ORDER BY name"
+                    )
+                ).all()
+                assert rows == [
+                    ("rt-hook", False, None, None, None, "{}"),
+                    ("rt-source", False, None, None, None, "{}"),
+                ]
+                for table in ("playbook_run_steps", "action_requests", "outbound_deliveries"):
+                    assert conn.execute(text(f"SELECT count(*) FROM {table}")).scalar_one() == 0
+            with engine.begin() as conn:  # and the kept rows still work under the new guards
+                conn.execute(
+                    text("UPDATE integrations SET updated_at = now() WHERE name = 'rt-source'")
+                )
+                with pytest.raises(DBAPIError, match="ck_integrations_ingest_case"):
+                    with conn.begin_nested():
+                        conn.execute(
+                            text("UPDATE integrations SET enabled = true WHERE name = 'rt-source'")
+                        )
+                with pytest.raises(DBAPIError, match="is cancelled and cannot change"):
+                    with conn.begin_nested():
+                        conn.execute(
+                            text(
+                                "UPDATE playbook_runs SET status = 'running', finished_at = NULL "
+                                "WHERE id = :r"
+                            ),
+                            {"r": runs["running"]},
+                        )
+        finally:
+            engine.dispose()
         command.downgrade(cfg, "0008")
         command.upgrade(cfg, "head")
     finally:

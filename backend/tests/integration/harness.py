@@ -139,8 +139,9 @@ class Harness:
         fake.max_tlp = max_tlp
         return fake
 
-    def outbound(self, **overrides: Any) -> OutboundService:
+    def outbound(self, clock: Any = None, **overrides: Any) -> OutboundService:
         """The worker-side delivery service on the test database with fake network doubles."""
+        extra = {"clock": clock} if clock is not None else {}
         settings = self.settings.model_copy(update=overrides) if overrides else self.settings
         policy = OutboundPolicy.from_settings(settings)
         return OutboundService(
@@ -152,10 +153,11 @@ class Harness:
                 resolver=self.resolver,
                 session_factory=lambda server, ip, timeout: FakeSmtpSession(self.mails, server, ip),
             ),
+            **extra,
         )
 
-    def deliver(self, **overrides: Any) -> ProcessResult:
-        return self.outbound(**overrides).process()
+    def deliver(self, clock: Any = None, **overrides: Any) -> ProcessResult:
+        return self.outbound(clock, **overrides).process()
 
     def _dispatch(self, job_id: uuid.UUID) -> None:
         if self.dispatch_error is not None:

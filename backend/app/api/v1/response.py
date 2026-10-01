@@ -89,8 +89,10 @@ def _run(run: PlaybookRun) -> dict[str, Any]:
 
 def _detail(view: RunView) -> RunDetail:
     latest: dict[uuid.UUID, ActionRequest] = {}
-    for request in view.requests:  # ordered oldest first: the last one per step wins
-        latest[request.step_id] = request
+    for request in view.requests:  # oldest first: the open request wins, else the last one
+        current = latest.get(request.step_id)
+        if current is None or current.status not in ("pending", "approved"):
+            latest[request.step_id] = request
     steps = []
     for step in view.steps:
         spec = ACTIONS.get(step.action or "")

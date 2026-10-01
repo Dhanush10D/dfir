@@ -118,10 +118,8 @@ CREATE FUNCTION playbook_run_steps_guard() RETURNS trigger
 LANGUAGE plpgsql AS $$
 DECLARE
   run_status text;
-  req_status text;
-  req_outcome text;
-  req_decided uuid;
-  req_requested uuid;
+  has_pending boolean;
+  has_approved boolean;
 BEGIN
   IF TG_OP = 'INSERT' THEN
     IF NEW.status <> 'pending' OR NEW.outcome IS NOT NULL OR NEW.result IS NOT NULL
@@ -164,25 +162,25 @@ BEGIN
     END IF;
     RETURN NEW;
   END IF;
-  -- The newest action request of this step (NULLs when there is none).
-  SELECT q.status, q.outcome, q.decided_by, q.requested_by
-    INTO req_status, req_outcome, req_decided, req_requested
-    FROM action_requests q WHERE q.step_id = OLD.id
-    ORDER BY q.requested_at DESC, q.id DESC LIMIT 1;
+  -- The step's open action request, if any (at most one: partial UNIQUE index). Decided by
+  -- status, not by time, so the check does not depend on clocks.
+  SELECT COALESCE(bool_or(q.status = 'pending'), false),
+         COALESCE(bool_or(q.status = 'approved'), false)
+    INTO has_pending, has_approved
+    FROM action_requests q WHERE q.step_id = OLD.id;
   IF NEW.status = 'awaiting_approval' THEN
-    IF OLD.status NOT IN ('pending', 'failed') OR OLD.kind <> 'action'
-       OR req_status IS DISTINCT FROM 'pending' THEN
+    IF OLD.status NOT IN ('pending', 'failed') OR OLD.kind <> 'action' OR NOT has_pending THEN
       RAISE EXCEPTION 'playbook step % has no pending action request', OLD.id
         USING ERRCODE = 'check_violation';
     END IF;
   ELSIF NEW.status = 'approved' THEN
-    IF OLD.status <> 'awaiting_approval' OR req_status IS DISTINCT FROM 'approved' THEN
+    IF OLD.status <> 'awaiting_approval' OR NOT has_approved THEN
       RAISE EXCEPTION 'playbook step % has no approved action request', OLD.id
         USING ERRCODE = 'check_violation';
     END IF;
   ELSIF NEW.status = 'pending' THEN
-    IF NOT ((OLD.status = 'awaiting_approval' AND req_status IN ('rejected', 'expired'))
-            OR (OLD.status = 'approved' AND req_status = 'expired')) THEN
+    -- back to pending only once the request was rejected or has expired
+    IF OLD.status NOT IN ('awaiting_approval', 'approved') OR has_pending OR has_approved THEN
       RAISE EXCEPTION 'playbook step % cannot return to pending', OLD.id
         USING ERRCODE = 'check_violation';
     END IF;
@@ -202,10 +200,14 @@ BEGIN
         USING ERRCODE = 'check_violation';
     END IF;
     IF OLD.requires_approval THEN
-      IF OLD.status <> 'approved' OR req_status IS DISTINCT FROM 'finished'
-         OR req_decided IS NULL OR req_decided = req_requested
-         OR req_outcome IS DISTINCT FROM
-            (CASE NEW.status WHEN 'done' THEN 'completed' ELSE NEW.status END) THEN
+      -- the approved request must have been executed: none is open any more and a finished
+      -- one, approved by someone other than its requester, carries this outcome
+      IF OLD.status <> 'approved' OR has_pending OR has_approved OR NOT EXISTS (
+           SELECT 1 FROM action_requests q
+           WHERE q.step_id = OLD.id AND q.status = 'finished'
+             AND q.decided_by IS NOT NULL AND q.decided_by <> q.requested_by
+             AND q.outcome = (CASE NEW.status WHEN 'done' THEN 'completed' ELSE NEW.status END))
+      THEN
         RAISE EXCEPTION 'playbook step % needs an approved and executed action request', OLD.id
           USING ERRCODE = 'check_violation';
       END IF;
@@ -865,10 +867,10 @@ def downgrade() -> None:
     op.drop_table("playbook_run_steps")
 
     # ---- integrations: the wrapped data key and key id go away, so secrets cannot be kept
-    op.execute(CLEAR_SECRETS)
     op.drop_constraint(op.f("ck_integrations_ingest_case"), "integrations", type_="check")
     op.drop_constraint(op.f("ck_integrations_secret"), "integrations", type_="check")
     op.drop_constraint(op.f("ck_integrations_type"), "integrations", type_="check")
+    op.execute(CLEAR_SECRETS)  # after the CHECKs: the ciphertext goes before its key columns
     for col in ("updated_by", "created_by"):
         op.drop_constraint(op.f(f"fk_integrations_{col}_users"), "integrations", type_="foreignkey")
     op.drop_constraint(op.f("fk_integrations_case_id_cases"), "integrations", type_="foreignkey")
