@@ -16,6 +16,7 @@ import { NotesTab } from '@/features/notes/NotesTab'
 import { Overview } from '@/features/overview/Overview'
 import { ProcessTreeTab } from '@/features/proctree/ProcessTreeTab'
 import { ReportsTab } from '@/features/reports/ReportsTab'
+import { ResponseTab } from '@/features/response/ResponseTab'
 
 import { CaseContext, makeCaseCtx } from './CaseContext'
 
@@ -29,6 +30,7 @@ const TABS: { id: string; label: string; component: ComponentType }[] = [
   { id: 'process', label: 'Process tree', component: ProcessTreeTab },
   { id: 'notes', label: 'Notes & bookmarks', component: NotesTab },
   { id: 'ai', label: 'AI analyst', component: AiTab },
+  { id: 'response', label: 'Response', component: ResponseTab },
   { id: 'reports', label: 'Reports', component: ReportsTab },
 ]
 

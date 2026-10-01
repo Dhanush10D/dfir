@@ -5,6 +5,8 @@ import { Button, Loading } from '@/components/ui'
 import { CaseList } from '@/features/cases/CaseList'
 import { CaseWorkspace } from '@/features/cases/CaseWorkspace'
 import { HealthStatus } from '@/features/health/HealthStatus'
+import { IntegrationsPage } from '@/features/integrations/IntegrationsPage'
+import { NotificationsPage } from '@/features/integrations/NotificationsPage'
 import { LoginPage } from '@/features/login/LoginPage'
 
 import { Link } from './Link'
@@ -12,7 +14,7 @@ import { matchRoute, navigate, useLocation } from './router'
 
 /** Application shell: session gate, header, and the routed page. */
 export function App() {
-  const { status, me, logout } = useAuth()
+  const { status, me, logout, can } = useAuth()
   const { path } = useLocation()
   const route = matchRoute(path)
 
@@ -38,10 +40,18 @@ export function App() {
             <Link to="/cases" className="text-lg font-semibold tracking-tight">
               dfirbench
             </Link>
-            <nav aria-label="Primary">
+            <nav aria-label="Primary" className="flex items-center gap-3">
               <Link to="/cases" className="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300">
                 Cases
               </Link>
+              <Link to="/notifications" className="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300">
+                Notifications
+              </Link>
+              {can('users:manage') && (
+                <Link to="/integrations" className="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300">
+                  Integrations
+                </Link>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
@@ -55,6 +65,10 @@ export function App() {
       <main className="mx-auto max-w-screen-2xl px-4 py-4">
         {route.name === 'case' ? (
           <CaseWorkspace key={route.id} id={route.id} tab={route.tab} />
+        ) : route.name === 'integrations' ? (
+          <IntegrationsPage />
+        ) : route.name === 'notifications' ? (
+          <NotificationsPage />
         ) : route.name === 'notfound' ? (
           <p>Page not found.</p>
         ) : (

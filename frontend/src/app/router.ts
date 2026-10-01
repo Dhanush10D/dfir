@@ -1,6 +1,6 @@
 /**
  * Minimal History-API router (no dependency). The URL is the shareable state (guide 17.4):
- * /login, /cases, /cases/:id/:tab?query...
+ * /login, /cases, /cases/:id/:tab?query..., /integrations (admin), /notifications
  */
 import { useSyncExternalStore } from 'react'
 
@@ -43,11 +43,15 @@ export type Route =
   | { name: 'login' }
   | { name: 'cases' }
   | { name: 'case'; id: string; tab: string }
+  | { name: 'integrations' }
+  | { name: 'notifications' }
   | { name: 'notfound' }
 
 export function matchRoute(path: string): Route {
   if (path === '/login') return { name: 'login' }
   if (path === '/' || path === '/cases') return { name: 'cases' }
+  if (path === '/integrations') return { name: 'integrations' }
+  if (path === '/notifications') return { name: 'notifications' }
   const m = /^\/cases\/([0-9a-fA-F-]{36})(?:\/([a-z]+))?\/?$/.exec(path)
   if (m) return { name: 'case', id: m[1] as string, tab: m[2] ?? 'overview' }
   return { name: 'notfound' }

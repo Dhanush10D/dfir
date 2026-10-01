@@ -525,3 +525,220 @@ export interface ReportVerify {
   problems: { code: string; message: string }[]
   checked_at: string | null
 }
+
+// ---- Phase 9: response and integrations
+
+export interface PlaybookStepDef {
+  id: string
+  text: string
+  manual: boolean
+  action: string | null
+  requires_approval: boolean
+}
+
+export interface Playbook {
+  id: string
+  title: string
+  description: string | null
+  version: number
+  enabled: boolean
+  origin: string
+  sha256: string | null
+  trigger: { attack?: string[]; rules?: string[] }
+  phases: { name: string; steps: PlaybookStepDef[] }[]
+  notify: { channels?: string[]; roles?: string[] }
+  updated_at: string
+}
+
+export interface ActionRequest {
+  id: string
+  case_id: string
+  run_id: string
+  step_id: string
+  alert_id: string | null
+  action: string
+  params: Record<string, string | number>
+  params_sha256: string
+  status: 'pending' | 'approved' | 'rejected' | 'expired' | 'finished'
+  requested_by: string
+  requested_at: string
+  expires_at: string
+  decided_by: string | null
+  decided_at: string | null
+  decision_reason: string | null
+  executed_by: string | null
+  executed_at: string | null
+  outcome: string | null
+  result: Record<string, unknown> | null
+}
+
+export interface RunStep {
+  id: string
+  position: number
+  phase: string
+  step_key: string
+  text: string
+  kind: 'manual' | 'action'
+  action: string | null
+  action_title: string | null
+  executor: string | null
+  params: Record<string, string | number>
+  requires_approval: boolean
+  status: 'pending' | 'awaiting_approval' | 'approved' | 'not_executed' | 'failed' | 'done' | 'skipped'
+  outcome: string | null
+  result: Record<string, unknown> | null
+  notes: string | null
+  completed_by: string | null
+  completed_at: string | null
+  updated_by: string | null
+  updated_at: string
+  alert_id: string | null
+  request: ActionRequest | null
+}
+
+export interface PlaybookRun {
+  id: string
+  case_id: string
+  playbook_id: string
+  playbook_version: number
+  playbook_sha256: string | null
+  title: string
+  status: 'running' | 'completed' | 'cancelled'
+  alert_id: string | null
+  started_by: string | null
+  started_at: string
+  finished_at: string | null
+}
+
+export interface PlaybookRunDetail extends PlaybookRun {
+  steps: RunStep[]
+}
+
+export interface ActionPlan {
+  action: string
+  title: string
+  impact: boolean
+  requires_approval: boolean
+  executor: string
+  would_execute: boolean
+  effect: string
+  params: Record<string, string | number>
+  missing_params: string[]
+}
+
+export interface RunPlan {
+  dry_run: true
+  writes: string
+  playbook: { id: string; version: number; title: string }
+  alert_id: string | null
+  steps: {
+    position: number
+    phase: string
+    step_key: string
+    text: string
+    kind: string
+    action: string | null
+    requires_approval: boolean
+    plan?: ActionPlan
+  }[]
+  approvals_needed: number
+  notifications: { event: string; channels: string[]; roles: string[] }
+}
+
+export interface StepPlan {
+  dry_run: true
+  writes: string
+  op: string
+  step_key: string
+  status: string
+  kind: string
+  plan?: ActionPlan
+}
+
+export type StepOp = 'complete' | 'skip' | 'request' | 'execute'
+
+export type IntegrationType =
+  | 'webhook_out'
+  | 'webhook_in'
+  | 'slack'
+  | 'teams'
+  | 'email'
+  | 'virustotal'
+  | 'misp'
+
+export interface Integration {
+  id: string
+  type: IntegrationType
+  name: string
+  enabled: boolean
+  config: Record<string, unknown>
+  case_id: string | null
+  /** The secret itself is never returned: only whether one is set and a keyed fingerprint. */
+  has_secret: boolean
+  secret_fingerprint: string | null
+  secret_key_id: string | null
+  last_status: string | null
+  last_status_at: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface OutboundDelivery {
+  id: string
+  event_id: string
+  event_type: string
+  kind: string
+  status: string
+  attempts: number
+  max_attempts: number
+  next_attempt_at: string | null
+  last_error: string | null
+  response_status: number | null
+  created_at: string
+  delivered_at: string | null
+}
+
+export interface InboundDelivery {
+  id: number
+  received_at: string
+  source_ip: string | null
+  body_sha256: string
+  items: number
+  created: number
+  updated: number
+  errors: number
+  error_reasons: Record<string, number>
+}
+
+export interface DeliveryLog {
+  outbound: OutboundDelivery[]
+  inbound: InboundDelivery[]
+}
+
+export interface AppNotification {
+  id: string
+  kind: string
+  payload: {
+    title?: string
+    case_id?: string | null
+    tab?: string
+    fields?: { label: string; value: string }[]
+    [key: string]: unknown
+  }
+  case_id: string | null
+  read_at: string | null
+  created_at: string
+}
+
+export interface EnrichmentEntry {
+  ioc_id: string
+  provider: string
+  status: string
+  verdict: string | null
+  score: number | null
+  summary: Record<string, unknown> | null
+  fetched_at: string | null
+  expires_at: string | null
+  tlp: string | null
+  error: string | null
+}

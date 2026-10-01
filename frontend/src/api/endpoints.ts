@@ -5,14 +5,18 @@ import type {
   AiInteractionDetail,
   AiResult,
   AiStatus,
+  ActionRequest,
   Alert,
   AlertDetail,
   AlertEvent,
+  AppNotification,
   AttackRow,
   Bookmark,
   CaseDetail,
   Case,
   CustodyEntry,
+  DeliveryLog,
+  EnrichmentEntry,
   Entity,
   EntityDetail,
   EventDetail,
@@ -22,16 +26,24 @@ import type {
   FacetValue,
   Graph,
   Histogram,
+  Integration,
+  IntegrationType,
   Job,
   Note,
   NoteDetail,
   Page,
+  Playbook,
+  PlaybookRun,
+  PlaybookRunDetail,
   ProcessTree,
   Report,
   ReportDetail,
   ReportFinding,
   ReportKind,
   ReportVerify,
+  RunPlan,
+  StepOp,
+  StepPlan,
   Summary,
   VerifyResult,
 } from './types'
@@ -254,6 +266,72 @@ export const api = {
     const res = await apiFetch('POST', `/evidence/${enc(evidenceId)}/export-package`)
     return blobResult(res, 'evidence_package.zip')
   },
+  // ---- Phase 9: response
+  playbooks: (signal?: AbortSignal) => apiGet<{ items: Playbook[] }>('/playbooks', { signal }),
+  alertPlaybooks: (alertId: string, signal?: AbortSignal) =>
+    apiGet<{ items: Playbook[] }>(`/alerts/${enc(alertId)}/playbooks`, { signal }),
+  playbookRuns: (caseId: string, signal?: AbortSignal) =>
+    apiGet<{ items: PlaybookRun[] }>(`/cases/${enc(caseId)}/playbook-runs`, { signal }),
+  playbookRun: (runId: string, signal?: AbortSignal) =>
+    apiGet<PlaybookRunDetail>(`/playbook-runs/${enc(runId)}`, { signal }),
+  startRun: (caseId: string, playbookId: string, alertId: string | null) =>
+    apiPost<PlaybookRunDetail>(`/cases/${enc(caseId)}/playbook-runs`, {
+      playbook_id: playbookId,
+      alert_id: alertId,
+    }),
+  planRun: (caseId: string, playbookId: string, alertId: string | null) =>
+    apiPost<RunPlan>(`/cases/${enc(caseId)}/playbook-runs`, {
+      playbook_id: playbookId,
+      alert_id: alertId,
+      dry_run: true,
+    }),
+  stepOp: (
+    runId: string,
+    stepKey: string,
+    body: { op: StepOp; notes?: string | null; params?: Record<string, string | number> },
+  ) =>
+    apiRequest<PlaybookRunDetail>('PATCH', `/playbook-runs/${enc(runId)}/steps/${enc(stepKey)}`, { body }),
+  planStep: (runId: string, stepKey: string, op: StepOp, params: Record<string, string | number>) =>
+    apiRequest<StepPlan>('PATCH', `/playbook-runs/${enc(runId)}/steps/${enc(stepKey)}`, {
+      body: { op, params, dry_run: true },
+    }),
+  cancelRun: (runId: string, reason: string) =>
+    apiPost<PlaybookRunDetail>(`/playbook-runs/${enc(runId)}/cancel`, { reason }),
+  actionRequests: (caseId: string, signal?: AbortSignal) =>
+    apiGet<{ items: ActionRequest[] }>(`/cases/${enc(caseId)}/action-requests`, { signal }),
+  approveAction: (requestId: string) => apiPost<ActionRequest>(`/action-requests/${enc(requestId)}/approve`, {}),
+  rejectAction: (requestId: string, reason: string) =>
+    apiPost<ActionRequest>(`/action-requests/${enc(requestId)}/reject`, { reason }),
+  enrichIocs: (caseId: string) =>
+    apiPost<{ results: EnrichmentEntry[]; counts: Record<string, number>; truncated: boolean }>(
+      `/cases/${enc(caseId)}/iocs/enrich`,
+      {},
+    ),
+  enrichments: (caseId: string, signal?: AbortSignal) =>
+    apiGet<{ items: EnrichmentEntry[] }>(`/cases/${enc(caseId)}/enrichments`, { signal }),
+  // ---- Phase 9: integrations (admin) and notifications
+  integrations: (signal?: AbortSignal) =>
+    apiGet<{ items: Integration[]; secrets_available: boolean }>('/integrations', { signal }),
+  createIntegration: (body: {
+    type: IntegrationType
+    name: string
+    config: Record<string, unknown>
+    secret?: Record<string, string>
+    enabled: boolean
+    case_id?: string
+  }) => apiPost<Integration>('/integrations', body),
+  updateIntegration: (
+    id: string,
+    body: { enabled?: boolean; secret?: Record<string, string>; config?: Record<string, unknown> },
+  ) => apiRequest<Integration>('PATCH', `/integrations/${enc(id)}`, { body }),
+  testIntegration: (id: string) =>
+    apiPost<{ event_id: string; queued: boolean }>(`/integrations/${enc(id)}/test`),
+  deliveries: (id: string, signal?: AbortSignal) =>
+    apiGet<DeliveryLog>(`/integrations/${enc(id)}/deliveries`, { signal }),
+  notifications: (signal?: AbortSignal) =>
+    apiGet<{ items: AppNotification[]; unread: number }>('/notifications?limit=100', { signal }),
+  readNotification: (id: string) => apiPost<AppNotification>(`/notifications/${enc(id)}/read`),
+  readAllNotifications: () => apiPost<void>('/notifications/read-all'),
   aiFeedback: (id: string, value: -1 | 0 | 1) =>
     apiPost<AiInteraction>(`/ai/interactions/${enc(id)}/feedback`, { value }),
 }
