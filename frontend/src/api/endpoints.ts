@@ -31,6 +31,7 @@ import type {
   Job,
   Note,
   NoteDetail,
+  NotificationRule,
   Page,
   Playbook,
   PlaybookRun,
@@ -332,6 +333,10 @@ export const api = {
     apiGet<{ items: AppNotification[]; unread: number }>('/notifications?limit=100', { signal }),
   readNotification: (id: string) => apiPost<AppNotification>(`/notifications/${enc(id)}/read`),
   readAllNotifications: () => apiPost<void>('/notifications/read-all'),
+  notificationRules: (signal?: AbortSignal) =>
+    apiGet<{ rules: NotificationRule[] }>('/settings/notification-rules', { signal }),
+  setNotificationRules: (rules: NotificationRule[]) =>
+    apiRequest<{ rules: NotificationRule[] }>('PUT', '/settings/notification-rules', { body: { rules } }),
   aiFeedback: (id: string, value: -1 | 0 | 1) =>
     apiPost<AiInteraction>(`/ai/interactions/${enc(id)}/feedback`, { value }),
 }

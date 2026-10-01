@@ -205,6 +205,8 @@ def test_verify_uses_a_constant_time_compare(monkeypatch: pytest.MonkeyPatch) ->
         return real(a, b)
 
     monkeypatch.setattr(webhooks.hmac, "compare_digest", spy)
-    webhooks.verify("s", "1700000000", b"x", "sha256=" + "a" * 64, now=1_700_000_000.0, window_s=300)
+    webhooks.verify(
+        "s", "1700000000", b"x", "sha256=" + "a" * 64, now=1_700_000_000.0, window_s=300
+    )
     webhooks.verify("s", None, b"x", None, now=1_700_000_000.0, window_s=300)
     assert len(calls) == 2  # also for malformed input: no early exit

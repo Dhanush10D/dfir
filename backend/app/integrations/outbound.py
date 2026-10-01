@@ -364,19 +364,28 @@ class SocketTransport:
                 raise OutboundError("timeout", transient=True, host=target.host) from exc
             except OSError as exc:
                 raise OutboundError("connect_error", transient=True, host=target.host) from exc
-            if conn.sock is not None:
-                conn.sock.settimeout(request.read_timeout_s)
+
+            def arm() -> None:
+                # Each socket wait ends at the read timeout or the total deadline, whichever is
+                # first, so a server that drips bytes cannot hold the worker past the deadline.
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise OutboundError("timeout", transient=True, host=target.host)
+                if conn.sock is not None:
+                    conn.sock.settimeout(min(request.read_timeout_s, remaining))
+
             try:
+                arm()
                 conn.request(
                     request.method, target.path, body=request.body, headers=dict(request.headers)
                 )
+                arm()
                 resp = conn.getresponse()
                 chunks: list[bytes] = []
                 size = 0
                 while True:
-                    if time.monotonic() > deadline:
-                        raise OutboundError("timeout", transient=True, host=target.host)
-                    chunk = resp.read(READ_CHUNK)
+                    arm()
+                    chunk = resp.read1(READ_CHUNK)  # at most one socket read per call
                     if not chunk:
                         break
                     size += len(chunk)

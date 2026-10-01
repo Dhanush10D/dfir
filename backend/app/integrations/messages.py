@@ -250,7 +250,7 @@ def render_email(message: Message) -> tuple[str, str]:
     rows += [f"{label}: {plain(value)}" for label, value in message.lines]
     if message.link:
         rows += ["", message.link]
-    rows += ["", "This message contains no evidence content. Open the case for details."]
+    rows += ["", "Open the case in dfirbench for details."]
     return subject, "\n".join(rows) + "\n"
 
 

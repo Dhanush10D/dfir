@@ -181,7 +181,14 @@ class EnrichmentService:
 
     @staticmethod
     def _entry(ioc: Ioc, provider: str, status: str, **extra: Any) -> dict[str, Any]:
-        return {"ioc_id": str(ioc.id), "provider": provider, "status": status, **extra}
+        return {
+            "ioc_id": str(ioc.id),
+            "ioc_type": ioc.type,
+            "value": ioc.value,
+            "provider": provider,
+            "status": status,
+            **extra,
+        }
 
     @staticmethod
     def _verdict_fields(row: IocEnrichment) -> dict[str, Any]:

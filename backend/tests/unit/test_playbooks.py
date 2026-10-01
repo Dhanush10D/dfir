@@ -100,9 +100,15 @@ def test_the_eight_starter_playbooks_load() -> None:
         (("attack: [T1486]", "attack: [T9]"), "attack"),
         (("channels: [in_app, slack]", "channels: [sms]"), "channels"),
         (("roles: [lead]", "roles: [root]"), "roles"),
-        (("text: \"Write it down\"", "text: \"\""), "text"),
-        (("action: agent.isolate_host", "action: agent.isolate_host, params: {cmd: ls}"), "no parameter"),
-        (("action: agent.isolate_host", "action: agent.isolate_host, params: {host: 5}"), "must be"),
+        (('text: "Write it down"', 'text: ""'), "text"),
+        (
+            ("action: agent.isolate_host", "action: agent.isolate_host, params: {cmd: ls}"),
+            "no parameter",
+        ),
+        (
+            ("action: agent.isolate_host", "action: agent.isolate_host, params: {host: 5}"),
+            "must be",
+        ),
     ],
 )
 def test_strict_schema_rejects(change: tuple[str, str], needle: str) -> None:
@@ -121,7 +127,10 @@ def test_hostile_yaml_is_refused() -> None:
     # No Python object construction: the tag is an error, nothing is executed.
     assert "invalid YAML" in _errors('!!python/object/apply:os.system ["echo pwned"]')
     assert "more than" in _errors("id: PB-N-01\ntitle: t\nphases:\n" + "  - x\n" * 6000)
-    dup_phase = GOOD.replace("notify:", "  - name: Containment\n    steps:\n      - { id: z1, text: t, manual: true }\nnotify:")
+    dup_phase = GOOD.replace(
+        "notify:",
+        "  - name: Containment\n    steps:\n      - { id: z1, text: t, manual: true }\nnotify:",
+    )
     assert "phase names must be unique" in _errors(dup_phase)
 
 

@@ -501,8 +501,9 @@ def test_response_migration_roundtrip_with_rows_in_every_state(admin_engine: Eng
                     runs[status] = conn.execute(
                         text(
                             "INSERT INTO playbook_runs (case_id, playbook_id, status, finished_at, "
-                            f"started_by, definition) VALUES (:c, 'PB-RT-01', :s, {finished or 'NULL'}, "
-                            ":u, '{\"id\": \"PB-RT-01\"}'::jsonb) RETURNING id"
+                            "started_by, definition) VALUES (:c, 'PB-RT-01', :s, "
+                            f"{finished or 'NULL'}, "
+                            ':u, \'{"id": "PB-RT-01"}\'::jsonb) RETURNING id'
                         ),
                         {"c": cid, "s": status, "u": u1},
                     ).scalar_one()
@@ -525,7 +526,7 @@ def test_response_migration_roundtrip_with_rows_in_every_state(admin_engine: Eng
                             "INSERT INTO playbook_run_steps (run_id, case_id, position, phase, "
                             "step_key, text, kind, action, requires_approval, status, outcome, "
                             "completed_by, completed_at, notes) VALUES (:r, :c, :p, 'Phase', :k, "
-                            "'do it', 'action', 'agent.isolate_host', :a, :s, :o, :by, "
+                            "'do it', 'action', :act, :a, :s, :o, :by, "
                             "CASE WHEN :done THEN now() END, 'note') RETURNING id"
                         ),
                         {
@@ -533,6 +534,8 @@ def test_response_migration_roundtrip_with_rows_in_every_state(admin_engine: Eng
                             "c": cid,
                             "p": pos,
                             "k": f"s{pos}",
+                            # impactful actions always need approval (CHECK)
+                            "act": "agent.isolate_host" if approval else "agent.collect_triage",
                             "a": approval,
                             "s": real,
                             "o": outcome,
@@ -570,14 +573,15 @@ def test_response_migration_roundtrip_with_rows_in_every_state(admin_engine: Eng
                             "ex": executed,
                         },
                     )
-                hook = conn.execute(
+                conn.execute(
                     text(
                         "INSERT INTO integrations (type, name, enabled, config, config_encrypted, "
                         "secret_wrapped_key, secret_key_id, secret_fingerprint, last_status) "
-                        "VALUES ('webhook_out', 'rt-hook', true, '{\"url\": \"https://h.test/\"}'::jsonb, "
-                        "'\\x01'::bytea, '\\x02'::bytea, 'kek-1', 'abcdef012345', 'ok') RETURNING id"
+                        "VALUES ('webhook_out', 'rt-hook', true, "
+                        '\'{"url": "https://h.test/"}\'::jsonb, '
+                        "'\\x01'::bytea, '\\x02'::bytea, 'kek-1', 'abcdef012345', 'ok')"
                     )
-                ).scalar_one()
+                )
                 source = conn.execute(
                     text(
                         "INSERT INTO integrations (type, name, enabled, case_id, config_encrypted, "
@@ -597,11 +601,17 @@ def test_response_migration_roundtrip_with_rows_in_every_state(admin_engine: Eng
                     {"c": cid},
                 ).scalar_one()
                 for n, (status, delivered) in enumerate(
-                    (("pending", False), ("delivered", True), ("failed", False), ("suppressed", False))
+                    (
+                        ("pending", False),
+                        ("delivered", True),
+                        ("failed", False),
+                        ("suppressed", False),
+                    )
                 ):
                     other = conn.execute(
                         text(
-                            "INSERT INTO integrations (type, name) VALUES ('teams', :n) RETURNING id"
+                            "INSERT INTO integrations (type, name) VALUES ('teams', :n) "
+                            "RETURNING id"
                         ),
                         {"n": f"rt-t{n}"},
                     ).scalar_one()
@@ -689,8 +699,10 @@ def test_response_migration_roundtrip_with_rows_in_every_state(admin_engine: Eng
                     conn,
                     opts={
                         "compare_type": True,
-                        "include_object": lambda obj, name, type_, *_: not (
-                            type_ == "table" and name is not None and name.startswith("events_")
+                        "include_object": lambda obj, name, type_, *_: (
+                            not (
+                                type_ == "table" and name is not None and name.startswith("events_")
+                            )
                         ),
                     },
                 )
@@ -705,8 +717,9 @@ def test_response_migration_roundtrip_with_rows_in_every_state(admin_engine: Eng
                 assert statuses == [("cancelled", True), ("cancelled", True), ("completed", True)]
                 rows = conn.execute(
                     text(
-                        "SELECT name, enabled, case_id, config_encrypted, secret_key_id, config::text "
-                        "FROM integrations WHERE name IN ('rt-hook', 'rt-source') ORDER BY name"
+                        "SELECT name, enabled, case_id, config_encrypted, secret_key_id, "
+                        "config::text FROM integrations "
+                        "WHERE name IN ('rt-hook', 'rt-source') ORDER BY name"
                     )
                 ).all()
                 assert rows == [
@@ -719,20 +732,24 @@ def test_response_migration_roundtrip_with_rows_in_every_state(admin_engine: Eng
                 conn.execute(
                     text("UPDATE integrations SET updated_at = now() WHERE name = 'rt-source'")
                 )
-                with pytest.raises(DBAPIError, match="ck_integrations_ingest_case"):
-                    with conn.begin_nested():
-                        conn.execute(
-                            text("UPDATE integrations SET enabled = true WHERE name = 'rt-source'")
-                        )
-                with pytest.raises(DBAPIError, match="is cancelled and cannot change"):
-                    with conn.begin_nested():
-                        conn.execute(
-                            text(
-                                "UPDATE playbook_runs SET status = 'running', finished_at = NULL "
-                                "WHERE id = :r"
-                            ),
-                            {"r": runs["running"]},
-                        )
+                with (
+                    pytest.raises(DBAPIError, match="ck_integrations_ingest_case"),
+                    conn.begin_nested(),
+                ):
+                    conn.execute(
+                        text("UPDATE integrations SET enabled = true WHERE name = 'rt-source'")
+                    )
+                with (
+                    pytest.raises(DBAPIError, match="is cancelled and cannot change"),
+                    conn.begin_nested(),
+                ):
+                    conn.execute(
+                        text(
+                            "UPDATE playbook_runs SET status = 'running', finished_at = NULL "
+                            "WHERE id = :r"
+                        ),
+                        {"r": runs["running"]},
+                    )
         finally:
             engine.dispose()
         command.downgrade(cfg, "0008")

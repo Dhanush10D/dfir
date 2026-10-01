@@ -7,6 +7,21 @@ const HOSTILE = '<img src=x onerror=alert(1)>'
 const RUN = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee'
 const REQ = '12345678-1234-4234-8234-123456789012'
 const OTHER = '77777777-6666-4555-8444-333333333333'
+const ALERT = '22222222-3333-4444-8555-666666666666'
+const ENRICHED = {
+  ioc_id: 'i1',
+  ioc_type: 'ip',
+  value: `203.0.113.9 ${HOSTILE}`,
+  provider: 'virustotal',
+  status: 'cached',
+  verdict: 'malicious',
+  score: 0.9,
+  summary: { note: HOSTILE },
+  fetched_at: '2026-10-01T08:00:00Z',
+  expires_at: '2026-10-02T08:00:00Z',
+  tlp: null,
+  error: null,
+}
 
 function request(over: Record<string, unknown> = {}) {
   return {
@@ -139,6 +154,19 @@ function routes(detail: Record<string, unknown>, calls: { url: string; body: str
         notifications: { event: 'playbook.run_started', channels: ['in_app'], roles: ['lead'] },
       })
     },
+    [`GET /api/v1/cases/${CASE_ID}/enrichments`]: () => jsonResponse(200, { items: [ENRICHED] }),
+    [`POST /api/v1/cases/${CASE_ID}/iocs/enrich`]: (init) => {
+      calls.push({ url: 'enrich', body: String(init.body) })
+      return jsonResponse(200, {
+        results: [
+          ENRICHED,
+          { ...ENRICHED, ioc_id: 'i2', value: 'secret.internal.test', status: 'skipped_tlp', tlp: 'amber', verdict: null },
+        ],
+        counts: { cached: 1, skipped_tlp: 1 },
+        truncated: false,
+      })
+    },
+    [`GET /api/v1/alerts/${ALERT}/playbooks`]: () => jsonResponse(200, PLAYBOOKS),
     [`POST /api/v1/action-requests/${REQ}/approve`]: (init) => {
       calls.push({ url: 'approve', body: String(init.body) })
       return jsonResponse(200, request({ status: 'approved' }))
@@ -232,6 +260,32 @@ describe('response tab', () => {
     expect(await screen.findByText(/Request 12345678: pending/)).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Approve' })).toBeNull()
     expect(screen.queryByRole('button', { name: 'Reject' })).toBeNull()
+  })
+
+  it('shows cached enrichment verdicts as text and enriches on request', async () => {
+    const calls: { url: string; body: string }[] = []
+    vi.stubGlobal('fetch', routes(run([step()]), calls))
+    const first = renderInCase(<ResponseTab />, VIEWER)
+    expect(await screen.findByText(/203\.0\.113\.9/)).toBeInTheDocument()
+    expect(screen.getByText('malicious')).toBeInTheDocument()
+    expect(document.querySelector('img')).toBeNull() // a hostile indicator value stays text
+    expect(screen.queryByRole('button', { name: 'Enrich indicators' })).toBeNull()
+    first.unmount()
+
+    renderInCase(<ResponseTab />, ANALYST)
+    fireEvent.click(await screen.findByRole('button', { name: 'Enrich indicators' }))
+    await waitFor(() => expect(calls.some((c) => c.url === 'enrich')).toBe(true))
+    expect(await screen.findByText(/cached: 1, skipped_tlp: 1/)).toBeInTheDocument()
+    expect(screen.getByText(/secret\.internal\.test at virustotal: skipped_tlp \(TLP amber\)/)).toBeInTheDocument()
+  })
+
+  it('suggests playbooks whose trigger matches the alert', async () => {
+    vi.stubGlobal('fetch', routes(run([step()])))
+    renderInCase(<ResponseTab />, ANALYST)
+    const input = await screen.findByLabelText('Triggering alert id (optional)')
+    fireEvent.change(input, { target: { value: ALERT } })
+    expect(await screen.findByText(/Suggested for this alert/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PB-RANSOMWARE-01' })).toBeInTheDocument()
   })
 
   it('is read-only for viewers and for finished runs', async () => {

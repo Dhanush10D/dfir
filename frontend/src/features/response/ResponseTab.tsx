@@ -49,6 +49,8 @@ const PARAMS: Record<string, { name: string; label: string; kind: 'text' | 'int'
   'agent.collect_triage': [{ name: 'host', label: 'Host', kind: 'text' }],
 }
 
+const ALERT_ID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/
+
 function shortId(id: string | null | undefined): string {
   return id ? id.slice(0, 8) : '-'
 }
@@ -89,6 +91,12 @@ function StartForm({ onStarted }: { onStarted: (id: string) => void }) {
   const [plan, setPlan] = useState<RunPlan | null>(null)
   const enabled = (playbooks.data?.items ?? []).filter((p) => p.enabled)
   const chosen = playbookId || enabled[0]?.id || ''
+  const alertKey = alertId.trim()
+  const suggestions = useQuery({
+    queryKey: ['alert-playbooks', alertKey],
+    queryFn: ({ signal }) => api.alertPlaybooks(alertKey, signal),
+    enabled: ALERT_ID.test(alertKey),
+  })
   const start = useMutation({
     mutationFn: () => api.startRun(caseId, chosen, alertId.trim() || null),
     onSuccess: (run) => {
@@ -136,6 +144,22 @@ function StartForm({ onStarted }: { onStarted: (id: string) => void }) {
           Start playbook
         </Button>
       </form>
+      {suggestions.data && (
+        <p className="mt-1 text-xs">
+          {suggestions.data.items.length === 0 ? (
+            'No playbook trigger matches this alert.'
+          ) : (
+            <>
+              Suggested for this alert (rule or ATT&amp;CK match):{' '}
+              {suggestions.data.items.map((p) => (
+                <Button key={p.id} variant="ghost" aria-pressed={chosen === p.id} onClick={() => setPlaybookId(p.id)}>
+                  {p.id}
+                </Button>
+              ))}
+            </>
+          )}
+        </p>
+      )}
       <ErrorMessage error={playbooks.error ?? start.error ?? preview.error} />
       {plan && <PlanView plan={plan} />}
     </div>
@@ -420,6 +444,74 @@ function Approvals({ onOpen }: { onOpen: (runId: string) => void }) {
   )
 }
 
+const VERDICT_STYLE: Record<string, string> = {
+  malicious: 'bg-red-100 text-red-900',
+  suspicious: 'bg-amber-100 text-amber-900',
+}
+
+/** Indicator enrichment (VirusTotal/MISP, or the offline fake): indicators only, within TLP. */
+function Enrichment() {
+  const { caseId, can } = useCase()
+  const client = useQueryClient()
+  const q = useQuery({ queryKey: ['enrichments', caseId], queryFn: ({ signal }) => api.enrichments(caseId, signal) })
+  const run = useMutation({
+    mutationFn: () => api.enrichIocs(caseId),
+    onSuccess: () => void client.invalidateQueries({ queryKey: ['enrichments', caseId] }),
+  })
+  const skipped = (run.data?.results ?? []).filter((r) => r.status !== 'fetched' && r.status !== 'cached')
+  return (
+    <div>
+      <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
+        Only indicator values (IP, domain, URL, hashes) are sent, never files or evidence. Indicators whose TLP
+        the provider may not receive are skipped (no TLP counts as amber).
+      </p>
+      {can('investigate') && (
+        <Button disabled={run.isPending} onClick={() => run.mutate()}>
+          Enrich indicators
+        </Button>
+      )}
+      <ErrorMessage error={run.error ?? q.error} />
+      {run.data && (
+        <p role="status" className="mt-1 text-xs">
+          {Object.entries(run.data.counts)
+            .map(([k, v]) => `${k}: ${v}`)
+            .join(', ') || 'No indicators to enrich.'}
+          {run.data.truncated ? ' (more indicators than one request may send)' : ''}
+        </p>
+      )}
+      {skipped.length > 0 && (
+        <ul className="mt-1 text-xs">
+          {skipped.map((r) => (
+            <li key={`${r.ioc_id}-${r.provider}`}>
+              {r.ioc_type} {r.value ?? shortId(r.ioc_id)} at {r.provider}: {r.status}
+              {r.tlp ? ` (TLP ${r.tlp})` : ''}
+              {r.error ? ` (${r.error})` : ''}
+            </li>
+          ))}
+        </ul>
+      )}
+      {q.isPending && <Loading />}
+      {q.data && q.data.items.length === 0 && <p className="mt-2 text-sm text-slate-500">No cached verdicts.</p>}
+      <ul className="mt-2 text-sm">
+        {(q.data?.items ?? []).map((r) => (
+          <li key={`${r.ioc_id}-${r.provider}`} className="border-t border-slate-200 py-1 dark:border-slate-800">
+            <span className="font-mono text-xs">
+              {r.ioc_type} {r.value ?? shortId(r.ioc_id)}
+            </span>{' '}
+            <span className="text-slate-600 dark:text-slate-400">{r.provider}:</span>{' '}
+            <span className={`rounded px-1.5 py-0.5 text-xs font-semibold ${VERDICT_STYLE[r.verdict ?? ''] ?? 'bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100'}`}>
+              {r.verdict ?? r.status}
+            </span>
+            {r.score !== null && ` score ${r.score}`}
+            {r.status === 'stale' && ' (stale)'}
+            {r.fetched_at && <span className="text-xs text-slate-500"> fetched {formatUtc(r.fetched_at)}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 export function ResponseTab() {
   const { caseId, can } = useCase()
   const [selected, setSelected] = useState<string | null>(null)
@@ -456,6 +548,9 @@ export function ResponseTab() {
           ))}
         </ul>
         {selected && <RunView key={selected} runId={selected} />}
+      </Panel>
+      <Panel title="Indicator enrichment">
+        <Enrichment />
       </Panel>
     </div>
   )

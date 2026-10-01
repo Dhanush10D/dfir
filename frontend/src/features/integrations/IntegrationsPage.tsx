@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 
 import { api } from '@/api/endpoints'
-import type { Integration, IntegrationType } from '@/api/types'
+import type { Integration, IntegrationType, NotificationRecipients, NotificationRule } from '@/api/types'
 import { useAuth } from '@/auth/AuthContext'
 import { Button, ErrorMessage, inputClass, Loading, Panel } from '@/components/ui'
 import { formatUtc, shortHash } from '@/lib/format'
@@ -278,6 +278,12 @@ function Row({ item }: { item: Integration }) {
         {item.last_status && ` · last status: ${item.last_status} at ${formatUtc(item.last_status_at)}`}
       </p>
       <p className="break-all font-mono text-xs">{JSON.stringify(item.config)}</p>
+      {item.type === 'webhook_in' && (
+        <p className="break-all text-xs">
+          Ingest endpoint (POST, signed with X-Timestamp and X-Signature):{' '}
+          <span className="font-mono">/api/v1/ingest/webhook/{item.id}</span>
+        </p>
+      )}
       <div className="mt-1 flex flex-wrap items-end gap-2">
         <Button disabled={toggle.isPending} onClick={() => toggle.mutate()}>
           {item.enabled ? 'Disable' : 'Enable'}
@@ -299,6 +305,117 @@ function Row({ item }: { item: Integration }) {
       <ErrorMessage error={toggle.error ?? saveSecret.error ?? test.error} />
       {showLog && <Deliveries id={item.id} />}
     </li>
+  )
+}
+
+const RECIPIENTS: { id: NotificationRecipients; label: string }[] = [
+  { id: 'admins', label: 'administrators' },
+  { id: 'case_lead', label: 'case lead' },
+  { id: 'case_members', label: 'case members' },
+  { id: 'case_approvers', label: 'case approvers' },
+]
+
+/** In-app notification rules (who gets a notification for which event). No templates: the
+ * server builds every message from fixed text and identifiers. */
+function NotificationRules() {
+  const client = useQueryClient()
+  const q = useQuery({ queryKey: ['notification-rules'], queryFn: ({ signal }) => api.notificationRules(signal) })
+  const [draft, setDraft] = useState<NotificationRule[] | null>(null)
+  const [event, setEvent] = useState(EVENTS[0]!)
+  const [minSeverity, setMinSeverity] = useState('')
+  const [recipients, setRecipients] = useState<NotificationRecipients[]>([])
+  const save = useMutation({
+    mutationFn: (rules: NotificationRule[]) => api.setNotificationRules(rules),
+    onSuccess: (data) => {
+      setDraft(null)
+      client.setQueryData(['notification-rules'], data)
+    },
+  })
+  if (q.isPending) return <Loading />
+  if (q.error) return <ErrorMessage error={q.error} />
+  const rules = draft ?? q.data.rules
+  const change = (next: NotificationRule[]) => setDraft(next)
+  function add(e: FormEvent) {
+    e.preventDefault()
+    if (recipients.length === 0) return
+    change([...rules, { event, min_severity: minSeverity || null, recipients, enabled: true }])
+    setRecipients([])
+  }
+  return (
+    <div>
+      {rules.length === 0 && <p className="text-sm text-slate-500">No rules: nobody gets in-app notifications.</p>}
+      <ul className="text-sm">
+        {rules.map((r, i) => (
+          <li key={`${r.event}-${i}`} className="flex flex-wrap items-center gap-2 border-t border-slate-200 py-1 dark:border-slate-800">
+            <span className="font-mono text-xs">{r.event}</span>
+            <span>
+              {r.min_severity ? `severity ${r.min_severity}+ ` : ''}to{' '}
+              {r.recipients.map((x) => RECIPIENTS.find((c) => c.id === x)?.label ?? x).join(', ')}
+            </span>
+            <label className="inline-flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={r.enabled}
+                onChange={(e) => change(rules.map((x, j) => (j === i ? { ...x, enabled: e.target.checked } : x)))}
+              />
+              enabled
+            </label>
+            <Button variant="ghost" onClick={() => change(rules.filter((_, j) => j !== i))}>
+              Remove
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <form onSubmit={add} aria-label="New notification rule" className="mt-2 flex flex-wrap items-end gap-2">
+        <label className="text-sm">
+          <span className="mb-1 block font-medium">Event</span>
+          <select className={inputClass} value={event} onChange={(e) => setEvent(e.target.value)}>
+            {EVENTS.map((ev) => (
+              <option key={ev}>{ev}</option>
+            ))}
+          </select>
+        </label>
+        <label className="text-sm">
+          <span className="mb-1 block font-medium">Rule minimum severity</span>
+          <select className={inputClass} value={minSeverity} onChange={(e) => setMinSeverity(e.target.value)}>
+            {SEVERITIES.map((s) => (
+              <option key={s} value={s}>
+                {s || 'any'}
+              </option>
+            ))}
+          </select>
+        </label>
+        <fieldset className="text-sm">
+          <legend className="mb-1 font-medium">Recipients</legend>
+          {RECIPIENTS.map((c) => (
+            <label key={c.id} className="mr-2 inline-flex items-center gap-1">
+              <input
+                type="checkbox"
+                checked={recipients.includes(c.id)}
+                onChange={(e) =>
+                  setRecipients(e.target.checked ? [...recipients, c.id] : recipients.filter((x) => x !== c.id))
+                }
+              />
+              {c.label}
+            </label>
+          ))}
+        </fieldset>
+        <Button type="submit" disabled={recipients.length === 0}>
+          Add rule
+        </Button>
+      </form>
+      <div className="mt-2 flex items-center gap-2">
+        <Button variant="primary" disabled={draft === null || save.isPending} onClick={() => save.mutate(rules)}>
+          Save rules
+        </Button>
+        {draft !== null && (
+          <Button variant="ghost" onClick={() => setDraft(null)}>
+            Discard changes
+          </Button>
+        )}
+      </div>
+      <ErrorMessage error={save.error} />
+    </div>
   )
 }
 
@@ -326,6 +443,9 @@ export function IntegrationsPage() {
             <Row key={item.id} item={item} />
           ))}
         </ul>
+      </Panel>
+      <Panel title="In-app notification rules">
+        <NotificationRules />
       </Panel>
     </div>
   )

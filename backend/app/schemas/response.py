@@ -162,6 +162,8 @@ class EnrichRequest(BaseModel):
 
 class EnrichmentEntry(BaseModel):
     ioc_id: uuid.UUID
+    ioc_type: str | None = None
+    value: str | None = None  # the indicator itself (case readers can see the case's IOCs)
     provider: str
     status: str  # fetched | cached | stale | skipped_tlp | skipped_deadline | error
     verdict: str | None = None

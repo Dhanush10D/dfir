@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query'
-import { fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 import { setAccessToken } from '@/api/client'
 import { Providers } from '@/app/providers'
@@ -85,6 +85,14 @@ function routes(permissions: string[], calls: { url: string; body: string }[] = 
       calls.push({ url: 'patch', body: String(init.body) })
       return jsonResponse(200, HOOK)
     },
+    'GET /api/v1/settings/notification-rules': () =>
+      jsonResponse(200, {
+        rules: [{ event: 'alert.created', min_severity: 'high', recipients: ['case_lead'], enabled: true }],
+      }),
+    'PUT /api/v1/settings/notification-rules': (init) => {
+      calls.push({ url: 'rules', body: String(init.body) })
+      return jsonResponse(200, JSON.parse(String(init.body)))
+    },
     'GET /api/v1/notifications': () =>
       jsonResponse(200, {
         unread: 1,
@@ -158,6 +166,26 @@ describe('integrations page', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Disable' }))
     await waitFor(() => expect(calls.some((c) => c.url === 'patch')).toBe(true))
     expect(JSON.parse(calls.find((c) => c.url === 'patch')!.body)).toEqual({ enabled: false })
+  })
+
+  it('edits the in-app notification rules and saves them as a whole', async () => {
+    const calls: { url: string; body: string }[] = []
+    vi.stubGlobal('fetch', routes(['users:manage'], calls))
+    renderPage(<IntegrationsPage />)
+    expect(await screen.findByText(/severity high\+ to case lead/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save rules' })).toBeDisabled() // nothing changed yet
+    const form = screen.getByRole('form', { name: 'New notification rule' })
+    fireEvent.change(within(form).getByLabelText('Event'), { target: { value: 'evidence.verification_failed' } })
+    fireEvent.click(within(form).getByLabelText('administrators'))
+    fireEvent.click(within(form).getByRole('button', { name: 'Add rule' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save rules' }))
+    await waitFor(() => expect(calls.some((c) => c.url === 'rules')).toBe(true))
+    expect(JSON.parse(calls.find((c) => c.url === 'rules')!.body)).toEqual({
+      rules: [
+        { event: 'alert.created', min_severity: 'high', recipients: ['case_lead'], enabled: true },
+        { event: 'evidence.verification_failed', min_severity: null, recipients: ['admins'], enabled: true },
+      ],
+    })
   })
 
   it('is not available to non-admins', async () => {

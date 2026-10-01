@@ -69,6 +69,12 @@ class PlaybookRunStep(Base):
             "OR (kind = 'action' AND action IS NOT NULL)",
             name="kind_action",
         ),
+        # Impactful actions (app.response.registry) always need a four-eyes approval.
+        CheckConstraint(
+            "requires_approval OR action IS NULL OR action NOT IN "
+            "('agent.isolate_host','agent.kill_process','agent.disable_account')",
+            name="impactful",
+        ),
         CheckConstraint(
             "status IN ('pending','awaiting_approval','approved','not_executed','failed',"
             "'done','skipped')",

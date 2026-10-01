@@ -46,7 +46,7 @@ from app.services.integrations import IntegrationService
 from app.services.outbox import DISPATCH_KEY, emit_event
 from tests.fakes import FakeVault
 from tests.integration.conftest import make_test_settings
-from tests.integration.harness import Harness, UserCtx
+from tests.integration.harness import Harness
 
 pytestmark = pytest.mark.integration
 
@@ -185,15 +185,24 @@ def test_integration_crud_and_write_only_secrets(
     r = h.patch(f"/integrations/{iid}", world.admin, json={"enabled": False, "name": name + "-x"})
     assert r.status_code == 200 and r.json()["enabled"] is False and r.json()["has_secret"]
     assert h.patch(f"/integrations/{iid}", world.lead, json={"enabled": True}).status_code == 403
-    assert h.client.request(
-        "DELETE", f"/api/v1/integrations/{iid}", headers=world.admin.headers
-    ).status_code == 405  # disabled, never deleted
+    assert (
+        h.client.request(
+            "DELETE", f"/api/v1/integrations/{iid}", headers=world.admin.headers
+        ).status_code
+        == 405
+    )  # disabled, never deleted
 
     # Never in the audit log, the request log or any error message.
     with h.sessions() as session:
-        rows = session.execute(
-            select(AuditLog).where(AuditLog.object_type == "integration", AuditLog.object_id == iid)
-        ).scalars().all()
+        rows = (
+            session.execute(
+                select(AuditLog).where(
+                    AuditLog.object_type == "integration", AuditLog.object_id == iid
+                )
+            )
+            .scalars()
+            .all()
+        )
         everything = session.execute(
             text("SELECT string_agg(detail::text, ' ') FROM audit_log WHERE object_id = :i"),
             {"i": iid},
@@ -205,7 +214,11 @@ def test_integration_crud_and_write_only_secrets(
     short = h.post(
         "/integrations",
         world.admin,
-        json={**body, "name": world.name("short"), "secret": {"signing_secret": "too-short-secret"}},
+        json={
+            **body,
+            "name": world.name("short"),
+            "secret": {"signing_secret": "too-short-secret"},
+        },
     )
     assert short.status_code == 422 and "too-short-secret" not in short.text
     assert "too-short-secret" not in caplog.text
@@ -275,12 +288,20 @@ def test_integration_validation(world: World) -> None:
         {**mail, "security": "none"},
         {**mail, "recipients": []},
     ):
-        r = h.post("/integrations", world.admin, json={"type": "email", "name": world.name("m"), "config": bad})
+        r = h.post(
+            "/integrations",
+            world.admin,
+            json={"type": "email", "name": world.name("m"), "config": bad},
+        )
         assert r.status_code == 422, r.text
     r = h.post(
         "/integrations",
         world.admin,
-        json={"type": "webhook_in", "name": world.name("in"), "config": {"field_map": {"case_id": "x"}}},
+        json={
+            "type": "webhook_in",
+            "name": world.name("in"),
+            "config": {"field_map": {"case_id": "x"}},
+        },
     )
     assert r.status_code == 422
     r = h.post(
@@ -300,11 +321,18 @@ def test_integration_validation(world: World) -> None:
         json={"type": "webhook_in", "name": world.name("in"), "case_id": str(uuid.uuid4())},
     )
     assert r.status_code == 404
-    assert h.post(
-        "/integrations",
-        world.admin,
-        json={"type": "misp", "name": world.name("misp"), "config": {"url": "https://misp.example.test", "max_tlp": "red"}},
-    ).status_code == 422
+    assert (
+        h.post(
+            "/integrations",
+            world.admin,
+            json={
+                "type": "misp",
+                "name": world.name("misp"),
+                "config": {"url": "https://misp.example.test", "max_tlp": "red"},
+            },
+        ).status_code
+        == 422
+    )
 
 
 def test_secrets_cannot_be_saved_without_a_kek(
@@ -336,7 +364,8 @@ def test_kek_rotation_rewrap(world: World, tmp_path: Path) -> None:
     rotated = h.settings.model_copy(
         update={
             "integration_kek": Settings(
-                _env_file=None, integration_kek="rotated-kek-material-abcdef0123456789"  # type: ignore[call-arg,arg-type]
+                _env_file=None,
+                integration_kek="rotated-kek-material-abcdef0123456789",  # type: ignore[call-arg,arg-type]
             ).integration_kek,
             "integration_kek_id": "test-kek-2",
             "integration_kek_previous_path": str(previous),
@@ -379,26 +408,47 @@ def test_signed_webhook_delivery_and_log(world: World) -> None:
     assert request.method == "POST" and request.target.path == "/hook"  # type: ignore[attr-defined]
     headers = request.headers  # type: ignore[attr-defined]
     body = request.body  # type: ignore[attr-defined]
-    assert headers["X-Event"] == "case.status_changed" and headers["Content-Type"] == "application/json"
+    assert (
+        headers["X-Event"] == "case.status_changed"
+        and headers["Content-Type"] == "application/json"
+    )
     digest = webhooks.verify(
         SIGNING, headers["X-Timestamp"], body, headers["X-Signature"], now=time.time(), window_s=300
     )
     assert digest is not None
-    assert webhooks.verify("wrong", headers["X-Timestamp"], body, headers["X-Signature"], now=time.time(), window_s=300) is None
+    assert (
+        webhooks.verify(
+            "wrong",
+            headers["X-Timestamp"],
+            body,
+            headers["X-Signature"],
+            now=time.time(),
+            window_s=300,
+        )
+        is None
+    )
     data = json.loads(body)
     assert data["type"] == "case.status_changed" and data["data"]["case_id"] == world.cid
     assert data["data"]["from_status"] == "open" and data["data"]["to_status"] == "triage"
-    assert data["data"]["case_number"] == world.case["case_number"] and "details" not in data["data"]
+    assert (
+        data["data"]["case_number"] == world.case["case_number"] and "details" not in data["data"]
+    )
     assert SIGNING.encode() not in body and SIGNING not in json.dumps(dict(headers))
     log = h.get(f"/integrations/{hook['id']}/deliveries", world.admin).json()
     assert len(log["outbound"]) == 1 and log["inbound"] == []
     entry = log["outbound"][0]
     assert (entry["status"], entry["attempts"], entry["response_status"]) == ("delivered", 1, 200)
-    assert entry["id"] == headers["X-Delivery-Id"] and entry["delivered_at"] and not entry["last_error"]
+    assert (
+        entry["id"] == headers["X-Delivery-Id"]
+        and entry["delivered_at"]
+        and not entry["last_error"]
+    )
     assert h.get(f"/integrations/{hook['id']}", world.admin).json()["last_status"] == "ok"
     assert h.get(f"/integrations/{hook['id']}/deliveries", world.lead).status_code == 403
     # Closing the case is a status change too; other event types are not sent to this hook.
-    assert h.post(f"/cases/{world.cid}/close", world.lead, json={"reason": "done"}).status_code == 200
+    assert (
+        h.post(f"/cases/{world.cid}/close", world.lead, json={"reason": "done"}).status_code == 200
+    )
     world.emit("report.signed", {"report_id": str(uuid.uuid4())})
     assert h.deliver().delivered == 1
     assert json.loads(h.transport.requests[-1].body)["data"]["to_status"] == "closed"  # type: ignore[attr-defined]
@@ -414,7 +464,12 @@ def test_delivery_retries_with_backoff_then_fails_for_good(world: World, db_engi
     first = h.deliver(clock=lambda: now["t"])
     assert (first.attempted, first.retried, first.failed, first.retry_in_s) == (1, 1, 0, 30)
     row = world.deliveries(hook["id"])[0]
-    assert (row.status, row.attempts, row.last_error, row.response_status) == ("pending", 1, "http_500", 500)
+    assert (row.status, row.attempts, row.last_error, row.response_status) == (
+        "pending",
+        1,
+        "http_500",
+        500,
+    )
     assert row.next_attempt_at == now["t"] + timedelta(seconds=30) and row.locked_until is None
     assert h.deliver(clock=lambda: now["t"]).attempted == 0  # not due yet
     now["t"] += timedelta(seconds=31)
@@ -436,7 +491,10 @@ def test_delivery_retries_with_backoff_then_fails_for_good(world: World, db_engi
     assert "upstream body" not in log.text and "hooks.example.test" not in log.text
 
     # A permanent answer (4xx) fails at once; a redirect is not followed and counts as failure.
-    for response, error in ((HttpResponse(410, {}, b""), "http_410"), (HttpResponse(302, {"location": "https://evil.test/"}, b""), "http_302")):
+    for response, error in (
+        (HttpResponse(410, {}, b""), "http_410"),
+        (HttpResponse(302, {"location": "https://evil.test/"}, b""), "http_302"),
+    ):
         world.emit("report.signed", {"report_id": str(uuid.uuid4())})
         h.transport.responses = [response]
         result = h.deliver(clock=lambda: now["t"])
@@ -448,10 +506,20 @@ def test_delivery_retries_with_backoff_then_fails_for_good(world: World, db_engi
     # The log is frozen once terminal, and the app role cannot delete or re-target it.
     p = {"d": str(row.id)}
     for sql, match in (
-        ("UPDATE outbound_deliveries SET status = 'pending', next_attempt_at = now() WHERE id = :d", "is failed and cannot change"),
-        ("UPDATE outbound_deliveries SET last_error = NULL WHERE id = :d", "is failed and cannot change"),
+        (
+            "UPDATE outbound_deliveries SET status = 'pending', next_attempt_at = now() "
+            "WHERE id = :d",
+            "is failed and cannot change",
+        ),
+        (
+            "UPDATE outbound_deliveries SET last_error = NULL WHERE id = :d",
+            "is failed and cannot change",
+        ),
         ("DELETE FROM outbound_deliveries WHERE id = :d", "permission denied"),
-        ("UPDATE outbound_deliveries SET integration_id = integration_id WHERE id = :d", "permission denied"),
+        (
+            "UPDATE outbound_deliveries SET integration_id = integration_id WHERE id = :d",
+            "permission denied",
+        ),
         ("UPDATE outbound_deliveries SET max_attempts = 99 WHERE id = :d", "permission denied"),
         ("DELETE FROM outbound_events", "permission denied"),
         ("UPDATE outbound_events SET payload = '{}'::jsonb", "permission denied"),
@@ -492,7 +560,11 @@ def test_ssrf_blocked_delivery_never_leaves(world: World) -> None:
     assert result.attempted == 3 and result.failed == 2 and result.retried == 1
     assert h.transport.requests == []  # nothing was sent anywhere
     rows = [world.deliveries(x["id"])[0] for x in hooks]
-    assert (rows[0].status, rows[0].last_error, rows[0].attempts) == ("failed", "blocked:address_private", 1)
+    assert (rows[0].status, rows[0].last_error, rows[0].attempts) == (
+        "failed",
+        "blocked:address_private",
+        1,
+    )
     assert (rows[1].status, rows[1].last_error) == ("failed", "blocked:address_metadata")
     assert (rows[2].status, rows[2].last_error) == ("pending", "dns_error")  # transient: retried
     # http:// is refused at save time unless the dev switch is on, and then at send time too.
@@ -523,6 +595,7 @@ def test_emitting_never_breaks_the_business_transaction(
             )
 
     before = events()
+
     # 1. The outbox insert itself blows up: the case update still commits.
     def boom(*args: Any, **kw: Any) -> Any:
         raise RuntimeError("outbox down")
@@ -563,7 +636,10 @@ def test_emitting_never_breaks_the_business_transaction(
     # 4. A rolled-back business transaction leaves no event and triggers no dispatch.
     count = h.outbound_dispatched
     with h.sessions() as session:
-        assert emit_event(session, "report.signed", case_id=uuid.UUID(world.cid), payload={}) == "created"
+        assert (
+            emit_event(session, "report.signed", case_id=uuid.UUID(world.cid), payload={})
+            == "created"
+        )
         session.rollback()
     assert events() == before + 1 and h.outbound_dispatched == count
     # 5. The dedup key makes an event unique.
@@ -582,15 +658,21 @@ def test_detection_emits_alert_created_once_per_alert(world: World) -> None:
     assert h.post(f"/cases/{world.cid}/detect", world.analyst).status_code in (200, 202)
     assert {x.outcome for x in h.run_detect_pending()} == {"succeeded"}
     with h.sessions() as session:
-        alerts = session.execute(
-            select(Alert).where(Alert.case_id == uuid.UUID(world.cid))
-        ).scalars().all()
-        created = session.execute(
-            select(OutboundEvent).where(
-                OutboundEvent.case_id == uuid.UUID(world.cid),
-                OutboundEvent.event_type == "alert.created",
+        alerts = (
+            session.execute(select(Alert).where(Alert.case_id == uuid.UUID(world.cid)))
+            .scalars()
+            .all()
+        )
+        created = (
+            session.execute(
+                select(OutboundEvent).where(
+                    OutboundEvent.case_id == uuid.UUID(world.cid),
+                    OutboundEvent.event_type == "alert.created",
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert alerts and {e.payload["alert_id"] for e in created} == {str(a.id) for a in alerts}
     one = created[0].payload
     assert one["source"] == "detection" and one["severity"] in ("low", "medium", "high", "critical")
@@ -608,7 +690,9 @@ def test_detection_emits_alert_created_once_per_alert(world: World) -> None:
 def test_evidence_verification_failure_is_emitted(world: World) -> None:
     h = world.h
     hook = world.webhook(["evidence.verification_failed"], include_details=True)
-    ev = h.stored_evidence(world.analyst, world.cid, b"evidence bytes\n" * 50, original_name="x.log")
+    ev = h.stored_evidence(
+        world.analyst, world.cid, b"evidence bytes\n" * 50, original_name="x.log"
+    )
     assert h.vault is not None
     h.vault.corrupt(h.key_of(ev), ev["storage_version_id"], offset=3)
     r = h.post(f"/evidence/{ev['id']}/verify", world.analyst)
@@ -637,12 +721,21 @@ def test_notification_dedup_rate_limit_and_content(world: World) -> None:
 
     def alert(rule: str, severity: str = "high") -> None:
         aid = str(uuid.uuid4())
-        assert world.emit(
-            "alert.created",
-            {"alert_id": aid, "severity": severity, "rule_id": rule, "source": "detection", "event_count": 2},
-            details={"title": hostile, "host": "WS-042"},
-            dedup_key=f"alert.created:{aid}",
-        ) == "created"
+        assert (
+            world.emit(
+                "alert.created",
+                {
+                    "alert_id": aid,
+                    "severity": severity,
+                    "rule_id": rule,
+                    "source": "detection",
+                    "event_count": 2,
+                },
+                details={"title": hostile, "host": "WS-042"},
+                dedup_key=f"alert.created:{aid}",
+            )
+            == "created"
+        )
 
     for _ in range(3):
         alert("DFIR-WIN-0010")  # an alert storm from one rule
@@ -677,11 +770,20 @@ def test_notification_dedup_rate_limit_and_content(world: World) -> None:
     assert limited.suppressed == 1 and limited.attempted == 0
     assert world.deliveries(slack["id"])[-1].last_error == "rate_limited"
     # With details switched on, evidence text is escaped for Slack.
-    assert h.patch(
-        f"/integrations/{slack['id']}",
-        world.admin,
-        json={"config": {"events": ["alert.created"], "include_details": True, "case_ids": [world.cid]}},
-    ).status_code == 200
+    assert (
+        h.patch(
+            f"/integrations/{slack['id']}",
+            world.admin,
+            json={
+                "config": {
+                    "events": ["alert.created"],
+                    "include_details": True,
+                    "case_ids": [world.cid],
+                }
+            },
+        ).status_code
+        == 200
+    )
     alert("DFIR-LNX-0001", "critical")
     h.deliver()
     text_ = json.loads(h.transport.requests[-1].body)["text"]  # type: ignore[attr-defined]
@@ -690,13 +792,17 @@ def test_notification_dedup_rate_limit_and_content(world: World) -> None:
 
     # In-app: the default rule sends high alerts to the case lead, once per rule in the window.
     with h.sessions() as session:
-        mine = session.execute(
-            select(Notification).where(
-                Notification.user_id == world.lead.id,
-                Notification.kind == "alert.created",
-                Notification.case_id == uuid.UUID(world.cid),
+        mine = (
+            session.execute(
+                select(Notification).where(
+                    Notification.user_id == world.lead.id,
+                    Notification.kind == "alert.created",
+                    Notification.case_id == uuid.UUID(world.cid),
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         others = session.execute(
             select(func.count())
             .select_from(Notification)
@@ -748,7 +854,10 @@ def test_email_and_teams_channels(world: World) -> None:
         enabled=True,
     )
     rid = str(uuid.uuid4())
-    world.emit("report.signed", {"report_id": rid, "kind": "technical", "version": 2, "manifest_sha256": "a" * 64})
+    world.emit(
+        "report.signed",
+        {"report_id": rid, "kind": "technical", "version": 2, "manifest_sha256": "a" * 64},
+    )
     result = h.deliver(public_base_url="https://dfir.example")
     assert result.delivered == 2 and result.failed == 1
     sent = h.mails[-1]
@@ -798,7 +907,10 @@ def test_notification_rules_api(world: World) -> None:
         [{"event": "alert.created", "recipients": ["admins"], "min_severity": "urgent"}],
         [{"event": "alert.created", "recipients": ["admins"], "template": "{{7*7}}"}],
     ):
-        assert h.put("/settings/notification-rules", world.admin, json={"rules": bad}).status_code == 422
+        assert (
+            h.put("/settings/notification-rules", world.admin, json={"rules": bad}).status_code
+            == 422
+        )
     assert h.put("/settings/notification-rules", world.lead, json={"rules": []}).status_code == 403
     r = h.put("/settings/notification-rules", world.admin, json={"rules": current.json()["rules"]})
     assert r.status_code == 200 and r.json() == current.json()
@@ -806,7 +918,9 @@ def test_notification_rules_api(world: World) -> None:
         audited = session.execute(
             select(func.count())
             .select_from(AuditLog)
-            .where(AuditLog.action == "settings.notification_rules", AuditLog.user_id == world.admin.id)
+            .where(
+                AuditLog.action == "settings.notification_rules", AuditLog.user_id == world.admin.id
+            )
         ).scalar_one()
     assert audited == 1
 
@@ -900,33 +1014,51 @@ def test_ingest_creates_alerts_in_the_configured_case(world: World) -> None:
     assert len(rows) == 2 and all(a.rule_id is None for a in rows)
     crit = next(a for a in rows if a.details["external_id"] == "siem-1")
     assert crit.title == hostile and crit.severity.value == "critical" and crit.host == "WS-042"
-    assert crit.attack_tags == ["T1486"] and crit.first_seen == datetime(2026, 9, 30, 8, 0, tzinfo=UTC)
+    assert crit.attack_tags == ["T1486"] and crit.first_seen == datetime(
+        2026, 9, 30, 8, 0, tzinfo=UTC
+    )
     assert crit.details["ts_original"] == "2026-09-30T10:00:00+02:00"
     assert crit.details["integration_id"] == source.id and crit.status.value == "new"
     assert crit.dedup_key == f"ext:{source.id}:{hashlib.sha256(b'siem-1').hexdigest()}"
     long = next(a for a in rows if a.details["external_id"] == "siem-2")
-    assert len(long.title) <= 500 and long.severity.value == "low" and long.details["ts_source"] == "received"
+    assert (
+        len(long.title) <= 500
+        and long.severity.value == "low"
+        and long.details["ts_source"] == "received"
+    )
     with h.sessions() as session:
         elsewhere = session.execute(
             select(func.count()).select_from(Alert).where(Alert.case_id == uuid.UUID(other_case))
         ).scalar_one()
-        history = session.execute(
-            select(AlertHistory).where(AlertHistory.alert_id.in_([a.id for a in rows]))
-        ).scalars().all()
-        events = session.execute(
-            select(OutboundEvent).where(
-                OutboundEvent.case_id == uuid.UUID(world.cid),
-                OutboundEvent.event_type == "alert.created",
+        history = (
+            session.execute(
+                select(AlertHistory).where(AlertHistory.alert_id.in_([a.id for a in rows]))
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
+        events = (
+            session.execute(
+                select(OutboundEvent).where(
+                    OutboundEvent.case_id == uuid.UUID(world.cid),
+                    OutboundEvent.event_type == "alert.created",
+                )
+            )
+            .scalars()
+            .all()
+        )
         delivery = session.execute(
             select(InboundDelivery).where(InboundDelivery.integration_id == uuid.UUID(source.id))
         ).scalar_one()
         audit = session.execute(
-            select(AuditLog).where(AuditLog.action == "ingest.webhook", AuditLog.object_id == source.id)
+            select(AuditLog).where(
+                AuditLog.action == "ingest.webhook", AuditLog.object_id == source.id
+            )
         ).scalar_one()
     assert elsewhere == 0
-    assert {(x.action, x.to_status.value if x.to_status else None) for x in history} == {("created", "new")}
+    assert {(x.action, x.to_status.value if x.to_status else None) for x in history} == {
+        ("created", "new")
+    }
     assert {e.payload["alert_id"] for e in events} == {str(a.id) for a in rows}
     assert all(e.payload["source"] == "ingest" for e in events)
     assert (delivery.items, delivery.created, delivery.errors) == (5, 2, 3)
@@ -936,7 +1068,9 @@ def test_ingest_creates_alerts_in_the_configured_case(world: World) -> None:
     # The alerts show up through the normal API and can be triaged.
     listed = h.get(f"/cases/{world.cid}/alerts", world.viewer).json()["items"]
     assert {a["id"] for a in listed} >= {str(a.id) for a in rows}
-    assert h.patch(f"/alerts/{crit.id}", world.analyst, json={"status": "triaged"}).status_code == 200
+    assert (
+        h.patch(f"/alerts/{crit.id}", world.analyst, json={"status": "triaged"}).status_code == 200
+    )
     log = h.get(f"/integrations/{source.id}/deliveries", world.admin).json()
     assert len(log["inbound"]) == 1 and log["inbound"][0]["created"] == 2
 
@@ -962,7 +1096,10 @@ def test_ingest_is_idempotent_and_replay_protected(world: World) -> None:
     assert again.status_code == 200
     assert (again.json()["created"], again.json()["updated"]) == (0, 2)
     rows = alerts_of(world)
-    assert len(rows) == 2 and {a.title: a.severity.value for a in rows} == {"First": "critical", "Second": "medium"}
+    assert len(rows) == 2 and {a.title: a.severity.value for a in rows} == {
+        "First": "critical",
+        "Second": "medium",
+    }
     with h.sessions() as session:
         deliveries = session.execute(
             select(func.count())
@@ -990,7 +1127,10 @@ def test_ingest_authentication_gives_one_answer(world: World) -> None:
     source = Source(world)
     hook = world.webhook(["report.signed"])  # another type with the same secret value
     disabled = Source(world)
-    assert h.patch(f"/integrations/{disabled.id}", world.admin, json={"enabled": False}).status_code == 200
+    assert (
+        h.patch(f"/integrations/{disabled.id}", world.admin, json={"enabled": False}).status_code
+        == 200
+    )
     payload = {"alerts": [{"id": "a", "title": "t"}]}
     now = int(time.time())
     body = json.dumps(payload).encode()
@@ -1008,8 +1148,14 @@ def test_ingest_authentication_gives_one_answer(world: World) -> None:
         source.send(payload, headers={"X-Timestamp": "yesterday"}),
         source.send(payload, headers={"X-Timestamp": str(now + 1), "X-Signature": good_sig}),
         h.client.post(f"/api/v1/ingest/webhook/{source.id}", content=body),
-        h.client.post(f"/api/v1/ingest/webhook/{source.id}", content=body + b" ", headers={"X-Timestamp": str(now), "X-Signature": good_sig}),
-        h.client.post(f"/api/v1/ingest/webhook/{source.id}", content=body, headers=world.admin.headers),
+        h.client.post(
+            f"/api/v1/ingest/webhook/{source.id}",
+            content=body + b" ",
+            headers={"X-Timestamp": str(now), "X-Signature": good_sig},
+        ),
+        h.client.post(
+            f"/api/v1/ingest/webhook/{source.id}", content=body, headers=world.admin.headers
+        ),
     ]
     answers = set()
     for r in attempts:
@@ -1047,21 +1193,29 @@ def test_ingest_limits_and_bad_payloads(world: World) -> None:
     assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_json"
     assert alerts_of(world) == []
     # An item-level problem is counted, never a 500.
-    r = source.send({"alerts": [None, 5, [], {"id": {"x": 1}, "title": "t"}, {"id": "ok", "title": "fine"}]})
+    r = source.send(
+        {"alerts": [None, 5, [], {"id": {"x": 1}, "title": "t"}, {"id": "ok", "title": "fine"}]}
+    )
     assert r.status_code == 200 and (r.json()["created"], r.json()["errors"]) == (1, 4)
     # A closed case refuses ingest.
-    assert h.post(f"/cases/{world.cid}/close", world.lead, json={"reason": "done"}).status_code == 200
+    assert (
+        h.post(f"/cases/{world.cid}/close", world.lead, json={"reason": "done"}).status_code == 200
+    )
     r = source.send({"alerts": [{"id": "late", "title": "after close"}]})
     assert r.status_code == 409 and "closed" in r.json()["error"]["message"]
     assert len(alerts_of(world)) == 1
 
 
-def test_ingest_rate_limits(app_engine: Engine, migrated_db_url: str, signer: CustodySigner) -> None:
+def test_ingest_rate_limits(
+    app_engine: Engine, migrated_db_url: str, signer: CustodySigner
+) -> None:
     h = other_harness(app_engine, migrated_db_url, signer, ingest_rate_limit_per_minute=2)
     with h.client:
         world = World(h)
         source = Source(world)
-        codes = [source.send({"alerts": [{"id": f"r{i}", "title": "t"}]}).status_code for i in range(3)]
+        codes = [
+            source.send({"alerts": [{"id": f"r{i}", "title": "t"}]}).status_code for i in range(3)
+        ]
         assert codes == [200, 200, 429]
         limited = source.send({"alerts": [{"id": "r9", "title": "t"}]})
         assert limited.status_code == 429 and int(limited.headers["Retry-After"]) >= 1
@@ -1098,7 +1252,10 @@ def test_inbound_log_is_append_only(world: World, db_engine: Engine) -> None:
         conn.execute(text("SET LOCAL ROLE dfirbench_app"))
         conn.execute(text("UPDATE notifications SET read_at = now() WHERE false"))
     # The replay key is a database constraint, not only a lookup.
-    with pytest.raises(DBAPIError, match="uq_inbound_deliveries_integration_id_nonce"), db_engine.begin() as conn:
+    with (
+        pytest.raises(DBAPIError, match="uq_inbound_deliveries_integration_id_nonce"),
+        db_engine.begin() as conn,
+    ):
         conn.execute(
             text(
                 "INSERT INTO inbound_deliveries (integration_id, case_id, nonce, body_sha256) "
@@ -1110,7 +1267,10 @@ def test_inbound_log_is_append_only(world: World, db_engine: Engine) -> None:
     # An enabled ingest source always has a case; a secret always comes with its key.
     for sql, match in (
         ("UPDATE integrations SET case_id = NULL WHERE id = :i", "ck_integrations_ingest_case"),
-        ("UPDATE integrations SET secret_wrapped_key = NULL WHERE id = :i", "ck_integrations_secret"),
+        (
+            "UPDATE integrations SET secret_wrapped_key = NULL WHERE id = :i",
+            "ck_integrations_secret",
+        ),
         ("UPDATE integrations SET type = 'ftp' WHERE id = :i", "ck_integrations_type"),
     ):
         with pytest.raises(DBAPIError, match=match), db_engine.begin() as conn:
@@ -1124,7 +1284,9 @@ def iocs(world: World, items: list[tuple[str, str, str]]) -> dict[str, str]:
     ids = {}
     for kind, value, tlp in items:
         r = world.h.post(
-            f"/cases/{world.cid}/iocs", world.analyst, json={"type": kind, "value": value, "tlp": tlp}
+            f"/cases/{world.cid}/iocs",
+            world.analyst,
+            json={"type": kind, "value": value, "tlp": tlp},
         )
         assert r.status_code == 201, r.text
         ids[value] = r.json()["id"]
@@ -1171,7 +1333,11 @@ def test_enrichment_policy_tlp_and_cache(world: World) -> None:
     by_ioc = {(e["ioc_id"], e["provider"]): e for e in result["results"]}
     assert result["counts"] == {"fetched": 2, "skipped_tlp": 2}
     assert by_ioc[(ids["198.51.100.77"], "virustotal")]["status"] == "fetched"
-    assert by_ioc[(ids["198.51.100.77"], "virustotal")]["verdict"] in ("malicious", "suspicious", "harmless")
+    assert by_ioc[(ids["198.51.100.77"], "virustotal")]["verdict"] in (
+        "malicious",
+        "suspicious",
+        "harmless",
+    )
     assert by_ioc[(ids[sha], "virustotal")] | {"tlp": "amber"} == by_ioc[(ids[sha], "virustotal")]
     assert by_ioc[(ids[sha], "virustotal")]["status"] == "skipped_tlp"
     assert ids[f"phish-{suffix}@evil.example"] not in {e["ioc_id"] for e in result["results"]}
@@ -1199,17 +1365,27 @@ def test_enrichment_policy_tlp_and_cache(world: World) -> None:
     assert {e.get("error") for e in failed["results"] if e["status"] == "error"} == {"rate_limited"}
     fake.fail_with = None
     with h.sessions() as session:
-        audits = session.execute(
-            select(AuditLog).where(AuditLog.action == "ioc.enriched", AuditLog.object_id == world.cid)
-        ).scalars().all()
+        audits = (
+            session.execute(
+                select(AuditLog).where(
+                    AuditLog.action == "ioc.enriched", AuditLog.object_id == world.cid
+                )
+            )
+            .scalars()
+            .all()
+        )
         cached = session.execute(
             select(IocEnrichment).where(IocEnrichment.value == "198.51.100.77")
         ).scalar_one()
     assert len(audits) == 4 and all("198.51.100.77" not in json.dumps(a.detail) for a in audits)
-    assert audits[0].detail["fake"] is True and cached.expires_at > datetime.now(UTC) + timedelta(hours=23)
+    assert audits[0].detail["fake"] is True and cached.expires_at > datetime.now(UTC) + timedelta(
+        hours=23
+    )
     assert "vt-key-do-not-leak" not in json.dumps([a.detail for a in audits])
     # Closed cases are read-only.
-    assert h.post(f"/cases/{world.cid}/close", world.lead, json={"reason": "done"}).status_code == 200
+    assert (
+        h.post(f"/cases/{world.cid}/close", world.lead, json={"reason": "done"}).status_code == 200
+    )
     assert h.post(f"/cases/{world.cid}/iocs/enrich", world.analyst, json={}).status_code == 409
     assert h.get(f"/cases/{world.cid}/enrichments", world.viewer).status_code == 200
 
@@ -1248,22 +1424,33 @@ def test_misp_tlp_ceiling_and_sightings(world: World) -> None:
     assert {e["provider"] for e in only_misp["results"]} == {"misp"}
     # Sightings follow the same ceiling.
     r = h.post(f"/cases/{world.cid}/iocs/{amber}/sighting", world.analyst)
-    assert r.status_code == 200 and r.json() == {"ioc_id": amber, "provider": "misp", "exported": True}
+    assert r.status_code == 200 and r.json() == {
+        "ioc_id": amber,
+        "provider": "misp",
+        "exported": True,
+    }
     r = h.post(f"/cases/{world.cid}/iocs/{red}/sighting", world.analyst)
     assert r.status_code == 409 and r.json()["error"]["code"] == "tlp_restricted"
     assert h.post(f"/cases/{world.cid}/iocs/{amber}/sighting", world.viewer).status_code == 403
-    assert h.post(f"/cases/{world.cid}/iocs/{uuid.uuid4()}/sighting", world.analyst).status_code == 404
+    assert (
+        h.post(f"/cases/{world.cid}/iocs/{uuid.uuid4()}/sighting", world.analyst).status_code == 404
+    )
     assert h.enrichers["misp"].sightings == [Indicator("domain", f"amber-{suffix}.example")]
     # Lowering the ceiling to green holds the amber indicator back.
-    assert h.patch(
-        f"/integrations/{misp['id']}",
-        world.admin,
-        json={"config": {"url": "https://misp.example.test", "max_tlp": "green"}},
-    ).status_code == 200
+    assert (
+        h.patch(
+            f"/integrations/{misp['id']}",
+            world.admin,
+            json={"config": {"url": "https://misp.example.test", "max_tlp": "green"}},
+        ).status_code
+        == 200
+    )
     assert h.post(f"/cases/{world.cid}/iocs/{amber}/sighting", world.analyst).status_code == 409
     with h.sessions() as session:
         audit = session.execute(
-            select(AuditLog).where(AuditLog.action == "ioc.sighting_exported", AuditLog.object_id == amber)
+            select(AuditLog).where(
+                AuditLog.action == "ioc.sighting_exported", AuditLog.object_id == amber
+            )
         ).scalar_one()
     assert audit.detail["provider"] == "misp" and f"amber-{suffix}" not in json.dumps(audit.detail)
 

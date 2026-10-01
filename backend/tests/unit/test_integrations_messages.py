@@ -1,4 +1,7 @@
-"""Notification messages, inbound payload mapping and enrichment providers (pure; fake transport)."""
+"""Notification messages, inbound payload mapping and enrichment providers.
+
+Pure: no network, the providers run against a fake transport.
+"""
 
 from __future__ import annotations
 
@@ -70,7 +73,9 @@ def test_values_outside_the_closed_vocabulary_are_dropped() -> None:
     assert message.title == "New alert"
     labels = [label for label, _ in message.lines]
     assert "Severity" not in labels and "Rule" not in labels
-    assert M.build_message(dict(ALERT, case_id="not-a-uuid"), base_url="https://x.test").link is None
+    assert (
+        M.build_message(dict(ALERT, case_id="not-a-uuid"), base_url="https://x.test").link is None
+    )
     with pytest.raises(ValueError, match="unknown event"):
         M.build_message({"event": "{{7*7}}"})
 
@@ -110,7 +115,9 @@ def test_email_rendering_cannot_inject_headers() -> None:
 
 def test_webhook_body_is_canonical_and_details_are_opt_in() -> None:
     plain = M.render_webhook("e1", "2026-10-01T00:00:00Z", ALERT, include_details=False)
-    assert plain == M.render_webhook("e1", "2026-10-01T00:00:00Z", dict(ALERT), include_details=False)
+    assert plain == M.render_webhook(
+        "e1", "2026-10-01T00:00:00Z", dict(ALERT), include_details=False
+    )
     data = json.loads(plain)
     assert data["type"] == "alert.created" and "details" not in data["data"]
     detailed = json.loads(
@@ -188,7 +195,10 @@ def test_map_item_cleans_and_caps_untrusted_fields() -> None:
         ({"id": "x" * 300, "title": "t"}, "id_too_long"),
         ({"id": "1"}, "missing_title"),
         ({"id": "1", "title": "t", "timestamp": "yesterday"}, "invalid_timestamp"),
-        ({"id": "1", "title": "t", "timestamp": "2026-09-30T10:00:00"}, "timestamp_without_timezone"),
+        (
+            {"id": "1", "title": "t", "timestamp": "2026-09-30T10:00:00"},
+            "timestamp_without_timezone",
+        ),
         ({"id": "1", "title": "t", "timestamp": 10**30}, "invalid_timestamp"),
         ({"id": "1", "title": "t", "timestamp": True}, "invalid_timestamp"),
         ({"id": "1", "title": "t", "timestamp": "0001-01-01T00:00:00Z"}, "timestamp_out_of_range"),
@@ -207,7 +217,9 @@ def test_map_item_defaults_field_map_and_epoch() -> None:
     assert alert.ts == NOW and alert.ts_source == "received" and alert.ts_original is None
     mapped = map_item(
         {"evt": {"uid": "u-9", "sig": "Sig"}, "host.name": "flat", "when": 1_759_312_800_000},
-        validate_field_map({"id": "evt.uid", "title": "evt.sig", "host": "host.name", "timestamp": "when"}),
+        validate_field_map(
+            {"id": "evt.uid", "title": "evt.sig", "host": "host.name", "timestamp": "when"}
+        ),
         NOW,
     )
     assert (mapped.external_id, mapped.title, mapped.host) == ("u-9", "Sig", "flat")
@@ -314,7 +326,9 @@ def test_provider_errors_are_categories(response: object, category: str, transie
 def test_blocked_destination_is_reported_not_contacted() -> None:
     transport = FakeTransport()
     http = OutboundHttp(
-        OutboundPolicy(), resolver=FakeResolver({"vt.internal": ["10.0.0.9"]}), transport=transport  # type: ignore[arg-type]
+        OutboundPolicy(),
+        resolver=FakeResolver({"vt.internal": ["10.0.0.9"]}),
+        transport=transport,  # type: ignore[arg-type]
     )
     with pytest.raises(EnrichmentError) as err:
         VirusTotalProvider(http, "k" * 10, "https://vt.internal").lookup(Indicator("ip", "1.1.1.1"))
@@ -326,7 +340,11 @@ def test_misp_lookup_and_sighting() -> None:
     found = {
         "response": {
             "Attribute": [
-                {"event_id": "12", "to_ids": True, "Tag": [{"name": "tlp:green"}, {"name": "x" * 99}]},
+                {
+                    "event_id": "12",
+                    "to_ids": True,
+                    "Tag": [{"name": "tlp:green"}, {"name": "x" * 99}],
+                },
                 {"event_id": "13", "to_ids": False, "Tag": [{"name": "<script>"}]},
                 "junk",
             ]
@@ -348,7 +366,11 @@ def test_misp_lookup_and_sighting() -> None:
     when = datetime(2026, 10, 1, tzinfo=UTC)
     misp.add_sighting(Indicator("ip", "203.0.113.5"), when)
     sighting = json.loads(transport.requests[2].body)  # type: ignore[attr-defined]
-    assert sighting == {"value": "203.0.113.5", "timestamp": int(when.timestamp()), "source": "dfirbench"}
+    assert sighting == {
+        "value": "203.0.113.5",
+        "timestamp": int(when.timestamp()),
+        "source": "dfirbench",
+    }
     assert transport.requests[2].target.path == "/sightings/add"  # type: ignore[attr-defined]
     with pytest.raises(ValueError, match="max_tlp"):
         MispProvider(_http(transport), "k", "https://misp.example.test", "red")
@@ -358,7 +380,11 @@ def test_fake_provider_is_deterministic_and_offline() -> None:
     fake = FakeEnrichmentProvider("virustotal")
     first = fake.lookup(Indicator("ip", "203.0.113.5"))
     assert first == FakeEnrichmentProvider().lookup(Indicator("ip", "203.0.113.5"))
-    assert first.summary["simulated"] is True and first.verdict in {"malicious", "suspicious", "harmless"}
+    assert first.summary["simulated"] is True and first.verdict in {
+        "malicious",
+        "suspicious",
+        "harmless",
+    }
     fake.add_sighting(Indicator("ip", "203.0.113.5"), datetime.now(UTC))
     assert fake.lookups == [Indicator("ip", "203.0.113.5")] and len(fake.sightings) == 1
     fake.fail_with = EnrichmentError("rate_limited", transient=True)

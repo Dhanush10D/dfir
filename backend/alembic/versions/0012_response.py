@@ -11,15 +11,19 @@ playbook_runs
   ``status`` and ``finished_at``. ``step_states`` stays: the downgrade archives the steps there.
 
 playbook_run_steps (new)
-- One row per step. Trigger ``playbook_run_steps_guard``: identity immutable, finished rows
-  frozen, only the documented transitions, and a step that requires approval reaches an executed
-  state only through a request approved by someone other than its requester.
+- One row per step. CHECK ``impactful``: the impactful ``agent.*`` actions always require
+  approval. Trigger ``playbook_run_steps_guard``: new steps are pending and belong to a running
+  run of their case, identity immutable, finished rows frozen, only the documented transitions,
+  and a step that requires approval reaches an executed state only through a request approved by
+  someone other than its requester.
 
 action_requests (new)
 - Trigger ``action_requests_guard`` compares with OLD: requester, action and parameters are
-  immutable; pending -> approved needs a decider other than OLD.requested_by before
-  OLD.expires_at; approved -> finished needs the recorded four-eyes approval; decision and
-  outcome columns change only with their transition; rejected/expired/finished rows are frozen.
+  immutable; a new request must match an open approval step of its run (same case and action);
+  pending -> approved needs a decider other than OLD.requested_by before OLD.expires_at (by the
+  recorded time and by the database clock); approved -> finished needs the recorded four-eyes
+  approval, before expiry; decision and outcome columns change only with their transition;
+  rejected/expired/finished rows are frozen.
   CHECKs ``pending``, ``four_eyes``, ``rejected``, ``expired``, ``finished`` hold even with
   triggers bypassed. UNIQUE idempotency key; at most one open request per step.
 
@@ -126,6 +130,11 @@ BEGIN
        OR NEW.notes IS NOT NULL OR NEW.completed_by IS NOT NULL
        OR NEW.completed_at IS NOT NULL THEN
       RAISE EXCEPTION 'a new playbook step must be pending' USING ERRCODE = 'check_violation';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM playbook_runs r WHERE r.id = NEW.run_id
+                   AND r.case_id = NEW.case_id AND r.status = 'running') THEN
+      RAISE EXCEPTION 'a new playbook step must belong to a running run of its case'
+        USING ERRCODE = 'check_violation';
     END IF;
     RETURN NEW;
   END IF;
@@ -242,6 +251,14 @@ BEGIN
       RAISE EXCEPTION 'a new action request must be pending and undecided'
         USING ERRCODE = 'check_violation';
     END IF;
+    -- it must be for an open step of its run and case that needs approval, with that action
+    IF NOT EXISTS (SELECT 1 FROM playbook_run_steps s WHERE s.id = NEW.step_id
+                   AND s.run_id = NEW.run_id AND s.case_id = NEW.case_id
+                   AND s.kind = 'action' AND s.action = NEW.action AND s.requires_approval
+                   AND s.status IN ('pending', 'failed')) THEN
+      RAISE EXCEPTION 'a new action request must match an open approval step of its run'
+        USING ERRCODE = 'check_violation';
+    END IF;
     RETURN NEW;
   END IF;
   IF NEW.id IS DISTINCT FROM OLD.id
@@ -279,7 +296,8 @@ BEGIN
   END IF;
   IF OLD.status = 'pending' AND NEW.status = 'approved' THEN
     IF exec_changed OR NEW.decided_by IS NULL OR NEW.decided_at IS NULL
-       OR NEW.decided_by = OLD.requested_by OR NEW.decided_at > OLD.expires_at THEN
+       OR NEW.decided_by = OLD.requested_by OR NEW.decided_at > OLD.expires_at
+       OR now() > OLD.expires_at THEN
       RAISE EXCEPTION
         'action request % must be approved before it expires by someone other than the requester',
         OLD.id USING ERRCODE = 'check_violation';
@@ -299,7 +317,7 @@ BEGIN
   ELSIF OLD.status = 'approved' AND NEW.status = 'finished' THEN
     IF decision_changed OR OLD.decided_by IS NULL OR OLD.decided_by = OLD.requested_by
        OR NEW.executed_by IS NULL OR NEW.executed_at IS NULL OR NEW.outcome IS NULL
-       OR NEW.executed_at > OLD.expires_at THEN
+       OR NEW.executed_at > OLD.expires_at OR now() > OLD.expires_at THEN
       RAISE EXCEPTION
         'action request % can only be executed once, after a four-eyes approval, before expiry',
         OLD.id USING ERRCODE = 'check_violation';
@@ -441,6 +459,11 @@ def upgrade() -> None:
             "(kind = 'manual' AND action IS NULL AND NOT requires_approval) "
             "OR (kind = 'action' AND action IS NOT NULL)",
             name=op.f("ck_playbook_run_steps_kind_action"),
+        ),
+        sa.CheckConstraint(
+            "requires_approval OR action IS NULL OR action NOT IN "
+            "('agent.isolate_host','agent.kill_process','agent.disable_account')",
+            name=op.f("ck_playbook_run_steps_impactful"),
         ),
         sa.CheckConstraint(
             "status IN ('pending','awaiting_approval','approved','not_executed','failed',"

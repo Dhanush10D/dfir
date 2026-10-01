@@ -732,6 +732,8 @@ export interface AppNotification {
 
 export interface EnrichmentEntry {
   ioc_id: string
+  ioc_type: string | null
+  value: string | null
   provider: string
   status: string
   verdict: string | null
@@ -741,4 +743,13 @@ export interface EnrichmentEntry {
   expires_at: string | null
   tlp: string | null
   error: string | null
+}
+
+export type NotificationRecipients = 'admins' | 'case_lead' | 'case_members' | 'case_approvers'
+
+export interface NotificationRule {
+  event: string
+  min_severity: string | null
+  recipients: NotificationRecipients[]
+  enabled: boolean
 }

@@ -90,6 +90,7 @@ DEFAULT_RULES: tuple[dict[str, Any], ...] = (
         "recipients": ["case_lead"],
         "enabled": True,
     },
+    {"event": M.EVENT_EVIDENCE_FAILED, "recipients": ["admins"], "enabled": True},
     {"event": M.EVENT_REPORT_SIGNED, "recipients": ["case_members"], "enabled": True},
     {"event": M.EVENT_APPROVAL_REQUESTED, "recipients": ["case_approvers"], "enabled": True},
 )

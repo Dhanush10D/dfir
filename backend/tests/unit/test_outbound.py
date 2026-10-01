@@ -15,6 +15,7 @@ import threading
 import time
 from collections.abc import Iterator
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 from cryptography import x509
@@ -66,7 +67,7 @@ STRICT = OutboundPolicy()
         ("100.127.255.254", "cgnat"),
         ("224.0.0.1", "multicast"),
         ("ff02::1", "multicast"),
-        ("0.0.0.0", "unspecified"),  # noqa: S104
+        ("0.0.0.0", "unspecified"),
         ("0.1.2.3", "unspecified"),
         ("::", "unspecified"),
         ("240.0.0.1", "reserved"),
@@ -131,7 +132,7 @@ def test_url_defaults_and_http_only_when_allowed() -> None:
         "169.254.169.254",
         "100.64.1.1",
         "224.0.0.251",
-        "0.0.0.0",  # noqa: S104
+        "0.0.0.0",
         "::1",
         "::ffff:10.0.0.5",
         "fe80::1",
@@ -154,7 +155,12 @@ def test_every_resolved_address_must_pass() -> None:
     resolver = FakeResolver({"mixed.example.test": [PUBLIC_IP, "10.0.0.7"]})
     with pytest.raises(OutboundBlockedError):
         resolve_target("mixed.example.test", 443, STRICT, resolver)
-    assert resolve_target("ok.example.test", 443, STRICT, FakeResolver({"ok.example.test": [PUBLIC_IP]})) == PUBLIC_IP
+    assert (
+        resolve_target(
+            "ok.example.test", 443, STRICT, FakeResolver({"ok.example.test": [PUBLIC_IP]})
+        )
+        == PUBLIC_IP
+    )
 
 
 def test_dns_failure_is_a_transient_error_not_a_bypass() -> None:
@@ -162,7 +168,9 @@ def test_dns_failure_is_a_transient_error_not_a_bypass() -> None:
         resolve_target("missing.example.test", 443, STRICT, FakeResolver())
     assert err.value.category == "dns_error" and err.value.transient
     with pytest.raises(OutboundError):
-        resolve_target("weird.example.test", 443, STRICT, FakeResolver({"weird.example.test": ["x"]}))
+        resolve_target(
+            "weird.example.test", 443, STRICT, FakeResolver({"weird.example.test": ["x"]})
+        )
     with pytest.raises(OutboundError):
         resolve_target("empty.example.test", 443, STRICT, FakeResolver({"empty.example.test": []}))
 
@@ -232,7 +240,9 @@ def test_prepared_request_is_pinned_and_headers_are_checked() -> None:
             http.request("POST", "https://hooks.example.test/hook", headers=bad, body=b"{}")
     with pytest.raises(OutboundBlockedError, match="method_not_allowed"):
         http.request("DELETE", "https://hooks.example.test/hook")
-    small = OutboundHttp(OutboundPolicy(max_request_bytes=10), resolver=resolver, transport=transport)  # type: ignore[arg-type]
+    small = OutboundHttp(
+        OutboundPolicy(max_request_bytes=10), resolver=resolver, transport=transport
+    )  # type: ignore[arg-type]
     with pytest.raises(OutboundError) as err:
         small.request("POST", "https://hooks.example.test/hook", body=b"x" * 11)
     assert err.value.category == "request_too_large"
@@ -243,9 +253,9 @@ def test_prepared_request_is_pinned_and_headers_are_checked() -> None:
 
 class _Handler(http.server.BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
-    seen: list[dict[str, object]] = []
+    seen: ClassVar[list[dict[str, object]]] = []
 
-    def log_message(self, *args: object) -> None:  # noqa: D102 - silence the test server
+    def log_message(self, *args: object) -> None:
         return
 
     def _answer(self) -> None:
@@ -312,10 +322,12 @@ def test_real_transport_connects_to_the_validated_address(
 ) -> None:
     port, handler = http_server
     client = _loopback_client()
-    resp = client.request(
-        "POST", f"http://sink.example.test:{port}/hook?a=1", body=b'{"n":1}'
+    resp = client.request("POST", f"http://sink.example.test:{port}/hook?a=1", body=b'{"n":1}')
+    assert (
+        resp.ok
+        and resp.body == b'{"ok":true}'
+        and resp.headers["content-type"] == "application/json"
     )
-    assert resp.ok and resp.body == b'{"ok":true}' and resp.headers["content-type"] == "application/json"
     # The name does not exist in real DNS: reaching the server proves the pinned IP was used,
     # and the Host header still carries the name.
     assert handler.seen == [
@@ -472,7 +484,12 @@ def test_mail_addresses_are_validated(kwargs: dict[str, object], reason: str) ->
 
 def test_mail_policy() -> None:
     sink: list[dict[str, object]] = []
-    args = {"sender": "a@example.test", "recipients": ["b@example.test"], "subject": "s", "body": "b"}
+    args = {
+        "sender": "a@example.test",
+        "recipients": ["b@example.test"],
+        "subject": "s",
+        "body": "b",
+    }
     with pytest.raises(OutboundBlockedError, match="smtp_plaintext_not_allowed"):
         _mailer(sink).send(MailServer("smtp.example.test", 25, "none"), **args)  # type: ignore[arg-type]
     with pytest.raises(OutboundBlockedError, match="address_private"):
@@ -491,7 +508,7 @@ def test_mail_policy() -> None:
 class _TinySmtp(socketserver.StreamRequestHandler):
     """Just enough SMTP for smtplib to deliver one message."""
 
-    received: list[str] = []
+    received: ClassVar[list[str]] = []
 
     def handle(self) -> None:
         self.wfile.write(b"220 test ESMTP\r\n")
@@ -543,7 +560,9 @@ def test_real_smtp_session_uses_the_pinned_address() -> None:
         server.server_close()
         thread.join(timeout=5)
     assert len(handler.received) == 1
-    assert "Subject: Report signed" in handler.received[0] and "Kind: technical" in handler.received[0]
+    assert (
+        "Subject: Report signed" in handler.received[0] and "Kind: technical" in handler.received[0]
+    )
 
 
 # ------------------------------------------------------------------------------ one module only
@@ -586,7 +605,9 @@ def test_only_the_outbound_module_opens_connections_for_integrations() -> None:
             elif isinstance(node, ast.ImportFrom) and node.module:
                 used.add(node.module)
                 used.update(f"{node.module}.{a.name}" for a in node.names)
-        hits = {m for m in used if m in NETWORK_MODULES or m.split(".")[0] in {"requests", "pymisp"}}
+        hits = {
+            m for m in used if m in NETWORK_MODULES or m.split(".")[0] in {"requests", "pymisp"}
+        }
         extra = hits - ALLOWED.get(rel, set())
         if extra:
             offenders.append(f"{rel}: {sorted(extra)}")
@@ -599,7 +620,9 @@ def test_only_the_outbound_module_opens_connections_for_integrations() -> None:
 def test_fake_transport_returns_canned_responses() -> None:
     transport = FakeTransport()
     transport.responses = [HttpResponse(500, {}, b""), OutboundError("timeout", transient=True)]
-    http = OutboundHttp(STRICT, resolver=FakeResolver({"a.example.test": [PUBLIC_IP]}), transport=transport)  # type: ignore[arg-type]
+    http = OutboundHttp(
+        STRICT, resolver=FakeResolver({"a.example.test": [PUBLIC_IP]}), transport=transport
+    )  # type: ignore[arg-type]
     assert http.request("GET", "https://a.example.test/").status == 500
     with pytest.raises(OutboundError):
         http.request("GET", "https://a.example.test/")

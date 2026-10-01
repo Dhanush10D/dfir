@@ -49,7 +49,8 @@ title: Custom test playbook
 phases:
   - name: Notify
     steps:
-      - {{ id: n1, text: "Tell the team (approved first)", action: notify.team, requires_approval: true }}
+      - {{ id: n1, text: "Tell the team (approved first)", action: notify.team,
+           requires_approval: true }}
       - {{ id: n2, text: "Tell the team", action: notify.team }}
       - {{ id: m1, text: "Write it down", manual: true }}
 notify: {{ channels: [in_app], roles: [lead] }}
@@ -164,11 +165,16 @@ def test_builtin_playbooks_are_synced_and_listed(world: World) -> None:
     malware = builtin["PB-MALWARE-01"]
     forced = {s["id"]: s["requires_approval"] for p in malware["phases"] for s in p["steps"]}
     assert forced["c1"] is True and forced["c2"] is True  # impactful, although the file is silent
-    assert h.get("/playbooks/PB-RANSOMWARE-01", world.viewer).json()["title"] == "Suspected ransomware"
+    assert (
+        h.get("/playbooks/PB-RANSOMWARE-01", world.viewer).json()["title"] == "Suspected ransomware"
+    )
     assert h.get("/playbooks/PB-NOPE-01", world.viewer).status_code == 404
     assert h.get("/playbooks").status_code == 401
     actions = {a["name"]: a for a in h.get("/playbook-actions", world.viewer).json()["items"]}
-    assert actions["agent.isolate_host"]["impact"] and actions["agent.isolate_host"]["executor"] == "none"
+    assert (
+        actions["agent.isolate_host"]["impact"]
+        and actions["agent.isolate_host"]["executor"] == "none"
+    )
     # Syncing again changes nothing.
     with h.sessions() as session:
         again = PlaybookService(session, h.settings).sync_builtin()
@@ -265,7 +271,11 @@ def test_run_lifecycle_records_user_time_result_and_alert(world: World) -> None:
     r = world.step(run, "c2", world.analyst, op="complete", notes="Disabled jdoe in AD")
     assert r.status_code == 200, r.text
     c2 = by_key(r.json())["c2"]
-    assert (c2["status"], c2["outcome"], c2["notes"]) == ("done", "completed", "Disabled jdoe in AD")
+    assert (c2["status"], c2["outcome"], c2["notes"]) == (
+        "done",
+        "completed",
+        "Disabled jdoe in AD",
+    )
     assert c2["completed_by"] == str(world.analyst.id) and c2["completed_at"]
     assert world.step(run, "c2", world.analyst, op="complete").status_code == 409  # finished
 
@@ -274,12 +284,16 @@ def test_run_lifecycle_records_user_time_result_and_alert(world: World) -> None:
     assert r.status_code == 200 and by_key(r.json())["c3"]["outcome"] == "completed", r.text
     assert world.step(run, "c3", world.analyst, op="execute").status_code == 409
     with h.sessions() as session:
-        notices = session.execute(
-            select(OutboundEvent).where(
-                OutboundEvent.event_type == "playbook.notice",
-                OutboundEvent.payload["run_id"].astext == run["id"],
+        notices = (
+            session.execute(
+                select(OutboundEvent).where(
+                    OutboundEvent.event_type == "playbook.notice",
+                    OutboundEvent.payload["run_id"].astext == run["id"],
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     assert len(notices) == 1 and notices[0].payload["step_key"] == "c3"
 
     # An agent action without approval: nothing is executed, and the record says so.
@@ -326,7 +340,10 @@ def test_run_lifecycle_records_user_time_result_and_alert(world: World) -> None:
     assert by_key(r.json())["c1"]["outcome"] == "completed_manually"
 
     assert world.step(run, "e2", world.analyst, op="skip").status_code == 422  # reason needed
-    assert world.step(run, "e2", world.analyst, op="skip", notes="No ransom note found").status_code == 200
+    assert (
+        world.step(run, "e2", world.analyst, op="skip", notes="No ransom note found").status_code
+        == 200
+    )
     assert world.step(run, "r1", world.analyst, op="complete").status_code == 200
     r = world.step(run, "r2", world.analyst, op="complete", notes="Rotated")
     done = r.json()
@@ -341,11 +358,15 @@ def test_run_lifecycle_records_user_time_result_and_alert(world: World) -> None:
     assert [x["id"] for x in requests["items"]] == [request["id"]]
 
     with h.sessions() as session:
-        rows = session.execute(
-            select(AuditLog).where(
-                AuditLog.object_type == "playbook_run", AuditLog.object_id == run["id"]
+        rows = (
+            session.execute(
+                select(AuditLog).where(
+                    AuditLog.object_type == "playbook_run", AuditLog.object_id == run["id"]
+                )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
     actions = [row.action for row in rows]
     for expected in (
         "playbook.run_started",
@@ -374,7 +395,10 @@ def test_four_eyes_in_the_service(world: World) -> None:
     r = h.post(f"/action-requests/{rid}/approve", world.lead)
     assert r.status_code == 403 and r.json()["error"]["details"]["rule"] == "four_eyes"
     assert h.post(f"/action-requests/{rid}/approve", world.outsider).status_code == 404
-    assert h.post(f"/action-requests/{rid}/reject", world.outsider, json={"reason": "x"}).status_code == 404
+    assert (
+        h.post(f"/action-requests/{rid}/reject", world.outsider, json={"reason": "x"}).status_code
+        == 404
+    )
     assert h.get(f"/playbook-runs/{run['id']}", world.outsider).status_code == 404
     assert h.get(f"/cases/{world.cid}/action-requests", world.outsider).status_code == 404
     r = h.post(f"/action-requests/{rid}/approve", world.lead2)
@@ -382,14 +406,24 @@ def test_four_eyes_in_the_service(world: World) -> None:
     assert h.post(f"/action-requests/{rid}/approve", world.lead2).status_code == 409  # decided
     # Viewers read, never change; an admin (no membership needed) may approve.
     assert world.step(run, "c2", world.viewer, op="complete").status_code == 403
-    assert h.post(f"/cases/{world.cid}/playbook-runs", world.viewer, json={"playbook_id": "PB-PHISHING-01"}).status_code == 403
+    assert (
+        h.post(
+            f"/cases/{world.cid}/playbook-runs",
+            world.viewer,
+            json={"playbook_id": "PB-PHISHING-01"},
+        ).status_code
+        == 403
+    )
     run2 = world.start("PB-MALWARE-01")
     r = world.step(run2, "c2", world.analyst, op="request", params={"host": HOST, "pid": 4242})
     rid2 = by_key(r.json())["c2"]["request"]["id"]
     admin = h.make_user(UserRole.admin)
     assert h.post(f"/action-requests/{rid2}/approve", admin).status_code == 200
     # A step that needs no approval cannot be "requested"; unknown params are refused.
-    assert world.step(run2, "e1", world.analyst, op="request", params={"host": HOST}).status_code == 409
+    assert (
+        world.step(run2, "e1", world.analyst, op="request", params={"host": HOST}).status_code
+        == 409
+    )
     r = world.step(run2, "c1", world.analyst, op="request", params={"host": HOST, "cmd": "x"})
     assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_params"
     assert world.step(run2, "e3", world.analyst, op="execute").status_code == 409  # manual step
@@ -401,9 +435,16 @@ def test_reject_withdraw_and_request_again(world: World) -> None:
     run = world.start()
     r = world.step(run, "c1", world.analyst, op="request", params={"host": HOST})
     first = by_key(r.json())["c1"]["request"]["id"]
-    assert world.step(run, "c1", world.analyst, op="request", params={"host": HOST}).status_code == 409
+    assert (
+        world.step(run, "c1", world.analyst, op="request", params={"host": HOST}).status_code == 409
+    )
     assert h.post(f"/action-requests/{first}/reject", world.lead, json={}).status_code == 422
-    assert h.post(f"/action-requests/{first}/reject", world.analyst2, json={"reason": "no"}).status_code == 403
+    assert (
+        h.post(
+            f"/action-requests/{first}/reject", world.analyst2, json={"reason": "no"}
+        ).status_code
+        == 403
+    )
     r = h.post(f"/action-requests/{first}/reject", world.lead, json={"reason": "Wrong host"})
     assert r.status_code == 200 and r.json()["status"] == "rejected"
     assert r.json()["decision_reason"] == "Wrong host"
@@ -417,7 +458,10 @@ def test_reject_withdraw_and_request_again(world: World) -> None:
     assert second != first
     r = h.post(f"/action-requests/{second}/reject", world.analyst, json={"reason": "Not needed"})
     assert r.status_code == 200 and r.json()["decided_by"] == str(world.analyst.id)
-    assert world.step(run, "c1", world.analyst, op="skip", notes="Host already offline").status_code == 200
+    assert (
+        world.step(run, "c1", world.analyst, op="skip", notes="Host already offline").status_code
+        == 200
+    )
     listed = h.get(f"/cases/{world.cid}/action-requests", world.viewer).json()["items"]
     assert {x["status"] for x in listed} == {"rejected"} and len(listed) == 2
 
@@ -431,7 +475,9 @@ def test_request_is_idempotent_with_a_key(world: World) -> None:
     first = h.client.patch(url, headers=headers, json=body)
     again = h.client.patch(url, headers=headers, json=body)
     assert first.status_code == 200 and again.status_code == 200, again.text
-    assert by_key(first.json())["c1"]["request"]["id"] == by_key(again.json())["c1"]["request"]["id"]
+    assert (
+        by_key(first.json())["c1"]["request"]["id"] == by_key(again.json())["c1"]["request"]["id"]
+    )
     with h.sessions() as session:
         n = session.execute(
             select(func.count()).select_from(ActionRequest).where(ActionRequest.run_id == run["id"])
@@ -450,11 +496,15 @@ def test_approvals_expire(world: World) -> None:
     def state() -> tuple[str, list[str]]:
         view = h.get(f"/playbook-runs/{run['id']}", world.viewer).json()
         with h.sessions() as session:
-            statuses = session.execute(
-                select(ActionRequest.status)
-                .where(ActionRequest.run_id == run["id"])
-                .order_by(ActionRequest.requested_at)
-            ).scalars().all()
+            statuses = (
+                session.execute(
+                    select(ActionRequest.status)
+                    .where(ActionRequest.run_id == run["id"])
+                    .order_by(ActionRequest.requested_at)
+                )
+                .scalars()
+                .all()
+            )
         return by_key(view)["c1"]["status"], list(statuses)
 
     run_id = uuid.UUID(run["id"])
@@ -504,7 +554,9 @@ def test_approvals_expire(world: World) -> None:
     # The expiry is also noticed by a plain read (GET), and the step can be requested again.
     now["t"] = datetime.now(UTC)
     assert state() == ("pending", ["expired", "expired"])
-    assert world.step(run, "c1", world.analyst, op="request", params={"host": HOST}).status_code == 200
+    assert (
+        world.step(run, "c1", world.analyst, op="request", params={"host": HOST}).status_code == 200
+    )
 
 
 # ------------------------------------------------------------------ at most once
@@ -582,7 +634,9 @@ def test_approved_action_executes_at_most_once_under_concurrency(world: World) -
 # ------------------------------------------------------------------ database guard
 
 
-def _raises(engine: Engine, sql: str, params: dict[str, Any], match: str, role: bool = True) -> None:
+def _raises(
+    engine: Engine, sql: str, params: dict[str, Any], match: str, role: bool = True
+) -> None:
     with pytest.raises(DBAPIError, match=match), engine.begin() as conn:
         if role:
             conn.execute(text("SET LOCAL ROLE dfirbench_app"))
@@ -737,9 +791,7 @@ def test_database_enforces_four_eyes_for_the_app_role(world: World, db_engine: E
     # The CHECK constraints hold even with triggers switched off (owner only).
     with pytest.raises(DBAPIError, match="ck_action_requests_four_eyes"), db_engine.begin() as conn:
         conn.execute(text("SET LOCAL session_replication_role = replica"))
-        conn.execute(
-            text("UPDATE action_requests SET decided_by = requested_by WHERE id = :r"), p
-        )
+        conn.execute(text("UPDATE action_requests SET decided_by = requested_by WHERE id = :r"), p)
     with pytest.raises(DBAPIError, match="ck_action_requests_finished"), db_engine.begin() as conn:
         conn.execute(text("SET LOCAL session_replication_role = replica"))
         conn.execute(text("UPDATE action_requests SET executed_at = NULL WHERE id = :r"), p)
@@ -775,6 +827,21 @@ def test_database_guards_runs_and_finished_steps(world: World, db_engine: Engine
          "status, outcome, completed_by, completed_at) SELECT run_id, case_id, 99, 'x', 'forged', "
          "'x', 'manual', 'done', 'completed', :u, now() FROM playbook_run_steps WHERE id = :s",
          "must be pending"),
+        # An impactful action cannot be inserted without the approval requirement...
+        ("INSERT INTO playbook_run_steps (run_id, case_id, position, phase, step_key, text, kind, "
+         "action, requires_approval) SELECT run_id, case_id, 98, 'x', 'forged2', 'x', 'action', "
+         "'agent.isolate_host', false FROM playbook_run_steps WHERE id = :s",
+         "ck_playbook_run_steps_impactful"),
+        # ...and a request must be for an open approval step, with that step's action.
+        ("INSERT INTO action_requests (case_id, run_id, step_id, action, params_sha256, "
+         "idempotency_key, requested_by, expires_at) SELECT case_id, run_id, id, 'notify.team', "
+         "repeat('0', 64), 'forged-' || id, :u, now() + interval '1 hour' "
+         "FROM playbook_run_steps WHERE id = :s", "must match an open approval step"),
+        ("INSERT INTO action_requests (case_id, run_id, step_id, action, params_sha256, "
+         "idempotency_key, requested_by, expires_at) SELECT case_id, run_id, id, 'notify.team', "
+         "repeat('0', 64), 'forged-' || id, :u, now() + interval '1 hour' "
+         "FROM playbook_run_steps WHERE run_id = :run AND step_key = 'c1'",
+         "must match an open approval step"),
     ):  # fmt: skip
         _raises(db_engine, sql, p, match)
     _raises(
@@ -785,7 +852,9 @@ def test_database_guards_runs_and_finished_steps(world: World, db_engine: Engine
         role=False,
     )
     # A cancelled run is frozen, and so are its steps.
-    r = world.h.post(f"/playbook-runs/{run['id']}/cancel", world.analyst, json={"reason": "wrong one"})
+    r = world.h.post(
+        f"/playbook-runs/{run['id']}/cancel", world.analyst, json={"reason": "wrong one"}
+    )
     assert r.status_code == 200
     _raises(db_engine, "UPDATE playbook_runs SET status = 'running', finished_at = NULL "
             "WHERE id = :run", p, "is cancelled and cannot change")  # fmt: skip
@@ -806,7 +875,8 @@ def test_app_role_grants_on_response_tables(db_engine: Engine) -> None:
                 p
                 for p in ("SELECT", "INSERT", "UPDATE", "DELETE", "TRUNCATE")
                 if conn.execute(
-                    text("SELECT has_table_privilege('dfirbench_app', :t, :p)"), {"t": table, "p": p}
+                    text("SELECT has_table_privilege('dfirbench_app', :t, :p)"),
+                    {"t": table, "p": p},
                 ).scalar_one()
             }
 
@@ -845,12 +915,24 @@ def test_closed_case_refuses_changes(world: World) -> None:
     run = world.start()
     r = world.step(run, "c1", world.analyst, op="request", params={"host": HOST})
     rid = by_key(r.json())["c1"]["request"]["id"]
-    assert h.post(f"/cases/{world.cid}/close", world.lead, json={"reason": "done"}).status_code == 200
+    assert (
+        h.post(f"/cases/{world.cid}/close", world.lead, json={"reason": "done"}).status_code == 200
+    )
     assert world.step(run, "c2", world.analyst, op="complete").status_code == 409
     assert h.post(f"/action-requests/{rid}/approve", world.lead).status_code == 409
-    assert h.post(f"/action-requests/{rid}/reject", world.lead, json={"reason": "x"}).status_code == 409
-    assert h.post(f"/playbook-runs/{run['id']}/cancel", world.analyst, json={"reason": "x"}).status_code == 409
-    r = h.post(f"/cases/{world.cid}/playbook-runs", world.analyst, json={"playbook_id": "PB-PHISHING-01"})
+    assert (
+        h.post(f"/action-requests/{rid}/reject", world.lead, json={"reason": "x"}).status_code
+        == 409
+    )
+    assert (
+        h.post(
+            f"/playbook-runs/{run['id']}/cancel", world.analyst, json={"reason": "x"}
+        ).status_code
+        == 409
+    )
+    r = h.post(
+        f"/cases/{world.cid}/playbook-runs", world.analyst, json={"playbook_id": "PB-PHISHING-01"}
+    )
     assert r.status_code == 409 and "closed" in r.json()["error"]["message"]
     # Reads still work, and nothing changed.
     state = h.get(f"/playbook-runs/{run['id']}", world.viewer).json()
@@ -863,14 +945,24 @@ def test_cancel_run_closes_pending_requests(world: World) -> None:
     run = world.start()
     r = world.step(run, "c1", world.analyst, op="request", params={"host": HOST})
     rid = by_key(r.json())["c1"]["request"]["id"]
-    assert h.post(f"/playbook-runs/{run['id']}/cancel", world.viewer, json={"reason": "x"}).status_code == 403
+    assert (
+        h.post(f"/playbook-runs/{run['id']}/cancel", world.viewer, json={"reason": "x"}).status_code
+        == 403
+    )
     assert h.post(f"/playbook-runs/{run['id']}/cancel", world.analyst, json={}).status_code == 422
-    r = h.post(f"/playbook-runs/{run['id']}/cancel", world.analyst, json={"reason": "Wrong playbook"})
+    r = h.post(
+        f"/playbook-runs/{run['id']}/cancel", world.analyst, json={"reason": "Wrong playbook"}
+    )
     assert r.status_code == 200 and r.json()["status"] == "cancelled" and r.json()["finished_at"]
     assert by_key(r.json())["c1"]["request"]["status"] == "rejected"
     assert h.post(f"/action-requests/{rid}/approve", world.lead).status_code == 409
     assert world.step(run, "c2", world.analyst, op="complete").status_code == 409
-    assert h.post(f"/playbook-runs/{run['id']}/cancel", world.analyst, json={"reason": "again"}).status_code == 409
+    assert (
+        h.post(
+            f"/playbook-runs/{run['id']}/cancel", world.analyst, json={"reason": "again"}
+        ).status_code
+        == 409
+    )
 
 
 def test_run_and_approval_notifications(world: World) -> None:
@@ -881,20 +973,28 @@ def test_run_and_approval_notifications(world: World) -> None:
     assert h.outbound_dispatched >= 2  # each commit with new events asked the worker to run
     h.deliver()
     with h.sessions() as session:
-        rows = session.execute(
-            select(Notification).where(Notification.case_id == uuid.UUID(world.cid))
-        ).scalars().all()
+        rows = (
+            session.execute(
+                select(Notification).where(Notification.case_id == uuid.UUID(world.cid))
+            )
+            .scalars()
+            .all()
+        )
     started = {n.user_id for n in rows if n.kind == "playbook.run_started"}
     asked = {n.user_id for n in rows if n.kind == "playbook.approval_requested"}
     assert started == {world.lead.id, world.lead2.id}
     assert asked == {world.lead.id, world.lead2.id}  # approvers, not the requester
     one = next(n for n in rows if n.kind == "playbook.approval_requested")
-    assert one.payload["tab"] == "response" and one.payload["title"].startswith("Approval requested")
+    assert one.payload["tab"] == "response" and one.payload["title"].startswith(
+        "Approval requested"
+    )
     fields = {f["label"]: f["value"] for f in one.payload["fields"]}
     assert fields["Request"] == rid and fields["Action"] == "notify.team"
     # The lead sees and reads it; another user cannot touch it.
     mine = h.get("/notifications?unread_only=true", world.lead).json()
-    assert mine["unread"] >= 2 and {n["kind"] for n in mine["items"]} >= {"playbook.approval_requested"}
+    assert mine["unread"] >= 2 and {n["kind"] for n in mine["items"]} >= {
+        "playbook.approval_requested"
+    }
     nid = next(n["id"] for n in mine["items"] if n["kind"] == "playbook.approval_requested")
     assert h.post(f"/notifications/{nid}/read", world.analyst).status_code == 404
     assert h.post(f"/notifications/{nid}/read", world.lead).json()["read_at"]
