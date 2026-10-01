@@ -37,7 +37,7 @@ DELIVERY_HEADER = "X-Token-Delivery"
 COOKIE_PATH = "/api/v1/auth"
 ERRORS: dict[int | str, dict[str, object]] = {
     401: {"model": ErrorResponse},
-    429: {"model": ErrorResponse, "description": "Account temporarily locked"},
+    429: {"model": ErrorResponse, "description": "Account locked or too many attempts (per IP)"},
 }
 
 
@@ -104,6 +104,7 @@ def login(
     response: Response,
     settings: AppSettings,
 ) -> LoginResponse:
+    iam.limit_attempts("login", meta)
     result = iam.login(body.email, body.password, meta)
     if result.tokens is None:
         return LoginResponse(
@@ -123,6 +124,7 @@ def mfa_verify(
     response: Response,
     settings: AppSettings,
 ) -> TokenResponse:
+    iam.limit_attempts("login", meta)
     pair = iam.verify_mfa(
         body.mfa_challenge, meta, code=body.code, recovery_code=body.recovery_code
     )
@@ -138,6 +140,7 @@ def refresh(
     settings: AppSettings,
     body: RefreshRequest | None = None,
 ) -> TokenResponse:
+    iam.limit_attempts("refresh", meta)
     token = _refresh_token(body, request, settings)
     if token is None:
         raise UnauthenticatedError("No refresh token.", "token_invalid")

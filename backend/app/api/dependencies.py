@@ -29,6 +29,7 @@ from app.deps import (
     get_ai_provider_factory,
     get_app_settings,
     get_artifact_store,
+    get_auth_limiter,
     get_bundle_dispatcher,
     get_custody_signer,
     get_db,
@@ -88,8 +89,12 @@ def request_meta(request: Request) -> RequestMeta:
 Meta = Annotated[RequestMeta, Depends(request_meta)]
 
 
-def get_iam(db: DbSession, settings: AppSettings) -> IAMService:
-    return IAMService(db, settings)
+def get_iam(
+    db: DbSession,
+    settings: AppSettings,
+    limiter: Annotated[WindowLimiter, Depends(get_auth_limiter)],
+) -> IAMService:
+    return IAMService(db, settings, limiter=limiter)
 
 
 IAM = Annotated[IAMService, Depends(get_iam)]

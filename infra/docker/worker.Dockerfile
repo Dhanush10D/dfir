@@ -1,12 +1,16 @@
 # syntax=docker/dockerfile:1.7
-# dfirbench worker image (Celery). Build context: backend/
+# dfirbench worker image (Celery), also the parser sandbox image (same image, other command:
+# `python -m app.sandbox.server` in the `parser-sandbox` service, Phase 10). Build context:
+# backend/; extra context "infra": infra/docker/ (pinned Volatility 3 requirements).
 #
 # Stage layout (guide 5.2, 21.2; Phase 6 spec decisions 6-8):
 #   tools   - Linux forensic engines, pinned, versions recorded in /opt/dfir/tool-versions.txt
 #             (read by the parsers for run manifests):
 #               * Sleuth Kit (mmls, fls) from Debian bookworm apt; E01 via Debian's libewf build;
-#               * Volatility 3 in its own venv (/opt/dfir/vol3, `vol` on PATH). dfirbench never
-#                 imports it (Volatility Software License); symbol packs are not baked in
+#               * Volatility 3 in its own venv (/opt/dfir/vol3, `vol` on PATH), installed from
+#                 infra/docker/volatility-requirements.txt with --require-hashes (every
+#                 dependency pinned by version and hash). dfirbench never imports it
+#                 (Volatility Software License); symbol packs are not baked in
 #                 (VOLATILITY_SYMBOLS_DIR mounts them), and the wrapper always runs --offline;
 #               * Zeek is NOT installed (optional engine: hundreds of MB from a third-party repo).
 #                 The `zeek` parser fails the job with a clear "not installed" error; add it in a
@@ -16,18 +20,19 @@
 #   runtime - tools + venv, non-root.
 # Python wrappers detect a missing binary and fail the job with a clear error.
 
-ARG PYTHON_IMAGE=python:3.12-slim-bookworm
+ARG PYTHON_IMAGE=python:3.12-slim-bookworm@sha256:392307d22300de8b5986851a12d9176dfc0fc073e65bf6523ebd7dcbeb23564e
 
 FROM ${PYTHON_IMAGE} AS tools
 ARG SLEUTHKIT_VERSION=4.11.1+dfsg-1+b1
-ARG VOLATILITY3_VERSION=2.28.2
 ENV PIP_NO_CACHE_DIR=1 PIP_DISABLE_PIP_VERSION_CHECK=1 PYTHONDONTWRITEBYTECODE=1
+COPY --from=infra volatility-requirements.txt /tmp/volatility-requirements.txt
 RUN apt-get update \
  && apt-get install -y --no-install-recommends "sleuthkit=${SLEUTHKIT_VERSION}" \
  && rm -rf /var/lib/apt/lists/* \
  && mkdir -p /opt/dfir/bin \
  && python -m venv /opt/dfir/vol3 \
- && /opt/dfir/vol3/bin/pip install "volatility3==${VOLATILITY3_VERSION}" \
+ && /opt/dfir/vol3/bin/pip install --require-hashes --no-deps -r /tmp/volatility-requirements.txt \
+ && rm /tmp/volatility-requirements.txt \
  && ln -s /opt/dfir/vol3/bin/vol /opt/dfir/bin/vol \
  && { echo "dfirbench worker toolchain"; \
       echo "sleuthkit $(dpkg-query -W -f='${Version}' sleuthkit)"; \
@@ -53,7 +58,8 @@ ENV PATH=/opt/venv/bin:/opt/dfir/bin:$PATH \
 RUN groupadd --system --gid 10001 dfir \
  && useradd --system --uid 10001 --gid dfir --home-dir /work --shell /usr/sbin/nologin dfir \
  && mkdir -p /work && chown dfir:dfir /work \
- && install -d -o dfir -g dfir -m 0700 /var/lib/dfirbench/keys /var/lib/dfirbench/scratch
+ && install -d -o dfir -g dfir -m 0700 /var/lib/dfirbench/keys /var/lib/dfirbench/scratch \
+      /var/lib/dfirbench/spool/in /var/lib/dfirbench/spool/out /var/lib/dfirbench/sandbox-work
 COPY --from=build /opt/venv /opt/venv
 WORKDIR /work
 USER dfir:dfir

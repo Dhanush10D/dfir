@@ -181,6 +181,11 @@ def get_ai_limiter() -> RateLimiter:
 # ------------------------------------------------------------------ integrations (Phase 9)
 
 
+def get_auth_limiter() -> WindowLimiter:
+    """Per-IP limits on /auth (Phase 10), shared through Redis (tests override this)."""
+    return RedisWindowLimiter(get_redis(), prefix="dfir:auth")
+
+
 def get_ingest_limiter() -> WindowLimiter:
     """Rate limits of the webhook ingest endpoint, shared through Redis (tests override this)."""
     return RedisWindowLimiter(get_redis(), prefix="dfir:ingest")

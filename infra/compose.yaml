@@ -11,7 +11,9 @@ name: dfirbench
 x-backend-env: &backend-env
   APP_ENV: ${APP_ENV:-dev}
   LOG_LEVEL: ${LOG_LEVEL:-INFO}
-  DATABASE_URL: postgresql+psycopg://dfir:${POSTGRES_PASSWORD:-dfir_dev_password}@postgres:5432/dfirbench
+  # Phase 10: the API and workers log in as the least-privilege role itself (no owner login to
+  # RESET ROLE back to). The migrate job sets its password from this URL (provision-app-login).
+  DATABASE_URL: postgresql+psycopg://dfirbench_app:${DATABASE_APP_PASSWORD:-dfir_app_dev_password}@postgres:5432/dfirbench
   REDIS_URL: redis://redis:6379/0
   S3_ENDPOINT: minio:9000
   S3_ACCESS_KEY: ${MINIO_ROOT_USER:-dfir}
@@ -52,6 +54,14 @@ x-backend-env: &backend-env
   APPROVAL_TTL_MINUTES: ${APPROVAL_TTL_MINUTES:-240}
   ENABLE_ENRICHMENT: ${ENABLE_ENRICHMENT:-false}
   ENRICHMENT_FAKE: ${ENRICHMENT_FAKE:-false}
+  # Phase 10 (docs/hardening.md): parse jobs run in the parser-sandbox container through the
+  # spool volumes; /metrics stays off (404) unless METRICS_TOKEN is set.
+  SANDBOX_MODE: ${SANDBOX_MODE:-spool}
+  SANDBOX_IN_DIR: /var/lib/dfirbench/spool/in
+  SANDBOX_OUT_DIR: /var/lib/dfirbench/spool/out
+  PARSER_TIMEOUT_S: ${PARSER_TIMEOUT_S:-3600}
+  METRICS_TOKEN: ${METRICS_TOKEN:-}
+  AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-30}
 
 x-backend-build: &backend-build
   context: ../backend
@@ -59,7 +69,7 @@ x-backend-build: &backend-build
 
 services:
   postgres:
-    image: pgvector/pgvector:0.8.6-pg16-bookworm
+    image: pgvector/pgvector:0.8.6-pg16-bookworm@sha256:ccc6e83d6e35e931dc7c5def2022729d5a6c370318d099181995567ff1fb4d6b
     environment:
       POSTGRES_DB: dfirbench
       POSTGRES_USER: dfir
@@ -73,7 +83,7 @@ services:
       retries: 20
 
   redis:
-    image: redis:7.4-alpine
+    image: redis:7.4-alpine@sha256:858f009f9709ce576febc734aa78b8f6d624b82571f9ddb6bda4377c833b3499
     command: ["redis-server", "--appendonly", "yes"]
     volumes: ["redisdata:/data"]
     ports: ["127.0.0.1:${REDIS_PORT:-6379}:6379"]
@@ -86,7 +96,7 @@ services:
   minio:
     # Upstream minio/minio images are no longer published; pgsty/minio is a maintained
     # community build of the same AGPLv3 server. Any S3-compatible store with Object Lock works.
-    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z
+    image: pgsty/minio:RELEASE.2026-08-04T00-00-00Z@sha256:b6bfe7239bfc83fb90d31612d9704d86039dd714f7904b3f1ad68f211e602372
     command: ["server", "/data", "--console-address", ":9001"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-dfir}
@@ -128,12 +138,16 @@ services:
     volumes: ["custodykeys:/var/lib/dfirbench/keys"]
     restart: "no"
 
-  # One-shot: apply Alembic migrations before the API starts.
+  # One-shot: apply Alembic migrations before the API starts, then give the least-privilege role
+  # its login (password from DATABASE_URL, sent as a SCRAM verifier). Only this job holds the
+  # owner login (DATABASE_MIGRATE_URL).
   migrate:
     image: dfirbench/api:dev
     build: *backend-build
-    command: ["alembic", "upgrade", "head"]
-    environment: *backend-env
+    command: ["sh", "-c", "alembic upgrade head && python -m app.cli provision-app-login"]
+    environment:
+      <<: *backend-env
+      DATABASE_MIGRATE_URL: postgresql+psycopg://dfir:${POSTGRES_PASSWORD:-dfir_dev_password}@postgres:5432/dfirbench
     depends_on:
       postgres: { condition: service_healthy }
     restart: "no"
@@ -166,22 +180,29 @@ services:
 
   worker:
     image: dfirbench/worker:dev
-    build:
+    build: &worker-build
       context: ../backend
       dockerfile: ../infra/docker/worker.Dockerfile
+      additional_contexts:
+        infra: ./docker
     command: ["celery", "-A", "app.workers.celery_app", "worker", "-Q", "default,parse,detect,ai,reports", "-c", "2", "-n", "worker@%h", "--loglevel", "INFO"]
     environment:
       <<: *backend-env
-      # Per-job scratch copies of evidence (0400, deleted after each job): a disk volume, not tmpfs.
+      # Private per-job scratch (bundles; the sandbox slot lock): a disk volume, not tmpfs.
       SCRATCH_DIR: /var/lib/dfirbench/scratch
-    volumes: ["custodykeys:/var/lib/dfirbench/keys:ro", "scratch:/var/lib/dfirbench/scratch"]
+    volumes:
+      - custodykeys:/var/lib/dfirbench/keys:ro
+      - scratch:/var/lib/dfirbench/scratch
+      # Parser sandbox spool (Phase 10): the worker writes the verified evidence copy and the
+      # request into `spoolin` (read-only for the sandbox) and reads results from `spoolout`.
+      - spoolin:/var/lib/dfirbench/spool/in
+      - spoolout:/var/lib/dfirbench/spool/out
     depends_on:
       migrate: { condition: service_completed_successfully }
       storage-init: { condition: service_completed_successfully }
       keygen: { condition: service_completed_successfully }
       redis: { condition: service_healthy }
-    # Dev shortcut. In production each parser job runs in its own sandbox container with
-    # --network none and a read-only evidence mount (guide 10.7, 21.1; Phase 10).
+      parser-sandbox: { condition: service_healthy }
     read_only: true
     tmpfs: ["/tmp"]
     security_opt: ["no-new-privileges:true"]
@@ -192,6 +213,43 @@ services:
       timeout: 15s
       retries: 6
       start_period: 20s
+
+  # Parser sandbox (Phase 10, guide 10.7; docs/hardening.md). Every parse job runs here, one at a
+  # time, as a child process with resource limits; evidence content never reaches a process that
+  # has network, database, object-store or key access. No network at all, read-only root and
+  # evidence mount, no capabilities, non-root, seccomp default profile, pids/memory/CPU limits.
+  parser-sandbox:
+    image: dfirbench/worker:dev
+    build: *worker-build
+    command: ["python", "-m", "app.sandbox.server"]
+    environment:
+      SANDBOX_IN_DIR: /var/lib/dfirbench/spool/in
+      SANDBOX_OUT_DIR: /var/lib/dfirbench/spool/out
+      SANDBOX_WORK_DIR: /var/lib/dfirbench/sandbox-work
+      SANDBOX_CHILD_MEMORY_MB: ${SANDBOX_CHILD_MEMORY_MB:-1536}
+      SANDBOX_MAX_RUN_S: ${PARSER_TIMEOUT_S:-3600}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    user: "10001:10001"
+    network_mode: none
+    read_only: true
+    init: true
+    ipc: private
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: ${SANDBOX_PIDS_LIMIT:-128}
+    mem_limit: ${SANDBOX_MEM_LIMIT:-2g}
+    memswap_limit: ${SANDBOX_MEM_LIMIT:-2g}
+    cpus: ${SANDBOX_CPUS:-1.0}
+    volumes:
+      - spoolin:/var/lib/dfirbench/spool/in:ro
+      - spoolout:/var/lib/dfirbench/spool/out
+      - sandboxwork:/var/lib/dfirbench/sandbox-work
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.sandbox.server", "--health"]
+      interval: 10s
+      timeout: 10s
+      retries: 6
+      start_period: 15s
 
   web:
     image: dfirbench/web:dev
@@ -229,3 +287,6 @@ volumes:
   miniodata: {}
   custodykeys: {}
   scratch: {}
+  spoolin: {}
+  spoolout: {}
+  sandboxwork: {}

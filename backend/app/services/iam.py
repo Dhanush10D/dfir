@@ -11,9 +11,9 @@ import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any
+from typing import Any, Literal
 
-from sqlalchemy import func, select, update
+from sqlalchemy import and_, func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -26,6 +26,7 @@ from app.core.exceptions import (
     UnauthenticatedError,
 )
 from app.core.permissions import Permission, Principal
+from app.core.ratelimit import RateLimitedError, RateLimiterUnavailableError, WindowLimiter
 from app.core.security import (
     JwtCodec,
     SecretBox,
@@ -109,10 +110,12 @@ class IAMService:
         settings: Settings,
         *,
         clock: Callable[[], datetime] = utcnow,
+        limiter: WindowLimiter | None = None,
     ) -> None:
         self.session = session
         self.settings = settings
         self.clock = clock
+        self.limiter = limiter  # per-IP limits on authentication (None: CLI and tools)
         self.hasher = make_password_hasher(settings)
         self.jwt = JwtCodec(settings)
         self.audit = AuditService(session)
@@ -254,6 +257,35 @@ class IAMService:
         return user
 
     # ------------------------------------------------------------------ authentication
+
+    def limit_attempts(self, kind: Literal["login", "refresh"], meta: RequestMeta) -> None:
+        """Per client IP limit on authentication requests (guide 14.3, Phase 10).
+
+        ``login`` covers password and MFA attempts, ``refresh`` token refreshes; fixed one-minute
+        windows shared through Redis. The account lockout stays the per-account control.
+        """
+        if self.limiter is None:
+            return
+        limit = (
+            self.settings.auth_rate_limit_per_minute
+            if kind == "login"
+            else self.settings.auth_refresh_rate_limit_per_minute
+        )
+        ip = clean_ip(meta.ip) or "unknown"
+        try:
+            self.limiter.hit(f"auth:{kind}:{ip}", limit, 60)
+        except RateLimitedError as exc:
+            self.audit.record("auth.rate_limited", user_id=None, meta=meta, detail={"kind": kind})
+            self.session.commit()
+            raise AppError(
+                "rate_limited",
+                "Too many attempts from this address; try again later.",
+                429,
+                details={"retry_after_s": exc.retry_after_s},
+                headers={"Retry-After": str(exc.retry_after_s)},
+            ) from exc
+        except RateLimiterUnavailableError as exc:
+            raise AppError("auth_unavailable", "Sign-in is temporarily unavailable.", 503) from exc
 
     def login(self, email: str, password: str, meta: RequestMeta) -> LoginResult:
         now = self.clock()
@@ -491,7 +523,7 @@ class IAMService:
         self.session.commit()
 
     def mfa_enroll(self, principal: Principal, meta: RequestMeta) -> MfaEnrollment:
-        user = self._get_user(principal.user_id)
+        user = self._lock_user(principal.user_id)  # a racing confirm must not see a new secret
         if user.mfa_enabled:
             raise ConflictError("MFA is already enabled; disable it first.", "mfa_already_enabled")
         secret = new_totp_secret()
@@ -693,6 +725,30 @@ class IAMService:
             "Re-enter your password (admin_password) to confirm this change.",
         )
 
+    def _lock_for_user_change(self, actor_id: uuid.UUID, target_id: uuid.UUID) -> User:
+        """Lock the acting admin, the target and every active admin, in id order, in one statement.
+
+        Two admins changing each other, or two changes racing for the last active admin, then
+        queue on the same rows in the same order (no deadlock), and the last-admin count below is
+        read while those rows are locked (Phase 10; BACKLOG Phase 1).
+        """
+        rows = self.session.execute(
+            select(User)
+            .where(
+                or_(
+                    User.id.in_([actor_id, target_id]),
+                    and_(User.role == UserRole.admin, User.is_active.is_(True)),
+                )
+            )
+            .order_by(User.id)
+            .with_for_update(key_share=True)
+            .execution_options(populate_existing=True)
+        ).scalars()
+        target = next((u for u in rows if u.id == target_id), None)
+        if target is None:
+            raise NotFoundError("User not found.")
+        return target
+
     def _active_admins(self) -> int:
         return int(
             self.session.execute(
@@ -716,7 +772,7 @@ class IAMService:
         admin_password: str | None = None,
     ) -> User:
         require_global(principal, Permission.USERS_MANAGE)
-        user = self._get_user(user_id)
+        user = self._lock_for_user_change(principal.user_id, user_id)
         sensitive = (
             (role is not None and role is not user.role)
             or (is_active is not None and is_active != user.is_active)

@@ -27,6 +27,7 @@ from app.deps import (
     get_ai_provider_factory,
     get_app_settings,
     get_artifact_store,
+    get_auth_limiter,
     get_bundle_dispatcher,
     get_custody_signer,
     get_db,
@@ -122,6 +123,9 @@ class Harness:
         self.mails: list[dict[str, Any]] = []
         self.ingest_limiter = MemoryWindowLimiter()
         self.app.dependency_overrides[get_ingest_limiter] = lambda: self.ingest_limiter
+        # Phase 10: per-IP authentication limits in memory (the limits come from the settings).
+        self.auth_limiter = MemoryWindowLimiter()
+        self.app.dependency_overrides[get_auth_limiter] = lambda: self.auth_limiter
         self.enrichers: dict[str, FakeEnrichmentProvider] = {}
         self.app.dependency_overrides[get_enrichment_provider_factory] = lambda: self._enricher
         self.client = TestClient(self.app, raise_server_exceptions=False, client=(CLIENT_IP, 50000))

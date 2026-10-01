@@ -144,6 +144,15 @@ def make_test_settings(db_url: str, **overrides: object) -> Settings:
         "enrichment_fake": True,
         "enrichment_cache_ttl_h": 24,
         "enrichment_max_per_request": 20,
+        # Phase 10: in-process parsing unless a test runs a sandbox server; high per-IP auth
+        # limits (one test lowers them); metrics off unless a test sets a token.
+        "sandbox_mode": "none",
+        "sandbox_in_dir": None,
+        "sandbox_out_dir": None,
+        "database_migrate_url": None,
+        "auth_rate_limit_per_minute": 10_000,
+        "auth_refresh_rate_limit_per_minute": 10_000,
+        "metrics_token": None,
     }
     values.update(overrides)
     return Settings(_env_file=None, **values)  # type: ignore[arg-type]
