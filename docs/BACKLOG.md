@@ -166,7 +166,7 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Ticketing sync (Jira, ServiceNow), S3 bulk log import, fetching logs from a SIEM API, OpenCTI, TAXII publishing | Out of the Phase 9 spec | Later |
 | SSO (OIDC/SAML) | Out of the Phase 9 spec | Later |
 | Editing an existing integration's non-secret configuration in the UI (the API supports PATCH `config`); today the UI creates, enables/disables, replaces secrets and tests | UI polish | Phase 10 |
-| Total deadline for an SMTP submission (each socket operation has the connect timeout; HTTP has a total deadline) and for reading response headers (bounded by the read timeout per wait and http.client's header limits) | Bounded today; a watchdog needs a thread or process per send | Phase 10 |
+| Total deadline for reading HTTP response headers (bounded by the read timeout per wait and http.client's header limits; SMTP sessions have a total-deadline watchdog) | Bounded today | Phase 10 |
 | Webhook signing secrets are symmetric (HMAC); an option for Ed25519-signed outbound webhooks with a published key | HMAC is what guide 15.6 specifies and receivers expect | Later |
 | The keyed secret fingerprint is derived from the current KEK, so it changes after a KEK rotation (the secret itself is unchanged) | Cosmetic; the fingerprint only helps recognise equal secrets | Later |
 | Follow-up outbox runs are not deduplicated: every run that leaves a pending delivery schedules one follow-up for its due time, so several commits in the retry window start parallel chains (each ends when nothing is pending; at most ~8 min with the default backoff). A Redis `SET NX` per due second would keep one | Bounded and idempotent (claims use `SKIP LOCKED`) | Phase 10 |

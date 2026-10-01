@@ -138,6 +138,28 @@ def test_prod_refuses_a_placeholder_kek(bare_env: None) -> None:
     assert ok.integration_kek is not None and "kkkk" not in repr(ok)
 
 
+def test_prod_refuses_a_weak_kek_file(bare_env: None, tmp_path: Path) -> None:
+    base = {
+        "app_env": "prod",
+        "jwt_secret": "x" * 40,
+        "totp_enc_key": "y" * 40,
+        "s3_secret_key": "z" * 20,
+        "database_url": "postgresql+psycopg://u:p@db/d",
+        "cors_origins": ["https://dfir.example"],
+        "custody_signing_key_path": "/k.pem",
+        "custody_key_id": "k1",
+    }
+    path = tmp_path / "kek"
+    for weak in ("dev-only-integration-kek-change-me", "k" * 20):
+        path.write_text(weak + "\n", "utf-8")
+        settings = Settings(_env_file=None, **base, integration_kek_path=str(path))  # type: ignore[arg-type]
+        with pytest.raises(SecretsUnavailableError, match="32"):
+            Keyring.from_settings(settings)
+    path.write_text("k" * 40, "utf-8")
+    settings = Settings(_env_file=None, **base, integration_kek_path=str(path))  # type: ignore[arg-type]
+    assert Keyring.from_settings(settings).current_id
+
+
 # ------------------------------------------------------------------------------ signatures
 
 

@@ -31,7 +31,7 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from app.config import Settings
+from app.config import DEV_PLACEHOLDERS, Settings
 
 VERSION = b"\x01"
 NONCE_LEN = 12
@@ -109,6 +109,9 @@ class Keyring:
             raise SecretsUnavailableError(
                 "INTEGRATION_KEK or INTEGRATION_KEK_PATH is not configured"
             )
+        if settings.is_prod and (material.lower() in DEV_PLACEHOLDERS or len(material) < 32):
+            # Settings checks INTEGRATION_KEK at startup; a key file is only read here.
+            raise SecretsUnavailableError("the KEK must be at least 32 random characters in prod")
         previous: dict[str, str] = {}
         if settings.integration_kek_previous_path:
             try:

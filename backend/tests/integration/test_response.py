@@ -478,11 +478,24 @@ def test_request_is_idempotent_with_a_key(world: World) -> None:
     assert (
         by_key(first.json())["c1"]["request"]["id"] == by_key(again.json())["c1"]["request"]["id"]
     )
+    # Another user cannot replay someone else's key.
+    other = h.client.patch(
+        url, headers={**world.analyst2.headers, "Idempotency-Key": "retry-1"}, json=body
+    )
+    assert other.status_code == 409, other.text
     with h.sessions() as session:
         n = session.execute(
             select(func.count()).select_from(ActionRequest).where(ActionRequest.run_id == run["id"])
         ).scalar_one()
-    assert n == 1
+        requested = session.execute(
+            select(func.count())
+            .select_from(AuditLog)
+            .where(
+                AuditLog.action == "playbook.action_requested",
+                AuditLog.object_id == run["id"],
+            )
+        ).scalar_one()
+    assert n == 1 and requested == 1  # the replay is not audited a second time
 
 
 def test_approvals_expire(world: World) -> None:

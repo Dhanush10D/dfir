@@ -20,12 +20,14 @@ Errors carry a category and the host only: never the URL path/query, headers or 
 
 from __future__ import annotations
 
+import contextlib
 import http.client
 import ipaddress
 import re
 import smtplib
 import socket
 import ssl
+import threading
 import time
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -571,6 +573,7 @@ class OutboundMailer:
         message["X-Mailer"] = USER_AGENT
         message.set_content(body, subtype="plain", charset="utf-8")
         pinned = MailServer(host, server.port, server.security, server.username, server.password)
+        started = time.monotonic()
         try:
             client = self.session_factory(pinned, ip, self.policy.connect_timeout_s)
         except ssl.SSLError as exc:
@@ -579,20 +582,38 @@ class OutboundMailer:
             raise OutboundError("timeout", transient=True, host=host) from exc
         except (smtplib.SMTPException, OSError) as exc:
             raise OutboundError("connect_error", transient=True, host=host) from exc
+        # Socket timeouts bound each wait; this bounds the whole session, so a server that drips
+        # its replies cannot outlive the delivery lease (and have the mail sent twice).
+        expired = threading.Event()
+
+        def abort() -> None:
+            expired.set()
+            sock = getattr(client, "sock", None)
+            if sock is not None:
+                with contextlib.suppress(OSError):
+                    sock.shutdown(socket.SHUT_RDWR)
+
+        remaining = self.policy.total_timeout_s - (time.monotonic() - started)
+        watchdog = threading.Timer(max(remaining, 0.0), abort)
+        watchdog.daemon = True
+        watchdog.start()
         try:
             if server.username and server.password:
                 client.login(server.username, server.password)
             client.send_message(message, from_addr=sender, to_addrs=list(recipients))
-        except smtplib.SMTPAuthenticationError as exc:
-            raise OutboundError("smtp_auth_failed", transient=False, host=host) from exc
-        except smtplib.SMTPRecipientsRefused as exc:
-            raise OutboundError("smtp_rejected", transient=False, host=host) from exc
-        except TimeoutError as exc:
-            raise OutboundError("timeout", transient=True, host=host) from exc
         except (smtplib.SMTPException, OSError) as exc:
+            if expired.is_set():
+                raise OutboundError("timeout", transient=True, host=host) from exc
+            if isinstance(exc, smtplib.SMTPAuthenticationError):
+                raise OutboundError("smtp_auth_failed", transient=False, host=host) from exc
+            if isinstance(exc, smtplib.SMTPRecipientsRefused):
+                raise OutboundError("smtp_rejected", transient=False, host=host) from exc
+            if isinstance(exc, TimeoutError):
+                raise OutboundError("timeout", transient=True, host=host) from exc
             raise OutboundError("smtp_error", transient=True, host=host) from exc
         finally:
             try:
                 client.quit()
             except (smtplib.SMTPException, OSError):
                 client.close()
+            watchdog.cancel()

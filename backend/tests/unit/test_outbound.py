@@ -8,6 +8,7 @@ import ast
 import datetime as dt
 import http.server
 import ipaddress
+import smtplib
 import socket
 import socketserver
 import ssl
@@ -480,6 +481,46 @@ def test_mail_addresses_are_validated(kwargs: dict[str, object], reason: str) ->
     with pytest.raises(OutboundBlockedError) as err:
         _mailer([]).send(MailServer("smtp.example.test"), **args)  # type: ignore[arg-type]
     assert err.value.reason == reason
+
+
+def test_mail_session_has_a_total_deadline() -> None:
+    """A server that never finishes its reply is cut off at the policy's total timeout."""
+    shut = threading.Event()
+
+    class StalledSocket:
+        """Stands in for the SMTP socket: shutdown() wakes the stalled read (as it does on
+        Linux for a real socket)."""
+
+        def shutdown(self, how: int) -> None:
+            assert how == socket.SHUT_RDWR
+            shut.set()
+
+    class StalledSession(FakeSmtpSession):
+        sock = StalledSocket()
+
+        def send_message(self, message: object, from_addr: str, to_addrs: list[str]) -> None:
+            if shut.wait(10):  # the server never answers; only the watchdog ends the wait
+                raise smtplib.SMTPServerDisconnected("closed")
+
+        def close(self) -> None:
+            return None
+
+    mailer = OutboundMailer(
+        OutboundPolicy(total_timeout_s=0.3),
+        resolver=FakeResolver({"smtp.example.test": [PUBLIC_IP]}),
+        session_factory=lambda server, ip, timeout: StalledSession([], server, ip),
+    )
+    started = time.monotonic()
+    with pytest.raises(OutboundError) as err:
+        mailer.send(
+            MailServer("smtp.example.test"),
+            sender="a@example.test",
+            recipients=["b@example.test"],
+            subject="s",
+            body="b",
+        )
+    assert err.value.category == "timeout" and err.value.transient
+    assert time.monotonic() - started < 5
 
 
 def test_mail_policy() -> None:

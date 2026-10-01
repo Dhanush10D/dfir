@@ -776,7 +776,11 @@ class PlaybookService:
             )
             action = "playbook.step_skipped"
         elif op == "request":
-            request = self._request(principal, run, step, params, idempotency_key)
+            request, replayed = self._request(principal, run, step, params, idempotency_key)
+            if replayed:
+                # The same request sent again: nothing changes, so nothing is audited.
+                self.session.commit()
+                return self._view(run)
             action = "playbook.action_requested"
             detail.update(request_id=str(request.id), params_sha256=request.params_sha256)
         else:
@@ -855,7 +859,8 @@ class PlaybookService:
         step: PlaybookRunStep,
         params: Mapping[str, Any] | None,
         idempotency_key: str | None,
-    ) -> ActionRequest:
+    ) -> tuple[ActionRequest, bool]:
+        """The request for this step, and whether it is a replay of an earlier one."""
         if step.kind != "action":
             raise self._fail(InvalidStateError("A manual step needs no approval."))
         if not step.requires_approval:
@@ -870,7 +875,11 @@ class PlaybookService:
                 select(ActionRequest).where(ActionRequest.idempotency_key == key)
             ).scalar_one_or_none()
             if previous is not None:
-                return previous  # the same request sent again: nothing changes
+                if previous.requested_by != principal.user_id:
+                    raise self._fail(
+                        InvalidStateError("This idempotency key belongs to another request.")
+                    )
+                return previous, True  # the same request sent again: nothing changes
         if step.status not in ("pending", "failed"):
             raise self._fail(
                 InvalidStateError(
@@ -922,7 +931,7 @@ class PlaybookService:
             },
             dedup_key=f"{M.EVENT_APPROVAL_REQUESTED}:{request.id}",
         )
-        return request
+        return request, False
 
     def _execute(
         self,
