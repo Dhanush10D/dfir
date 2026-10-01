@@ -40,6 +40,18 @@ x-backend-env: &backend-env
   LLM_MODEL_FAST: ${LLM_MODEL_FAST:-claude-haiku-4-5-20251001}
   LLM_MODEL_STRONG: ${LLM_MODEL_STRONG:-claude-sonnet-5-5}
   AI_REDACTION_POLICY: ${AI_REDACTION_POLICY:-standard}
+  # Response + integrations (Phase 9, docs/response.md). The key-encryption key for integration
+  # secrets lives outside the database; the dev placeholder below is refused by APP_ENV=prod (use
+  # INTEGRATION_KEK_PATH with a mounted file there). Outbound traffic: public https only unless
+  # OUTBOUND_ALLOW_HTTP / OUTBOUND_ALLOW_HOSTS say otherwise. Enrichment is off by default.
+  INTEGRATION_KEK: ${INTEGRATION_KEK:-dev-only-integration-kek-change-me}
+  INTEGRATION_KEK_ID: ${INTEGRATION_KEK_ID:-kek-1}
+  OUTBOUND_ALLOW_HTTP: ${OUTBOUND_ALLOW_HTTP:-false}
+  OUTBOUND_ALLOW_HOSTS: ${OUTBOUND_ALLOW_HOSTS:-}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-}
+  APPROVAL_TTL_MINUTES: ${APPROVAL_TTL_MINUTES:-240}
+  ENABLE_ENRICHMENT: ${ENABLE_ENRICHMENT:-false}
+  ENRICHMENT_FAKE: ${ENRICHMENT_FAKE:-false}
 
 x-backend-build: &backend-build
   context: ../backend

@@ -33,6 +33,21 @@ def _clear_settings_cache() -> Iterator[None]:
 
 
 @pytest.fixture
+def bare_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Remove every environment variable that names a setting, for tests about the defaults.
+
+    The verify scripts and CI export settings (ENABLE_AI, OUTBOUND_ALLOW_HOSTS, ...) for the live
+    stack; a test that checks what ``Settings()`` does on its own must not see them.
+    """
+    import os
+
+    fields = {name.upper() for name in Settings.model_fields}
+    for key in list(os.environ):
+        if key.upper() in fields:
+            monkeypatch.delenv(key, raising=False)
+
+
+@pytest.fixture
 def settings() -> Settings:
     # _env_file=None: ignore any developer .env so tests are hermetic.
     return Settings(_env_file=None, app_env="test", log_json=True)  # type: ignore[call-arg]

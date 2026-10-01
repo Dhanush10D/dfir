@@ -197,7 +197,7 @@ def test_allowlist_semantics() -> None:
         parse_allowlist(["bad host!"])
 
 
-def test_policy_from_settings_and_settings_validation() -> None:
+def test_policy_from_settings_and_settings_validation(bare_env: None) -> None:
     settings = Settings(
         _env_file=None,  # type: ignore[call-arg]
         app_env="test",

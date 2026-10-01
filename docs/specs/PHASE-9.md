@@ -228,6 +228,22 @@ rules (re-targeted in the backlog).
 8. Earlier phases: Phase 1-8 smokes, app-role denials, 0012 round trip, backend
    lint/format/type/bandit/tests (coverage >= 80), AI eval, frontend checks.
 
+## Amendments during the build
+* 0012 also has CHECK `ck_playbook_run_steps_impactful` (the impactful `agent.*` actions always
+  require approval); the step guard requires a new step to belong to a running run of its case;
+  the request guard requires a new request to match an open approval step of its run (same case
+  and action) and refuses approval and execution once the database clock is past the expiry.
+* Enrichment entries also return the indicator type and value (case readers can see the case's
+  IOCs anyway), so the Response tab can show them.
+* Frontend: the Integrations page also edits the in-app notification rules and shows a source's
+  ingest endpoint; the Response tab also has an enrichment panel and playbook suggestions for an
+  alert id. Editing an existing integration's non-secret configuration in the UI is backlogged
+  (the API supports it).
+* `.github/workflows/ci.yml` needs no new variables: the tests build their settings explicitly
+  (test KEK, strict outbound policy, fake enrichment) and never read the CI environment. The
+  compose stack passes the Phase 9 settings with dev defaults (a placeholder KEK that prod
+  refuses).
+
 ## Verification command
 ```bash
 bash scripts/verify-phase9.sh

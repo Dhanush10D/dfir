@@ -119,7 +119,7 @@ def test_keyring_from_settings(tmp_path: Path) -> None:
         ring.seal({"x": "y" * 20000}, b"aad")
 
 
-def test_prod_refuses_a_placeholder_kek() -> None:
+def test_prod_refuses_a_placeholder_kek(bare_env: None) -> None:
     base = {
         "app_env": "prod",
         "jwt_secret": "x" * 40,

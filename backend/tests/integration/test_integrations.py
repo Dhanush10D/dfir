@@ -674,9 +674,12 @@ def test_detection_emits_alert_created_once_per_alert(world: World) -> None:
             .all()
         )
     assert alerts and {e.payload["alert_id"] for e in created} == {str(a.id) for a in alerts}
-    one = created[0].payload
-    assert one["source"] == "detection" and one["severity"] in ("low", "medium", "high", "critical")
-    assert one["rule_id"].startswith("DFIR-") and "title" in one["details"]
+    # Other tests may leave enabled custom rules in the shared database: any rule id will do.
+    for one in (e.payload for e in created):
+        assert one["source"] == "detection"
+        assert one["severity"] in ("info", "low", "medium", "high", "critical")
+        assert one["rule_id"] and "title" in one["details"]
+    assert any(e.payload["rule_id"].startswith("DFIR-") for e in created)
     assert h.deliver().delivered == len(alerts)
     sent = json.loads(h.transport.requests[-1].body)  # type: ignore[attr-defined]
     assert sent["type"] == "alert.created" and sent["data"]["details"]["title"]
@@ -1456,7 +1459,7 @@ def test_misp_tlp_ceiling_and_sightings(world: World) -> None:
 
 
 def test_enrichment_is_off_by_default(
-    app_engine: Engine, migrated_db_url: str, signer: CustodySigner
+    app_engine: Engine, migrated_db_url: str, signer: CustodySigner, bare_env: None
 ) -> None:
     defaults = Settings(_env_file=None)  # type: ignore[call-arg]
     assert defaults.enable_enrichment is False and defaults.enrichment_fake is False

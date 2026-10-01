@@ -64,12 +64,12 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Item | Why deferred | Target |
 |---|---|---|
 | Celery beat: job reaper (Phase 2 item), nightly re-verify, custody anchors, uploaded-evidence reaper | Phase 3 did not need a scheduler; detection jobs recover like parse jobs (lease + retry) | Phase 10 |
-| Suppressions (`POST /alerts/{id}/suppress`: rule + entity + expiry + reason) and incident grouping of alerts by host/user/time | Out of Phase 4 scope (analysis UI first) | Phase 9 |
+| Suppressions (`POST /alerts/{id}/suppress`: rule + entity + expiry + reason) and incident grouping of alerts by host/user/time | Out of Phase 4 scope (analysis UI first); not in the Phase 9 scope (response + integrations) | Phase 10 |
 | SQL push-down of rule predicates (prefilter by event_code/source_type) and streaming single-event detection at ingest; today every run rescans the case in Python | Correct and bounded; performance work | Phase 10 |
 | Detection runs are full-case rescans; incremental runs over new events only | Simplicity/idempotency first | Phase 10 |
 | Statistical analytics (beaconing, DGA, rare parent-child, IsolationForest), ~~YARA~~ (Phase 6 `yara_scan`), remaining Appendix B rules (WIN-0013..0025, 0028, LNX-0005..0010, NET-*) that need data sources not parsed yet | Needs Sysmon/PowerShell/DNS/PCAP/MFT/history parsers | Phase 10 (scikit-learn analytics, see From Phase 7) |
-| MISP import, VirusTotal/MISP enrichment, global (case_id NULL) IOC management API; IOC CIDR ranges | Integrations phase | Phase 9 |
-| Asset inventory for `asset_criticality` in the risk score (1.0 today) | Phase 4 entities exist; criticality needs an admin/asset UI | Phase 9 |
+| ~~VirusTotal/MISP enrichment~~ **Done in Phase 9** (indicators only, TLP, cache, sightings to MISP). Remaining: MISP event pull/import, global (case_id NULL) IOC management API, IOC CIDR ranges | Out of the Phase 9 spec | Phase 10 |
+| Asset inventory for `asset_criticality` in the risk score (1.0 today) | Phase 4 entities exist; criticality needs an admin/asset UI; not in the Phase 9 scope | Phase 10 |
 | ATT&CK tags on events are only added; a tag from an alert that later goes stale stays on the event | Needs per-event tag provenance (out of Phase 4 scope) | Phase 10 |
 | A detection run may read a partially reprocessed timeline (reprocess swaps events non-atomically); the post-parse run corrects it and marks non-matching alerts stale | Same root cause as the Phase 2 staging-swap item | Phase 10 |
 | pySigma evaluation for wider Sigma coverage (modifiers `windash`, `base64offset`, keywords, correlations) | Own converter covers a strict, documented subset | Later |
@@ -116,8 +116,8 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | Jump Lists (OLE CFB AutomaticDestinations: DestList + embedded LNK), ShellBags (UsrClass/NTUSER), SRUM (ESE database) | Need an OLE and an ESE reader; collected already, re-derived by a bundle reprocess once parsers exist | Phase 10 |
 | Firefox `places.sqlite-wal` replay (open a copy with the WAL applied) | `immutable=1` read-only open ignores the WAL by design; replay needs a writable scratch copy | Phase 10 |
 | The collectors' volatile JSON listings (processes, connections, services) as snapshot events | Not time-series data; needs a "snapshot" event convention | Phase 10 |
-| User-supplied YARA rules through the API (validation, size caps, compile in a sandbox, versioned rule packs) and YARA over files extracted from images / memory regions (Volatility yarascan) | Rules are trusted configuration only in Phase 6 | Phase 9/10 |
-| Detection rules for the new sources (Run key persistence, IFEO debugger, BAM/Prefetch of rare binaries, DNS to IOC domains, YARA-match alerts) | Phase 3 engine works on any field; rule content is a separate review | Phase 9 |
+| User-supplied YARA rules through the API (validation, size caps, compile in a sandbox, versioned rule packs) and YARA over files extracted from images / memory regions (Volatility yarascan) | Rules are trusted configuration only in Phase 6; not in the Phase 9 scope | Phase 10 |
+| Detection rules for the new sources (Run key persistence, IFEO debugger, BAM/Prefetch of rare binaries, DNS to IOC domains, YARA-match alerts) | Phase 3 engine works on any field; rule content is a separate review; not in the Phase 9 scope | Phase 10 |
 | Win8.x and Win7 x86 ShimCache layouts; UserAssist focus-time decoding checks against real hives; registry transaction-log replay for dirty hives | Synthetic fixtures only (no redistributable real hives); dirty hives are parsed as-is with a warning | Phase 10 |
 | Windows: `run_tool` kills only the launcher of a `.bat` test double (no process-group kill on Windows) | Workers run on Linux (process-group kill); Windows only runs unit tests | Later |
 | TCP reassembly for HTTP/TLS in the `pcap` parser (today single-segment only) | Zeek covers it when installed | Later |
@@ -130,7 +130,7 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | ~~A4 report drafting~~ **Done in Phase 8** (`report_draft`, accepted-only apply, labelled). Remaining: A14 AI report QA (the deterministic QA gate is done) | Deterministic QA covers the court-readiness checks; AI QA needs an eval set | Phase 10 |
 | A9 analytics with scikit-learn: IsolationForest on per-host time buckets, beaconing, rare parent-child, DGA scoring, DBSCAN over command lines (guide 11.5, 13.13); `scikit-learn` pin and a labeled sample set | P2 in the guide and not in the Phase 7 roadmap row; adds numpy/scipy (~100 MB) to the images on the 7.6 GB host | Phase 10 |
 | A6 IOC/entity extraction from free text, A8 standalone ATT&CK mapping suggestions (A2/A7 already return candidates), A10 similar cases, A12 log-format helper, A13 next-step suggestions | Not in the Phase 7 roadmap row | Later |
-| A11 playbook recommendation; one-click IOC creation from A7 indicators | Playbooks and IOC workflows are Phase 9 | Phase 9 |
+| A11 AI playbook recommendation (Phase 9 has deterministic trigger matching: `GET /alerts/{id}/playbooks`); one-click IOC creation from A7 indicators | Needs an eval set for recommendations; out of the Phase 9 spec | Phase 10 |
 | Chat index and narrative as background jobs on the `ai` Celery queue (with progress), and neural embeddings (sentence-transformers BGE/MiniLM) in a `worker-ai` image | Indexing runs in the request with a cap (`AI_INDEX_MAX_EVENTS`); torch images do not fit the dev host | Phase 10 |
 | Redaction mapping (`ai_interactions.redactions.mapping`) stored as plain JSONB: encrypt at rest or keep only a keyed reference; NER-based redaction of names in free text | Values already exist in `events`; regex redaction is documented as best effort | Phase 10 |
 | The daily budget is checked before a call, so concurrent in-flight calls can overshoot it by a few calls; a Redis reservation would make it exact | Per-user/per-case rate limits bound the overshoot | Phase 10 |
@@ -150,8 +150,24 @@ Items consciously deferred from a phase, with the phase expected to pick them up
 | RFC 3161 time stamps on report signatures and export packages | Needs a TSA (egress) and its trust chain | Phase 10 |
 | Background render jobs (Celery) with progress for large reports; today rendering is synchronous and bounded by the snapshot caps, a 2000-page PDF cap and `REPORT_RENDER_TIMEOUT_S` (413 `report_too_large`). A report at every cap takes about a minute on the dev host (ReportLab tables, pure-Python string widths); `rl_accel` or fewer table rows would speed it up | Typical reports render in seconds | Phase 10 |
 | Report comments / review threads, and a diff view between report versions | UI polish; versions and audit rows exist | Later |
-| STIX `observed-data`, `malware` and `relationship` objects (indicator -> attack-pattern needs an analyst mapping); TAXII publishing | Indicators, attack patterns and the report object validate today | Phase 9 |
+| STIX `observed-data`, `malware` and `relationship` objects (indicator -> attack-pattern needs an analyst mapping); TAXII publishing | Indicators, attack patterns and the report object validate today; TAXII is out of the Phase 9 spec | Phase 10 |
 | The SPA's own CSP (`style-src 'self'`) also applies to the sandboxed `srcdoc` preview, so the in-app preview is unstyled; the downloaded HTML is styled | Relaxing the SPA CSP for inline styles is not worth it | Later |
 | Signed report artifacts live in the plain `artifacts` bucket (tampering is detected by hash + signature, not prevented); optional Object Lock/retention for signed reports | Detection is enough for the Standard profile; WORM needs its own retention policy | Phase 10 |
 | Reaper for artifacts written by a sign whose DB commit then failed (objects under `reports/.../vN/` for a report that is not signed; a retry overwrites them) | Rare and harmless (never served: downloads check the signed manifest) | Phase 10 |
 | Write-once artifact keys (a per-signing prefix or an if-none-match put). Today a re-sign of the same version replaces the objects: after a failed sign, or after a 0011 downgrade/upgrade round trip returned signed reports to drafts. The old hashes stay in the `report.sign` audit row | Needs a storage layout change; both paths are operator/rare events | Phase 10 |
+
+## From Phase 9
+
+| Item | Why deferred | Target |
+|---|---|---|
+| Remote agent and real endpoint actions (`agent.isolate_host`, `kill_process`, `disable_account`, `memory_dump`, `collect_triage`); today they are recorded `not_executed` and completed by hand | Standard profile has no agent (guide 9.4, P2) | Later |
+| Celery beat sweeps: outbound deliveries due for a retry and approval expiry. Today a retry is scheduled by the task itself (`countdown`) and the next emitted event, and expiry is applied on access (every read and decision) | No scheduler in the Standard profile yet (see the From Phase 3 Celery beat item) | Phase 10 |
+| Redelivery of a `failed` webhook from the UI / API (a new delivery row for the same event) | The delivery log shows the failure; the test button sends a fresh event | Phase 10 |
+| Ticketing sync (Jira, ServiceNow), S3 bulk log import, fetching logs from a SIEM API, OpenCTI, TAXII publishing | Out of the Phase 9 spec | Later |
+| SSO (OIDC/SAML) | Out of the Phase 9 spec | Later |
+| Editing an existing integration's non-secret configuration in the UI (the API supports PATCH `config`); today the UI creates, enables/disables, replaces secrets and tests | UI polish | Phase 10 |
+| Total deadline for an SMTP submission (each socket operation has the connect timeout; HTTP has a total deadline) and for reading response headers (bounded by the read timeout per wait and http.client's header limits) | Bounded today; a watchdog needs a thread or process per send | Phase 10 |
+| Webhook signing secrets are symmetric (HMAC); an option for Ed25519-signed outbound webhooks with a published key | HMAC is what guide 15.6 specifies and receivers expect | Later |
+| The keyed secret fingerprint is derived from the current KEK, so it changes after a KEK rotation (the secret itself is unchanged) | Cosmetic; the fingerprint only helps recognise equal secrets | Later |
+| The in-memory rate limiter used by tests and tools never prunes old windows | Production uses Redis with expiry | Later |
+| Run `scripts/phase9-smoke.py` in the CI compose-smoke job (needs the stack with `ENABLE_ENRICHMENT=true ENRICHMENT_FAKE=true OUTBOUND_ALLOW_HTTP=true OUTBOUND_ALLOW_HOSTS=api`) | CI smoke covers Phases 1-3 today; verify-phase9.sh runs it locally | Phase 10 |
