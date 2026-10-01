@@ -27,8 +27,10 @@ from app.db.models import (
     User,
     UserRole,
 )
+from app.integrations.messages import EVENT_CASE_STATUS
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import CaseAccess, load_case_access, require_global
+from app.services.outbox import emit_event
 
 # Incident-response lifecycle order (guide 2.1). Moving forward may skip phases; moving back is one
 # step at a time; ``closed`` is reached only through close() and left only by a reopen to ``open``.
@@ -202,6 +204,17 @@ class CaseService:
                 setattr(case, field_name, changes[field_name])
                 value = changes[field_name]
                 applied[field_name] = value.value if isinstance(value, Severity) else value
+        if "status" in applied:
+            emit_event(
+                self.session,
+                EVENT_CASE_STATUS,
+                case_id=case.id,
+                payload={
+                    "from_status": applied["status"]["from"],
+                    "to_status": applied["status"]["to"],
+                    "actor_id": str(principal.user_id),
+                },
+            )
         if applied:
             self.audit.record(
                 "case.updated",
@@ -258,6 +271,16 @@ class CaseService:
             object_type="case",
             object_id=case.id,
             detail={"from": previous.value, "reason": reason},
+        )
+        emit_event(
+            self.session,
+            EVENT_CASE_STATUS,
+            case_id=case.id,
+            payload={
+                "from_status": previous.value,
+                "to_status": CaseStatus.closed.value,
+                "actor_id": str(principal.user_id),
+            },
         )
         self.session.commit()
         return case

@@ -88,9 +88,11 @@ from app.detection.detectors import SourceInfo
 from app.detection.engine import AlertDraft, DetectionEngine, EngineLimits
 from app.detection.ioc import IocEntry, IocIndex
 from app.detection.scoring import alert_risk
+from app.integrations.messages import EVENT_ALERT_CREATED
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import load_case_access
 from app.services.entities import write_resolution
+from app.services.outbox import emit_event
 from app.services.processing import (
     JobCancelledError,
     JobFencedError,
@@ -716,6 +718,22 @@ class DetectionService:
                     to_status=AlertStatus.new,
                     reason=f"rule {rule.id} v{rule.version}",
                 )
+            )
+            # Outbox row in this transaction (SAVEPOINT; never fails the flush).
+            emit_event(
+                session,
+                EVENT_ALERT_CREATED,
+                case_id=claim.case_id,
+                payload={
+                    "alert_id": str(alert_id),
+                    "severity": str(rule.level),
+                    "rule_id": rule.id,
+                    "source": "detection",
+                    "event_count": draft.count,
+                    "attack": list(rule.attack),
+                },
+                details={"title": draft.title, "host": draft.host},
+                dedup_key=f"{EVENT_ALERT_CREATED}:{alert_id}",
             )
         else:
             counts.updated += 1

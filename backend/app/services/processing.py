@@ -61,6 +61,7 @@ from app.repositories.vault import VaultObjectMissingError, VaultStore
 from app.services.custody import Actor, CustodyService, canonical
 from app.services.evidence import safe_filename
 from app.services.notifications import notify_admins
+from app.services.outbox import emit_verification_failed
 
 log = structlog.stdlib.get_logger("dfirbench.processing")
 
@@ -651,6 +652,7 @@ class ProcessingService:
                     "stage": "processing",
                 },
             )
+            emit_verification_failed(session, claim.case_id, claim.evidence_id, "processing")
             session.commit()
         except Exception:
             session.rollback()

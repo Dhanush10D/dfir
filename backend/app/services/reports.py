@@ -53,6 +53,7 @@ from app.db.models import (
     Report,
     User,
 )
+from app.integrations.messages import EVENT_REPORT_SIGNED
 from app.reports.artifacts import (
     ARTIFACT_TYPES,
     FORMAT_TO_NAME,
@@ -77,6 +78,7 @@ from app.repositories.artifacts import ArtifactMissingError, ArtifactStore, arti
 from app.services.audit import AuditService, RequestMeta
 from app.services.authz import CaseAccess, load_case_access
 from app.services.custody import Actor, ChainEntry, CustodyService, verify_chain
+from app.services.outbox import emit_event
 
 KINDS = tuple(SECTIONS)
 STATUS_LABELS = {
@@ -756,6 +758,19 @@ class ReportService:
             manifest_sha256=digest,
             key_id=signer.key_id,
             artifacts={a.name: a.sha256 for a in artifacts},
+        )
+        emit_event(
+            self.session,
+            EVENT_REPORT_SIGNED,
+            case_id=report.case_id,
+            payload={
+                "report_id": str(report.id),
+                "kind": report.kind,
+                "version": report.version,
+                "manifest_sha256": digest,
+                "actor_id": str(principal.user_id),
+            },
+            dedup_key=f"{EVENT_REPORT_SIGNED}:{report.id}",
         )
         self.session.commit()
         return report

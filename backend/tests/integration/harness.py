@@ -18,6 +18,7 @@ from app.ai.fake import FakeProvider
 from app.ai.gateway import MemoryRateLimiter
 from app.ai.llm import LLMProvider
 from app.config import Settings
+from app.core.ratelimit import MemoryWindowLimiter
 from app.core.signing import CustodySigner
 from app.db.models import UserRole
 from app.db.session import make_session_factory
@@ -30,17 +31,28 @@ from app.deps import (
     get_custody_signer,
     get_db,
     get_detect_dispatcher,
+    get_enrichment_provider_factory,
+    get_ingest_limiter,
     get_job_dispatcher,
     get_trusted_keys,
     get_vault,
 )
+from app.integrations.enrichment import FakeEnrichmentProvider
+from app.integrations.outbound import OutboundHttp, OutboundMailer, OutboundPolicy
 from app.main import create_app
 from app.services.audit import DbAuditSink
 from app.services.bundles import BundleIngestService
 from app.services.detection import DetectionService
 from app.services.iam import IAMService
+from app.services.outbox import DISPATCH_KEY, OutboundService, ProcessResult
 from app.services.processing import ProcessingService, RunResult
-from tests.fakes import FakeArtifactStore, FakeVault
+from tests.fakes import (
+    FakeArtifactStore,
+    FakeResolver,
+    FakeSmtpSession,
+    FakeTransport,
+    FakeVault,
+)
 
 TEST_PASSWORD = "Correct-Horse-Battery-42"
 
@@ -99,7 +111,51 @@ class Harness:
         )
         self.ai_limiter = MemoryRateLimiter(10_000, 10_000)
         self.app.dependency_overrides[get_ai_limiter] = lambda: self.ai_limiter
+        # Phase 9. Outbox: commits that add events call this recorder instead of Celery; tests
+        # run the worker side with outbound().process(). Outbound network: a fake resolver and a
+        # fake transport/SMTP session (nothing leaves the process). Ingest limits in memory.
+        # Enrichment: one shared offline provider per integration type.
+        self.outbound_dispatched = 0
+        self.sessions.configure(info={DISPATCH_KEY: self._dispatch_outbound})
+        self.resolver = FakeResolver({"hooks.example.test": ["93.184.216.34"]})
+        self.transport = FakeTransport()
+        self.mails: list[dict[str, Any]] = []
+        self.ingest_limiter = MemoryWindowLimiter()
+        self.app.dependency_overrides[get_ingest_limiter] = lambda: self.ingest_limiter
+        self.enrichers: dict[str, FakeEnrichmentProvider] = {}
+        self.app.dependency_overrides[get_enrichment_provider_factory] = lambda: self._enricher
         self.client = TestClient(self.app, raise_server_exceptions=False, client=(CLIENT_IP, 50000))
+
+    def _dispatch_outbound(self) -> None:
+        self.outbound_dispatched += 1
+
+    def _enricher(self, integration: Any, secret: dict[str, Any]) -> FakeEnrichmentProvider:
+        max_tlp = "green"
+        if integration.type == "misp":
+            max_tlp = str((integration.config or {}).get("max_tlp", "green"))
+        fake = self.enrichers.setdefault(
+            integration.type, FakeEnrichmentProvider(name=integration.type, max_tlp=max_tlp)
+        )
+        fake.max_tlp = max_tlp
+        return fake
+
+    def outbound(self, **overrides: Any) -> OutboundService:
+        """The worker-side delivery service on the test database with fake network doubles."""
+        settings = self.settings.model_copy(update=overrides) if overrides else self.settings
+        policy = OutboundPolicy.from_settings(settings)
+        return OutboundService(
+            self.sessions,
+            settings,
+            http=OutboundHttp(policy, resolver=self.resolver, transport=self.transport),  # type: ignore[arg-type]
+            mailer=OutboundMailer(
+                policy,
+                resolver=self.resolver,
+                session_factory=lambda server, ip, timeout: FakeSmtpSession(self.mails, server, ip),
+            ),
+        )
+
+    def deliver(self, **overrides: Any) -> ProcessResult:
+        return self.outbound(**overrides).process()
 
     def _dispatch(self, job_id: uuid.UUID) -> None:
         if self.dispatch_error is not None:

@@ -67,6 +67,8 @@ EMBEDDED_V4_NETS: tuple[IPNetwork, ...] = (
     ipaddress.ip_network("2002::/16"),
     ipaddress.ip_network("2001::/32"),
 )
+_V6_UNSPECIFIED = ipaddress.IPv6Address("::")
+_V6_LOOPBACK = ipaddress.IPv6Address("::1")
 # Classes a host-name allowlist entry unlocks; everything else needs a CIDR entry.
 HOST_ENTRY_UNLOCKS = frozenset({"private", "loopback", "cgnat"})
 
@@ -141,10 +143,11 @@ def parse_allowlist(entries: Sequence[str]) -> tuple[frozenset[str], tuple[IPNet
 def classify_ip(addr: IPAddress) -> str:
     """``public`` or the reason an address is not routable on the public Internet."""
     if isinstance(addr, ipaddress.IPv6Address) and any(addr in net for net in EMBEDDED_V4_NETS):
-        # ``::`` and ``::1`` sit inside ::/96 but are not embedded IPv4 addresses.
-        if addr.is_unspecified:
+        # ``::`` and ``::1`` sit inside ::/96 but are not embedded IPv4 addresses. Compared by
+        # value: ``is_loopback`` of a mapped address differs between Python patch releases.
+        if addr == _V6_UNSPECIFIED:
             return "unspecified"
-        if addr.is_loopback:
+        if addr == _V6_LOOPBACK:
             return "loopback"
         return "embedded_ipv4"
     if any(addr in net for net in METADATA_NETS if net.version == addr.version):

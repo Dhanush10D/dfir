@@ -24,6 +24,8 @@ EVENT_EVIDENCE_FAILED = "evidence.verification_failed"
 EVENT_RUN_STARTED = "playbook.run_started"
 EVENT_APPROVAL_REQUESTED = "playbook.approval_requested"
 EVENT_PLAYBOOK_NOTICE = "playbook.notice"
+# Sent only to the one integration an admin tests (never subscribable).
+EVENT_TEST = "integration.test"
 
 GUIDE_EVENTS = (
     EVENT_ALERT_CREATED,
@@ -31,7 +33,14 @@ GUIDE_EVENTS = (
     EVENT_REPORT_SIGNED,
     EVENT_EVIDENCE_FAILED,
 )
-EVENT_TYPES = (*GUIDE_EVENTS, EVENT_RUN_STARTED, EVENT_APPROVAL_REQUESTED, EVENT_PLAYBOOK_NOTICE)
+# What a channel can subscribe to.
+SUBSCRIBABLE_EVENTS = (
+    *GUIDE_EVENTS,
+    EVENT_RUN_STARTED,
+    EVENT_APPROVAL_REQUESTED,
+    EVENT_PLAYBOOK_NOTICE,
+)
+EVENT_TYPES = (*SUBSCRIBABLE_EVENTS, EVENT_TEST)
 
 SEVERITIES = ("info", "low", "medium", "high", "critical")
 CASE_NUMBER_RE = re.compile(r"^[A-Z]{2,8}-[A-Z0-9]{2,8}-[A-Za-z0-9]{1,12}$")
@@ -55,6 +64,7 @@ TITLES: dict[str, str] = {
     EVENT_RUN_STARTED: "Playbook started",
     EVENT_APPROVAL_REQUESTED: "Approval requested",
     EVENT_PLAYBOOK_NOTICE: "Playbook step notice",
+    EVENT_TEST: "Test notification",
 }
 # Field -> label, per event, in display order. Only these payload fields are ever rendered.
 FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
@@ -82,6 +92,7 @@ FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
         ("expires_at", "Expires"),
     ),
     EVENT_PLAYBOOK_NOTICE: (("playbook_id", "Playbook"), ("step_key", "Step"), ("run_id", "Run")),
+    EVENT_TEST: (("integration", "Integration"),),
 }
 # Evidence-derived fields (shown only with ``include_details``).
 DETAIL_FIELDS: dict[str, tuple[tuple[str, str], ...]] = {
@@ -96,6 +107,7 @@ TABS: dict[str, str] = {
     EVENT_RUN_STARTED: "response",
     EVENT_APPROVAL_REQUESTED: "response",
     EVENT_PLAYBOOK_NOTICE: "response",
+    EVENT_TEST: "overview",
 }
 
 

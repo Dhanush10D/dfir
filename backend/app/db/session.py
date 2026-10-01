@@ -55,4 +55,14 @@ def get_engine() -> Engine:
 
 @lru_cache(maxsize=1)
 def get_sessionmaker() -> sessionmaker[Session]:
-    return make_session_factory(get_engine())
+    """The process-wide factory (API and workers).
+
+    Its sessions carry the outbox dispatcher in ``session.info`` (see ``services/outbox.py``): a
+    commit that added outbound events asks a worker to deliver them. Factories made directly with
+    :func:`make_session_factory` (tests, tools) have no dispatcher unless they set one.
+    """
+    from app.workers.dispatch import dispatch_outbound  # no Celery import until it is called
+
+    factory = make_session_factory(get_engine())
+    factory.configure(info={"outbound_dispatch": dispatch_outbound})
+    return factory

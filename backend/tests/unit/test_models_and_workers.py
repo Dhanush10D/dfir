@@ -33,8 +33,24 @@ PHASE3_TABLES = {"rule_versions", "alert_history"}
 PHASE4_TABLES = {"note_versions"}
 PHASE5_TABLES = {"bundle_members"}
 PHASE7_TABLES = {"ai_index_state"}
+# Phase 9 (migration 0012): playbook steps, four-eyes action requests, outbox + delivery logs,
+# inbound deliveries (append-only), enrichment cache.
+PHASE9_TABLES = {
+    "playbook_run_steps",
+    "action_requests",
+    "outbound_events",
+    "outbound_deliveries",
+    "inbound_deliveries",
+    "ioc_enrichments",
+}
 ALL_TABLES = (
-    CORE_TABLES | PHASE1_TABLES | PHASE3_TABLES | PHASE4_TABLES | PHASE5_TABLES | PHASE7_TABLES
+    CORE_TABLES
+    | PHASE1_TABLES
+    | PHASE3_TABLES
+    | PHASE4_TABLES
+    | PHASE5_TABLES
+    | PHASE7_TABLES
+    | PHASE9_TABLES
 )
 
 
@@ -75,6 +91,7 @@ def test_append_only_tables_declared() -> None:
         "alert_history",
         "note_versions",
         "bundle_members",
+        "inbound_deliveries",
     )
 
 

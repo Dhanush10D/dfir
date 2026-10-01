@@ -52,3 +52,17 @@ def dispatch_bundle(job_id: uuid.UUID) -> None:
         retry=True,
         retry_policy=RETRY_POLICY,
     )
+
+
+OUTBOUND_TASK = "dfirbench.process_outbound"
+OUTBOUND_QUEUE = "default"
+
+
+def dispatch_outbound() -> None:
+    """Ask a worker to fan out new outbox events and deliver what is due.
+
+    The task takes no arguments: event ids, URLs and secrets never travel through the broker.
+    """
+    from app.workers.celery_app import celery_app
+
+    celery_app.send_task(OUTBOUND_TASK, queue=OUTBOUND_QUEUE, retry=True, retry_policy=RETRY_POLICY)

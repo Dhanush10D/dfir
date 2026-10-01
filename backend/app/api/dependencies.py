@@ -22,6 +22,7 @@ from app.ai.llm import LLMProvider
 from app.config import Settings
 from app.core.exceptions import ForbiddenError, UnauthenticatedError
 from app.core.permissions import Permission, Principal
+from app.core.ratelimit import WindowLimiter
 from app.core.signing import CustodySigner
 from app.deps import (
     get_ai_limiter,
@@ -32,10 +33,14 @@ from app.deps import (
     get_custody_signer,
     get_db,
     get_detect_dispatcher,
+    get_enrichment_provider_factory,
+    get_ingest_limiter,
     get_job_dispatcher,
+    get_outbound_http,
     get_trusted_keys,
     get_vault,
 )
+from app.integrations.outbound import OutboundHttp
 from app.repositories.artifacts import ArtifactStore
 from app.repositories.vault import VaultStore
 from app.services.ai import AiService
@@ -46,13 +51,18 @@ from app.services.bundles import BundleQueryService
 from app.services.cases import CaseService
 from app.services.custody import CustodyService
 from app.services.detection import DetectionJobs
+from app.services.enrichment import EnrichmentService, ProviderFactory
 from app.services.entities import EntityService
 from app.services.events import EventService
 from app.services.evidence import EvidenceService
 from app.services.iam import IAMService
+from app.services.ingest import WebhookIngestService
+from app.services.integrations import IntegrationService
 from app.services.iocs import IocService
 from app.services.jobs import JobService
 from app.services.notes import BookmarkService, NoteService
+from app.services.notifications import NotificationService
+from app.services.playbooks import PlaybookService
 from app.services.proctree import ProcessTreeService, SummaryService
 from app.services.reports import ReportService
 from app.services.rules import RuleService
@@ -240,6 +250,40 @@ def get_ai_service(
     return AiService(db, settings, gateway_factory=gateway_factory)
 
 
+def get_playbook_service(db: DbSession, settings: AppSettings) -> PlaybookService:
+    return PlaybookService(db, settings)
+
+
+def get_integration_service(db: DbSession, settings: AppSettings) -> IntegrationService:
+    return IntegrationService(db, settings)
+
+
+def get_notification_service(db: DbSession) -> NotificationService:
+    return NotificationService(db)
+
+
+def get_ingest_service(
+    db: DbSession,
+    settings: AppSettings,
+    limiter: Annotated[WindowLimiter, Depends(get_ingest_limiter)],
+) -> WebhookIngestService:
+    return WebhookIngestService(db, settings, limiter=limiter)
+
+
+def get_enrichment_service(
+    db: DbSession,
+    settings: AppSettings,
+    http: Annotated[OutboundHttp | None, Depends(get_outbound_http)],
+    factory: Annotated[ProviderFactory | None, Depends(get_enrichment_provider_factory)],
+) -> EnrichmentService:
+    return EnrichmentService(db, settings, http=http, provider_factory=factory)
+
+
+PlaybookSvc = Annotated[PlaybookService, Depends(get_playbook_service)]
+IntegrationSvc = Annotated[IntegrationService, Depends(get_integration_service)]
+NotificationSvc = Annotated[NotificationService, Depends(get_notification_service)]
+IngestSvc = Annotated[WebhookIngestService, Depends(get_ingest_service)]
+EnrichmentSvc = Annotated[EnrichmentService, Depends(get_enrichment_service)]
 AiSvc = Annotated[AiService, Depends(get_ai_service)]
 ReportsSvc = Annotated[ReportService, Depends(get_report_service)]
 Search = Annotated[SearchService, Depends(get_search_service)]

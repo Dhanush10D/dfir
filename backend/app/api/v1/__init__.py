@@ -13,9 +13,12 @@ from app.api.v1 import (
     events,
     evidence,
     health,
+    ingest,
+    integrations,
     jobs,
     notes,
     reports,
+    response,
     search,
     users,
 )
@@ -36,6 +39,9 @@ for module in (
     analysis,
     ai,
     reports,
+    response,
+    integrations,
+    ingest,
     audit,
 ):
     router.include_router(module.router)

@@ -17,11 +17,14 @@ from sqlalchemy.orm import Session
 from app.ai.gateway import RateLimiter, RedisRateLimiter, build_provider
 from app.ai.llm import LLMProvider
 from app.config import Settings, get_settings
+from app.core.ratelimit import RedisWindowLimiter, WindowLimiter
 from app.core.signing import CustodySigner, SigningKeyError, load_signer, load_trusted_keys
 from app.db.session import get_engine, get_sessionmaker
+from app.integrations.outbound import OutboundHttp
 from app.repositories.artifacts import ArtifactStore, MinioArtifactStore
 from app.repositories.vault import MinioVault, VaultStore
 from app.services.audit import DbAuditSink
+from app.services.enrichment import ProviderFactory
 from app.services.health import (
     CheckResult,
     check_database,
@@ -173,3 +176,21 @@ def get_ai_limiter() -> RateLimiter:
     return RedisRateLimiter(
         get_redis(), settings.ai_rate_limit_per_minute, settings.ai_case_rate_limit_per_hour
     )
+
+
+# ------------------------------------------------------------------ integrations (Phase 9)
+
+
+def get_ingest_limiter() -> WindowLimiter:
+    """Rate limits of the webhook ingest endpoint, shared through Redis (tests override this)."""
+    return RedisWindowLimiter(get_redis(), prefix="dfir:ingest")
+
+
+def get_outbound_http() -> OutboundHttp | None:
+    """None = the real policy-checked client built from settings (tests inject a fake)."""
+    return None
+
+
+def get_enrichment_provider_factory() -> ProviderFactory | None:
+    """None = providers from the integration rows (``ENRICHMENT_FAKE`` swaps in the fake)."""
+    return None

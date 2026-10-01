@@ -40,6 +40,7 @@ from app.services.audit import AuditService, RequestMeta
 from app.services.authz import CaseAccess, load_case_access
 from app.services.custody import Actor, ChainReport, CustodyService
 from app.services.notifications import notify_admins
+from app.services.outbox import emit_verification_failed
 
 log = structlog.stdlib.get_logger("dfirbench.evidence")
 
@@ -474,6 +475,7 @@ class EvidenceService:
                 "evidence.verification_failed",
                 {"evidence_id": str(ev.id), "label": ev.label, "stage": "finalize"},
             )
+            emit_verification_failed(self.session, ev.case_id, ev.id, "finalize", ev.label)
         else:
             ev.status = "stored"
             ev.retain_until = retention.retain_until
@@ -593,6 +595,7 @@ class EvidenceService:
                     "broken_seqs": chain.broken_seqs,
                 },
             )
+            emit_verification_failed(self.session, ev.case_id, ev.id, "verify", ev.label)
             self.audit.record(
                 "evidence.integrity_failure",
                 user_id=principal.user_id,

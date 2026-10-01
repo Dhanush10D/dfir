@@ -120,3 +120,71 @@ class FakeArtifactStore:
         if key not in self.objects:
             raise ArtifactMissingError(key)
         return self.objects[key]
+
+
+# ---------------------------------------------------------------------------------------------
+# Phase 9: outbound network doubles (nothing here opens a socket)
+# ---------------------------------------------------------------------------------------------
+
+
+class FakeResolver:
+    """Injectable DNS: ``{host: [addresses]}``; unknown hosts fail like a real lookup."""
+
+    def __init__(self, table: dict[str, list[str]] | None = None) -> None:
+        self.table = dict(table or {})
+        self.calls: list[str] = []
+
+    def __call__(self, host: str, port: int) -> list[str]:
+        self.calls.append(host)
+        if host not in self.table:
+            raise OSError(f"unknown host {host}")
+        return list(self.table[host])
+
+
+class FakeTransport:
+    """Records every prepared request; answers from ``responses`` (or ``default``)."""
+
+    def __init__(self) -> None:
+        from app.integrations.outbound import HttpResponse
+
+        self.requests: list[object] = []
+        self.responses: list[object] = []
+        self.default: object = HttpResponse(200, {}, b"ok")
+
+    def send(self, request: object) -> object:
+        self.requests.append(request)
+        item = self.responses.pop(0) if self.responses else self.default
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
+class FakeSmtpSession:
+    """Stands in for smtplib.SMTP: records logins and messages."""
+
+    def __init__(self, sink: list[dict[str, object]], server: object, ip: str) -> None:
+        self.sink = sink
+        self.server = server
+        self.ip = ip
+        self.logged_in: tuple[str, str] | None = None
+
+    def login(self, user: str, password: str) -> None:
+        self.logged_in = (user, password)
+
+    def send_message(self, message: object, from_addr: str, to_addrs: list[str]) -> None:
+        self.sink.append(
+            {
+                "message": message,
+                "from": from_addr,
+                "to": list(to_addrs),
+                "ip": self.ip,
+                "server": self.server,
+                "login": self.logged_in,
+            }
+        )
+
+    def quit(self) -> None:
+        return None
+
+    def close(self) -> None:
+        return None
