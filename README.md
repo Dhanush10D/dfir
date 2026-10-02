@@ -102,3 +102,7 @@ docs/       build guide, phase specs, backlog
 Originals are read-only (vault bucket has Object Lock), timestamps are stored as UTC `timestamptz` with the
 original string kept in `ts_original`, and `custody_log` / `audit_log` are append-only at the database level
 (UPDATE, DELETE and TRUNCATE are rejected by triggers).
+
+Contributors:
+1)Harshitha V 
+
