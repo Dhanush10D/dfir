@@ -668,3 +668,48 @@ def test_fake_transport_returns_canned_responses() -> None:
     with pytest.raises(OutboundError):
         http.request("GET", "https://a.example.test/")
     assert http.request("GET", "https://a.example.test/").ok
+
+
+def test_non_ascii_smtp_credentials_fail_cleanly_without_the_secret() -> None:
+    class AsciiAuthSession(FakeSmtpSession):
+        def login(self, user: str, password: str) -> None:
+            ("\0" + user + "\0" + password).encode("ascii")  # what smtplib's AUTH PLAIN does
+
+    mailer = OutboundMailer(
+        OutboundPolicy(),
+        resolver=FakeResolver({"smtp.example.test": [PUBLIC_IP]}),
+        session_factory=lambda server, ip, timeout: AsciiAuthSession([], server, ip),
+    )
+    with pytest.raises(OutboundError) as err:
+        mailer.send(
+            MailServer("smtp.example.test", 587, "starttls", "bot", "pässwörd-secret"),
+            sender="a@example.test",
+            recipients=["b@example.test"],
+            subject="s",
+            body="b",
+        )
+    assert err.value.category == "smtp_credentials_invalid" and not err.value.transient
+    assert err.value.__cause__ is None and "secret" not in repr(err.value)
+
+
+def test_site_local_ipv6_is_not_public() -> None:
+    import ipaddress
+
+    from app.integrations.outbound import classify_ip
+
+    assert classify_ip(ipaddress.ip_address("fec0::1")) == "reserved"
+
+
+def test_savepoint_rollback_keeps_the_pending_dispatch_flag() -> None:
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.orm import Session
+
+    from app.services.outbox import PENDING_KEY
+
+    with Session(create_engine("sqlite://")) as session:
+        session.execute(text("select 1"))
+        session.info[PENDING_KEY] = True  # an event emitted earlier in this transaction
+        session.begin_nested().rollback()
+        assert session.info.get(PENDING_KEY) is True
+        session.rollback()
+        assert PENDING_KEY not in session.info

@@ -156,6 +156,8 @@ class IntegrationService:
                     "Unknown secret field for this type.", allowed=sorted(allowed), field=name[:40]
                 )
             text = value.get_secret_value()
+            if kind == "email" and not text.isascii():
+                raise _invalid("The SMTP password must be ASCII (SMTP AUTH is ASCII-only).")
             if any(ord(ch) < 32 or ord(ch) == 127 for ch in text) or not (
                 allowed[name] <= len(text) <= MAX_SECRET_CHARS
             ):

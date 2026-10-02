@@ -58,7 +58,8 @@ class EmailConfig(_ChannelConfig):
     host: str = Field(min_length=1, max_length=253)
     port: int = Field(default=587, ge=1, le=65535)
     security: Literal["starttls", "tls", "none"] = "starttls"
-    username: str | None = Field(default=None, max_length=256)
+    # smtplib sends AUTH as ASCII; a non-ASCII value could never log in.
+    username: str | None = Field(default=None, max_length=256, pattern=r"^[ -~]*$")
     sender: str = Field(min_length=3, max_length=320)
     recipients: list[str] = Field(min_length=1, max_length=20)
 

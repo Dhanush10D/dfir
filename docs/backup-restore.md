@@ -81,8 +81,15 @@ Result and exit code:
 | 1 | `RESTORE NOT VERIFIED: ...` or `restore failed: ...` | The restored state differs from the backup, or the restore failed. |
 | 2 | `error: ...` | Configuration (a passphrase missing, too short, or both the same). |
 
-To return a restored project to service, restore with `--project dfirbench --force` while the
-live stack is stopped, then `docker compose up -d`; the migrate job re-provisions the app login.
+To return a restored project to service, first run the drill above with the same backup, then
+restore with `--project dfirbench --force` while the live stack is stopped, then
+`docker compose up -d`; the migrate job re-provisions the app login. Before the live volumes are
+replaced, each is copied to `<volume>-pre-restore-<time>` (this needs free disk space for one
+copy of the live data). If the restore fails or is not verified, the script names those copies:
+to roll back, stop the project and copy each one back into its volume (for example
+`docker run --rm -v dfirbench_pgdata-pre-restore-<time>:/from:ro -v dfirbench_pgdata:/to
+--entrypoint sh dfirbench/api:dev -c "cd /from && tar -cpf - . | tar -xpf - -C /to"`). Delete
+the copies with `docker volume rm` once the restored project is back in service.
 
 ## Re-verification without a backup
 

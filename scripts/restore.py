@@ -267,6 +267,30 @@ def stage(message: str) -> None:
     print(f"[{time.monotonic() - STARTED:7.1f}s] {message}", file=sys.stderr, flush=True)
 
 
+def snapshot_volumes(project: Project, volumes: list[str]) -> list[str]:
+    """Copy each volume to ``<volume>-pre-restore-<time>`` (the project is stopped first)."""
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    project.compose("stop", check=False)
+    kept: list[str] = []
+    for volume in volumes:
+        src = project.volume_name(volume)
+        dst = f"{src}-pre-restore-{stamp}"
+        subprocess.run(  # noqa: S603 - fixed argv
+            ["docker", "volume", "create", dst], check=True, capture_output=True
+        )
+        subprocess.run(  # noqa: S603 - fixed argv
+            [
+                "docker", "run", "--rm", "--network", "none", "--user", "0:0",
+                "-v", f"{src}:/from:ro", "-v", f"{dst}:/to", "--entrypoint", "sh", TAR_IMAGE,
+                "-c", "cd /from && tar -cpf - . | tar -xpf - -C /to",
+            ],
+            check=True,
+            capture_output=True,
+        )
+        kept.append(dst)
+    return kept
+
+
 def restore(args: argparse.Namespace, passphrase: str) -> dict[str, Any]:
     source: Path = args.source
     index = verify_index(source)
@@ -291,6 +315,13 @@ def restore(args: argparse.Namespace, passphrase: str) -> dict[str, Any]:
             raise RuntimeError(str(exc)) from exc
     stage("authenticating every file (nothing is written)")
     authenticate_all(source, index, passphrases)
+    snapshots: list[str] = []
+    if existing and args.project == "dfirbench":
+        # The live data is only deleted once a copy exists: a later failure (health timeout,
+        # pg_restore error, integrity verdict) must not leave the project with nothing.
+        stage("copying the live volumes aside before replacing them")
+        snapshots = snapshot_volumes(project, existing)
+        stage(f"previous live volumes kept as: {', '.join(snapshots)}")
     restored = False
     try:
         if existing:
@@ -319,7 +350,14 @@ def restore(args: argparse.Namespace, passphrase: str) -> dict[str, Any]:
         stage("running the read-only integrity check against the restored project")
         check = run_integrity_check(args, source)
         stage("integrity check finished")
-        return {"project": args.project, "index": index, "integrity": check}
+        return {"project": args.project, "index": index, "integrity": check, "kept": snapshots}
+    except BaseException:
+        if snapshots:
+            stage(
+                "restore failed; the previous live data is in " + ", ".join(snapshots)
+                + " (copy each back into its volume to roll back; docs/backup-restore.md)"
+            )
+        raise
     finally:
         if restored and not args.keep:
             project.compose("down", "-v", check=False)

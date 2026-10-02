@@ -164,8 +164,8 @@ def classify_ip(addr: IPAddress) -> str:
         return "multicast"
     if addr.version == 4 and addr in CGNAT_NET:
         return "cgnat"
-    if addr.is_reserved:
-        return "reserved"
+    if addr.is_reserved or (addr.version == 6 and addr.is_site_local):
+        return "reserved"  # fec0::/10 (deprecated site-local) is is_global on Python 3.12
     if addr.is_private:
         return "private"
     if not addr.is_global:
@@ -601,6 +601,10 @@ class OutboundMailer:
             if server.username and server.password:
                 client.login(server.username, server.password)
             client.send_message(message, from_addr=sender, to_addrs=list(recipients))
+        except UnicodeError:
+            # smtplib encodes AUTH as ASCII: never let the exception (which carries the encoded
+            # credentials) reach a retry log or the result backend.
+            raise OutboundError("smtp_credentials_invalid", transient=False, host=host) from None
         except (smtplib.SMTPException, OSError) as exc:
             if expired.is_set():
                 raise OutboundError("timeout", transient=True, host=host) from exc

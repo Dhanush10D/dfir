@@ -184,9 +184,12 @@ def _dispatch_after_commit(session: Session) -> None:
         log.warning("outbound_dispatch_failed", exc_type=type(exc).__name__)
 
 
-@sa_event.listens_for(Session, "after_rollback")
-def _forget_after_rollback(session: Session) -> None:
-    session.info.pop(PENDING_KEY, None)
+@sa_event.listens_for(Session, "after_soft_rollback")
+def _forget_after_rollback(session: Session, previous_transaction: Any) -> None:
+    # Only the root transaction: a rolled-back SAVEPOINT leaves events emitted before it in the
+    # outer transaction, and they still need their dispatch after commit.
+    if previous_transaction.parent is None:
+        session.info.pop(PENDING_KEY, None)
 
 
 # ------------------------------------------------------------------------------ rules
