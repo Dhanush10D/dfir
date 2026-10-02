@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Callable
-from typing import Annotated
+from typing import Annotated, Any
 
 import structlog
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
@@ -71,6 +71,13 @@ from app.services.search import SearchService
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
+
+def read_only[F: Callable[..., Any]](endpoint: F) -> F:
+    """Mark a POST route that only reads (search with a body): read-scoped API keys may call it."""
+    endpoint.read_only = True  # type: ignore[attr-defined]
+    return endpoint
+
+
 _bearer = HTTPBearer(auto_error=False, description="Access token from /auth/login")
 _api_key = APIKeyHeader(name="X-API-Key", auto_error=False, description="Personal API key")
 
@@ -112,7 +119,10 @@ def current_principal(
         principal = iam.principal_from_api_key(api_key)
         # API-key scope is enforced here before the request reaches a service; bearer-token
         # principals continue through the route and service-level permission checks.
-        if "write" not in principal.scopes and request.method not in SAFE_METHODS:
+        reads = request.method in SAFE_METHODS or getattr(
+            request.scope.get("endpoint"), "read_only", False
+        )
+        if "write" not in principal.scopes and not reads:
             raise ForbiddenError("This API key is read-only.", scope_required="write")
     else:
         raise UnauthenticatedError()

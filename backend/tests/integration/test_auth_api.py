@@ -456,3 +456,37 @@ def test_email_is_case_insensitive_and_stored_lower_case(h: Harness, db_engine: 
         },
     )
     assert r.status_code == 409 and r.json()["error"]["code"] == "email_taken"
+
+
+def test_credential_events_revoke_api_keys(h: Harness) -> None:
+    user = h.make_user(UserRole.analyst, login=False)
+    _, body = _login(h, user.email, TEST_PASSWORD)
+    headers = {"Authorization": f"Bearer {body['tokens']['access_token']}"}
+    r = h.client.post(
+        "/api/v1/me/api-keys", headers=headers, json={"name": "k", "scopes": ["read", "write"]}
+    )
+    api = {"X-API-Key": r.json()["key"]}
+    assert h.client.get("/api/v1/me", headers=api).status_code == 200
+    # An API key cannot enrol MFA (it would lock the owner out with the caller's secret).
+    assert h.client.post("/api/v1/me/mfa/enroll", headers=api).status_code == 403
+    r = h.client.post(
+        "/api/v1/me/password",
+        headers=headers,
+        json={"current_password": TEST_PASSWORD, "new_password": "Another-Good-Passphrase-9"},
+    )
+    assert r.status_code == 204
+    assert h.client.get("/api/v1/me", headers=api).status_code == 401
+
+
+def test_creating_a_privileged_user_needs_reauthentication(h: Harness) -> None:
+    admin = h.make_user(UserRole.admin)
+    payload = {
+        "email": f"lead-{uuid.uuid4().hex[:8]}@dfir.test",
+        "display_name": "Lead",
+        "role": "lead",
+        "password": TEST_PASSWORD,
+    }
+    r = h.post("/users", admin, json=payload)
+    assert r.status_code == 403 and r.json()["error"]["code"] == "reauth_required"
+    r = h.post("/users", admin, json={**payload, "admin_password": TEST_PASSWORD})
+    assert r.status_code == 201 and r.json()["role"] == "lead"

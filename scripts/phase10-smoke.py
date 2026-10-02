@@ -349,6 +349,7 @@ def main() -> int:
     parser.add_argument("--admin-password", default=os.environ.get("DFIR_ADMIN_PASSWORD"))
     parser.add_argument("--metrics-token", default=os.environ.get("METRICS_TOKEN"))
     args = parser.parse_args()
+    p1.ADMIN_PASSWORD = args.admin_password  # make_user re-authenticates for lead/admin
     expect(bool(args.metrics_token), "METRICS_TOKEN is set for the smoke")
     api = Api(args.base)
     check_sandbox_container()

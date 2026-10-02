@@ -250,6 +250,15 @@ class IAMService:
         result = self.session.execute(stmt)
         return int(getattr(result, "rowcount", 0) or 0)
 
+    def _revoke_api_keys(self, user_id: uuid.UUID) -> int:
+        """Credential events (password change, logout-all, deactivation, MFA reset) end API keys."""
+        result = self.session.execute(
+            update(ApiKey)
+            .where(ApiKey.user_id == user_id, ApiKey.revoked_at.is_(None))
+            .values(revoked_at=self.clock())
+        )
+        return int(getattr(result, "rowcount", 0) or 0)
+
     def _get_user(self, user_id: uuid.UUID) -> User:
         user = self.session.get(User, user_id)
         if user is None:
@@ -378,9 +387,19 @@ class IAMService:
 
     def refresh(self, refresh_token: str, meta: RequestMeta) -> TokenPair:
         now = self.clock()
+        token_hash = sha256_hex(refresh_token)
+        owner = self.session.execute(
+            select(RefreshToken.user_id).where(RefreshToken.token_hash == token_hash)
+        ).scalar_one_or_none()
+        if owner is None:
+            raise UnauthenticatedError("Refresh token is invalid.", "token_invalid")
+        # User row first (FOR SHARE), then the token: a concurrent password change or logout-all
+        # (FOR NO KEY UPDATE on the user) waits for this rotation or runs before it, so its
+        # revocation also covers the successor token issued here.
+        self.session.execute(select(User.id).where(User.id == owner).with_for_update(read=True))
         row = self.session.execute(
             select(RefreshToken)
-            .where(RefreshToken.token_hash == sha256_hex(refresh_token))
+            .where(RefreshToken.token_hash == token_hash)
             .with_for_update(key_share=True)
         ).scalar_one_or_none()
         if row is None:
@@ -427,6 +446,7 @@ class IAMService:
             select(RefreshToken).where(RefreshToken.token_hash == sha256_hex(refresh_token))
         ).scalar_one_or_none()
         if row is not None:
+            self._lock_user(row.user_id)  # serializes with a refresh rotating this family
             self._revoke_families(row.user_id, "logout", row.family_id)
             self.audit.record(
                 "auth.logout", user_id=row.user_id, meta=meta, detail={"family": str(row.family_id)}
@@ -434,9 +454,14 @@ class IAMService:
         self.session.commit()
 
     def logout_all(self, principal: Principal, meta: RequestMeta) -> int:
+        self._lock_user(principal.user_id)  # serializes with a refresh issuing a successor
         count = self._revoke_families(principal.user_id, "logout_all", None)
+        keys = self._revoke_api_keys(principal.user_id)
         self.audit.record(
-            "auth.logout_all", user_id=principal.user_id, meta=meta, detail={"revoked": count}
+            "auth.logout_all",
+            user_id=principal.user_id,
+            meta=meta,
+            detail={"revoked": count, "api_keys_revoked": keys},
         )
         self.session.commit()
         return count
@@ -516,15 +541,21 @@ class IAMService:
         self._check_password(user, new)
         user.password_hash = hash_password(self.hasher, new)
         revoked = self._revoke_families(user.id, "password_changed", None)
+        keys = self._revoke_api_keys(user.id)
         self.audit.record(
             "user.password_changed",
             user_id=user.id,
             meta=meta,
-            detail={"sessions_revoked": revoked},
+            detail={"sessions_revoked": revoked, "api_keys_revoked": keys},
         )
         self.session.commit()
 
+    def _require_interactive(self, principal: Principal) -> None:
+        if principal.auth_method != "jwt":
+            raise ForbiddenError("MFA can only be changed from an interactive login.")
+
     def mfa_enroll(self, principal: Principal, meta: RequestMeta) -> MfaEnrollment:
+        self._require_interactive(principal)
         user = self._lock_user(principal.user_id)  # a racing confirm must not see a new secret
         if user.mfa_enabled:
             raise ConflictError("MFA is already enabled; disable it first.", "mfa_already_enabled")
@@ -552,6 +583,7 @@ class IAMService:
         return codes
 
     def mfa_confirm(self, principal: Principal, code: str, meta: RequestMeta) -> list[str]:
+        self._require_interactive(principal)
         user = self._lock_user(principal.user_id)
         if user.mfa_enabled:
             raise ConflictError("MFA is already enabled.", "mfa_already_enabled")
@@ -704,8 +736,13 @@ class IAMService:
         role: UserRole,
         password: str,
         meta: RequestMeta,
+        admin_password: str | None = None,
     ) -> User:
         require_global(principal, Permission.USERS_MANAGE)
+        if role in (UserRole.admin, UserRole.lead):
+            # Same re-authentication as granting the role to an existing user: a stolen access
+            # token or API key must not mint a new privileged account.
+            self._reauth(principal, admin_password, meta)
         user = self._create_user(email, display_name, role, password)
         self.audit.record(
             "user.created",
@@ -801,9 +838,13 @@ class IAMService:
             changes["is_active"] = is_active
             if not is_active:
                 self._revoke_families(user.id, "deactivated", None)
+                changes["api_keys_revoked"] = self._revoke_api_keys(user.id)
         if reset_mfa and (user.mfa_enabled or user.totp_secret is not None):
             self._clear_mfa(user)
             changes["mfa_reset"] = True
+            # A reset usually means a lost or compromised device: end its sessions and keys.
+            changes["sessions_revoked"] = self._revoke_families(user.id, "mfa_reset", None)
+            changes["api_keys_revoked"] = self._revoke_api_keys(user.id)
         if unlock and (user.locked_until is not None or user.failed_logins):
             user.locked_until = None
             user.failed_logins = 0

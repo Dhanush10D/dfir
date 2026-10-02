@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.db.models.enums import CaseStatus, Severity, UserRole
 
@@ -27,6 +27,14 @@ class CaseUpdate(BaseModel):
     classification: str | None = Field(default=None, max_length=64)
     status: CaseStatus | None = None
     lead_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def _required_columns_not_null(self) -> CaseUpdate:
+        # Omit a field to leave it unchanged; an explicit null would violate NOT NULL (500).
+        for name in ("title", "severity", "status"):
+            if name in self.model_fields_set and getattr(self, name) is None:
+                raise ValueError(f"'{name}' cannot be null")
+        return self
 
 
 class CaseClose(BaseModel):

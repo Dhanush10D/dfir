@@ -10,7 +10,7 @@ import uuid
 
 from fastapi import APIRouter, Response
 
-from app.api.dependencies import CurrentPrincipal, Meta, Search
+from app.api.dependencies import CurrentPrincipal, Meta, Search, read_only
 from app.schemas.analysis import (
     ContextOut,
     ContextRequest,
@@ -40,6 +40,7 @@ def search_fields(principal: CurrentPrincipal) -> list[FieldOut]:
 
 
 @router.post("/cases/{case_id}/events/search", response_model=EventPage)
+@read_only
 def search_events(
     case_id: uuid.UUID, body: SearchRequest, principal: CurrentPrincipal, search: Search, meta: Meta
 ) -> EventPage:
@@ -58,6 +59,7 @@ def search_events(
 
 
 @router.post("/cases/{case_id}/events/histogram", response_model=HistogramOut)
+@read_only
 def histogram(
     case_id: uuid.UUID, body: HistogramRequest, principal: CurrentPrincipal, search: Search
 ) -> HistogramOut:
@@ -67,6 +69,7 @@ def histogram(
 
 
 @router.post("/cases/{case_id}/events/facets", response_model=FacetsOut)
+@read_only
 def facets(
     case_id: uuid.UUID, body: FacetsRequest, principal: CurrentPrincipal, search: Search
 ) -> FacetsOut:
@@ -75,6 +78,7 @@ def facets(
 
 
 @router.post("/cases/{case_id}/events/context", response_model=ContextOut)
+@read_only
 def context(
     case_id: uuid.UUID, body: ContextRequest, principal: CurrentPrincipal, search: Search
 ) -> ContextOut:
@@ -91,6 +95,7 @@ def context(
     response_class=Response,
     responses={200: {"content": {"text/csv": {}, "application/json": {}}}},
 )
+@read_only
 def export(
     case_id: uuid.UUID, body: ExportRequest, principal: CurrentPrincipal, search: Search, meta: Meta
 ) -> Response:

@@ -113,6 +113,7 @@ def create_user(body: UserCreate, principal: Admin, iam: IAM, meta: Meta) -> Use
         role=body.role,
         password=body.password,
         meta=meta,
+        admin_password=body.admin_password,
     )
     return UserOut.model_validate(user)
 

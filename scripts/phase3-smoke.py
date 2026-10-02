@@ -85,6 +85,7 @@ def main() -> int:
     parser.add_argument("--admin-email", required=True)
     parser.add_argument("--admin-password", default=os.environ.get("DFIR_ADMIN_PASSWORD"))
     args = parser.parse_args()
+    p1.ADMIN_PASSWORD = args.admin_password  # make_user re-authenticates for lead/admin
     api = Api(args.base)
     admin = login(api, args.admin_email, args.admin_password)
     _, lead = make_user(api, admin, "lead")

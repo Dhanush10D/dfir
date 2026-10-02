@@ -129,6 +129,8 @@ class UserCreate(BaseModel):
     display_name: str = Field(min_length=1, max_length=200)
     role: UserRole = UserRole.analyst
     password: str = Field(min_length=1, max_length=1024)
+    # Required for the lead and admin roles: creating one is a role grant (guide 16.4).
+    admin_password: str | None = Field(default=None, max_length=1024)
 
 
 class UserUpdate(BaseModel):

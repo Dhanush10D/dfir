@@ -29,6 +29,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
 PASSWORD = "Smoke-Test-Passphrase-" + uuid.uuid4().hex[:8]
+ADMIN_PASSWORD: str | None = None  # set by main(); the other smokes read DFIR_ADMIN_PASSWORD
 
 
 class Api:
@@ -85,12 +86,10 @@ def login(api: Api, email: str, password: str) -> str:
 
 def make_user(api: Api, admin: str, role: str) -> tuple[str, str]:
     email = f"smoke-{role}-{uuid.uuid4().hex[:8]}@dfirbench.test"
-    status, body, _ = api.call(
-        "POST",
-        "/users",
-        admin,
-        {"email": email, "display_name": f"Smoke {role}", "role": role, "password": PASSWORD},
-    )
+    payload = {"email": email, "display_name": f"Smoke {role}", "role": role, "password": PASSWORD}
+    if role in ("admin", "lead"):  # privileged roles need the admin's re-authentication
+        payload["admin_password"] = ADMIN_PASSWORD or os.environ.get("DFIR_ADMIN_PASSWORD", "")
+    status, body, _ = api.call("POST", "/users", admin, payload)
     expect(status == 201, f"admin creates {role}", body)
     return str(body["id"]), login(api, email, PASSWORD)
 
@@ -114,6 +113,8 @@ def main() -> int:
     api = Api(args.base)
     compose = ["docker", "compose", "-f", args.compose_file]
 
+    global ADMIN_PASSWORD
+    ADMIN_PASSWORD = args.admin_password
     admin = login(api, args.admin_email, args.admin_password)
     _, lead = make_user(api, admin, "lead")
     analyst_id, analyst = make_user(api, admin, "analyst")
