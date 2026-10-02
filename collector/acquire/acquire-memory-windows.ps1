@@ -113,6 +113,7 @@ $record = [ordered]@{
     case_ref        = $(if ($CaseRef) { $CaseRef } else { $null })
     started_at      = (Get-UtcIso $started)
     finished_at     = (Get-UtcIso $finished)
+    complete        = ($exitCode -eq 0)
     image           = [ordered]@{ file = (Split-Path -Path $image -Leaf); size = [int64]$imageItem.Length; sha256 = $imageHash }
     tool_output_tail = @($toolOutput | Select-Object -Last 20)
 }
@@ -121,5 +122,8 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 [System.IO.File]::WriteAllText($image + '.sha256', ($imageHash + '  ' + (Split-Path -Path $image -Leaf) + "`n"), $utf8)
 Write-Output ('image:   ' + $image)
 Write-Output ('sha256:  ' + $imageHash)
+if ($exitCode -ne 0) {
+    Stop-With 5 ("WinPmem exited with code " + $exitCode + ": the image may be partial (kept, marked complete=false).")
+}
 Write-Output 'Upload it as evidence kind "memory" with expected_sha256 set to the hash above.'
 exit 0

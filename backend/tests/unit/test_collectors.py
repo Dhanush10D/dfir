@@ -317,3 +317,53 @@ def test_linux_wrappers_fail_cleanly(
     proc = subprocess.run([str(BASH), str(path), *argv], capture_output=True, text=True, timeout=60)
     assert proc.returncode == code and message in proc.stderr, proc.stderr
     assert not (tmp_path / "out").exists()
+
+
+def _link_dir(link: Path, target: Path) -> None:
+    """A directory symlink (a junction on Windows, which needs no privilege)."""
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if sys.platform == "win32":
+        import _winapi
+
+        _winapi.CreateJunction(str(target), str(link))
+    else:
+        link.symlink_to(target, target_is_directory=True)
+
+
+def test_linux_collector_names_and_ratios_pass_the_server_checks(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    _fake_root(root)
+    autostart = root / "home/alice/.config/autostart"
+    autostart.mkdir(parents=True)
+    (autostart / "Straße.desktop").write_bytes(b"[Desktop Entry]\n")
+    (autostart / "STRASSE.desktop").write_bytes(b"[Desktop Entry]\n")
+    (root / "home/alice/.bash_history").write_bytes(b"ls -la\n" * 300_000)  # 2.1 MB, ~1000:1
+    bundle, manifest, _ = _run_linux(tmp_path)
+    counts = _verify(bundle, tmp_path)  # BundleRejectedError if the server would refuse it
+    assert counts
+    names = {f["path"] for f in manifest["files"]}  # type: ignore[index]
+    assert sum("autostart" in n for n in names) == 2
+
+
+def test_linux_collector_does_not_follow_symlinked_directories_to_secrets(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    _fake_root(root)
+    _link_dir(root / "home/alice/.config/autostart", root / "etc")
+    outside = tmp_path / "examiner"
+    (outside / "notes").mkdir(parents=True)
+    (outside / "notes/x.desktop").write_bytes(b"examiner's own file\n")
+    _link_dir(root / "etc/xdg/autostart", outside / "notes")
+    _, manifest, _ = _run_linux(tmp_path)
+    collected = {f["source"]: f for f in manifest["files"]}  # type: ignore[index]
+    skipped = {(s["target"], s["reason"]) for s in manifest["skipped"]}  # type: ignore[index]
+    assert "/home/alice/.config/autostart/shadow" not in collected
+    assert ("/home/alice/.config/autostart/shadow", "never_collected") in skipped
+    assert ("/etc/xdg/autostart/x.desktop", "outside_root") in skipped
+
+
+def test_linux_collector_text_helpers_handle_undecodable_names() -> None:
+    module = _load_linux_collector()
+    bad = b"/tmp/\xff".decode("utf-8", "surrogateescape")
+    assert module.text(bad) == r"/tmp/\xff"
+    assert module.safe_component("\udcff") == "_xff"  # the backslash is an unsafe character
+    json.dumps(module.clean_json({"files": [{"source": bad}]}), ensure_ascii=False).encode()

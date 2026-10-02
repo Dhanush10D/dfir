@@ -100,8 +100,14 @@ case "$TOOL" in
     RC=$? ;;
   dd)
     IMAGE="$BASE.dd"
-    dd if="$SOURCE" of="$IMAGE" bs=4M conv=noerror,sync status=progress 2> "$BASE.dd.log"
-    RC=$? ;;
+    # fullblock: a short read is completed instead of zero-padded mid-stream (offsets stay put);
+    # sync still pads the last block and read errors, so the image is cut back to the source size.
+    dd if="$SOURCE" of="$IMAGE" bs=4M iflag=fullblock conv=noerror,sync status=progress \
+      2> "$BASE.dd.log"
+    RC=$?
+    if [[ -f "$IMAGE" && "${SIZE:-0}" -gt 0 && "$(stat -c %s -- "$IMAGE")" -gt "$SIZE" ]]; then
+      truncate -s "$SIZE" -- "$IMAGE"
+    fi ;;
 esac
 set -e
 FINISHED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -110,10 +116,15 @@ FINISHED=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 IMAGE_SHA=$(sha256sum -- "$IMAGE" | awk '{print $1}')
 IMAGE_SIZE=$(stat -c %s -- "$IMAGE")
 SOURCE_SHA=""
+COMPLETE=true
+(( RC == 0 )) || COMPLETE=false
 if [[ "$TOOL" == "dd" ]]; then
   # dd does not verify: hash the source again (read-only) so the image can be compared with it.
   SOURCE_SHA=$(sha256sum -- "$SOURCE" | awk '{print $1}')
-  [[ "$SOURCE_SHA" == "$IMAGE_SHA" ]] || echo "warning: image and source hashes differ (read errors are zero-padded by conv=noerror,sync)" >&2
+  if [[ "$SOURCE_SHA" != "$IMAGE_SHA" ]]; then
+    echo "warning: image and source hashes differ (read errors are zero-padded by conv=noerror,sync)" >&2
+    COMPLETE=false
+  fi
 fi
 printf '%s  %s\n' "$IMAGE_SHA" "$(basename -- "$IMAGE")" > "$IMAGE.sha256"
 {
@@ -126,11 +137,15 @@ printf '%s  %s\n' "$IMAGE_SHA" "$(basename -- "$IMAGE")" > "$IMAGE.sha256"
   printf ' "operator": %s,\n "case_ref": %s,\n "evidence_number": %s,\n' \
     "$(json "$EXAMINER")" "$(json "$CASE_REF")" "$(json "$EVNUM")"
   printf ' "started_at": %s,\n "finished_at": %s,\n' "$(json "$STARTED")" "$(json "$FINISHED")"
+  printf ' "complete": %s,\n' "$COMPLETE"
   printf ' "image": {"file": %s, "size": %s, "sha256": %s}\n}\n' \
     "$(json "$(basename -- "$IMAGE")")" "$IMAGE_SIZE" "$(json "$IMAGE_SHA")"
 } > "$IMAGE.acquisition.json"
 
 echo "image:   $IMAGE"
 echo "sha256:  $IMAGE_SHA"
+if [[ "$COMPLETE" != true ]]; then
+  die 5 "$TOOL exit code $RC or a hash mismatch: the image is incomplete (kept, marked \"complete\": false); do not upload it as a verified copy"
+fi
 [[ "$TOOL" == "ewfacquire" ]] && echo "E01 segments: $BASE.E0?; verify them with ewfverify before upload."
 echo 'Upload it as evidence kind "disk_image" with expected_sha256 set to the hash above.'

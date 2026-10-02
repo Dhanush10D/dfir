@@ -35,12 +35,17 @@ import struct
 import subprocess
 import sys
 import time
+import unicodedata
 import zipfile
 
 NAME = "dfirbench-collect-linux"
 VERSION = "1.0.0"
 SCHEMA = "dfirbench.triage/1"
 CHUNK = 1024 * 1024
+# The server judges compression ratios above 1 MiB (limit 200:1, per member and for the archive):
+# larger members are stored, and once the archive's ratio passes SAFE_RATIO everything is.
+RATIO_FLOOR = 1024 * 1024
+SAFE_RATIO = 100
 MAX_LISTING = 20000
 MAX_PROBLEMS = 5000
 COMMAND_TIMEOUT = 60
@@ -123,8 +128,32 @@ def file_sha256(path):
     return digest.hexdigest()
 
 
+def text(value):
+    """A str that encodes as UTF-8: undecodable filename bytes (lone surrogates) become \\xNN."""
+    try:
+        value.encode("utf-8")
+        return value
+    except UnicodeEncodeError:
+        return value.encode("utf-8", "surrogateescape").decode("utf-8", "backslashreplace")
+
+
+def clean_json(value):
+    if isinstance(value, str):
+        return text(value)
+    if isinstance(value, dict):
+        return dict((text(k), clean_json(v)) for k, v in value.items())
+    if isinstance(value, (list, tuple)):
+        return [clean_json(v) for v in value]
+    return value
+
+
+def name_key(name):
+    """The server's duplicate test: NFC, then casefold (Straße and STRASSE collide)."""
+    return unicodedata.normalize("NFC", name).casefold()
+
+
 def safe_component(part):
-    part = UNSAFE_CHARS.sub("_", part)
+    part = UNSAFE_CHARS.sub("_", text(part))
     if part in ("", ".", ".."):
         part = "_" + part
     return part[:200]
@@ -150,6 +179,9 @@ class Collector:
         self.zip_path = os.path.join(self.out_dir, base + ".zip")
         self.partial_path = self.zip_path + ".partial"
         self.zip = None
+        self.stored_only = False
+        self.raw_bytes = 0
+        self.zip_bytes = 0
 
     # -------------------------------------------------------------- bookkeeping
 
@@ -171,25 +203,36 @@ class Collector:
         parts = [safe_component(p) for p in host_path.strip("/").split("/") if p]
         name = "/".join([category] + parts)[:480]
         candidate, n = name, 1
-        while candidate.lower() in self.names:
+        while name_key(candidate) in self.names:
             n += 1
             candidate = "%s~%d" % (name, n)
-        self.names.add(candidate.lower())
+        self.names.add(name_key(candidate))
         return candidate
 
-    def _zipinfo(self, arcname):
+    def _zipinfo(self, arcname, size_hint=None):
         info = zipfile.ZipInfo(arcname, date_time=utcnow().timetuple()[:6])
-        info.compress_type = zipfile.ZIP_DEFLATED
+        large = size_hint is None or size_hint > RATIO_FLOOR
+        stored = self.stored_only or (large and size_hint is not None)
+        info.compress_type = zipfile.ZIP_STORED if stored else zipfile.ZIP_DEFLATED
         info.external_attr = (stat.S_IFREG | 0o444) << 16
         info.create_system = 3
         return info
 
     # -------------------------------------------------------------- writers
 
+    def _written(self):
+        """Switch to stored members once the archive's ratio nears the server's limit."""
+        info = self.zip.infolist()[-1]
+        self.raw_bytes += info.file_size
+        self.zip_bytes += info.compress_size
+        if self.raw_bytes > RATIO_FLOOR and self.raw_bytes > SAFE_RATIO * max(self.zip_bytes, 1):
+            self.stored_only = True
+
     def add_bytes(self, arcname, data, category, source):
         digest = hashlib.sha256(data).hexdigest()
-        with self.zip.open(self._zipinfo(arcname), "w", force_zip64=True) as dst:
+        with self.zip.open(self._zipinfo(arcname, len(data)), "w", force_zip64=True) as dst:
             dst.write(data)
+        self._written()
         self.total += len(data)
         self.files.append(
             {
@@ -203,8 +246,8 @@ class Collector:
         )
 
     def add_json(self, arcname, value, category, source):
-        data = json.dumps(value, indent=1, sort_keys=True, ensure_ascii=False).encode("utf-8")
-        self.add_bytes(arcname, data, category, source)
+        data = json.dumps(clean_json(value), indent=1, sort_keys=True, ensure_ascii=False)
+        self.add_bytes(arcname, data.encode("utf-8"), category, source)
 
     def _open_readonly(self, path):
         flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
@@ -236,6 +279,18 @@ class Collector:
         if not stat.S_ISREG(st.st_mode):
             self.skip(host_path, "not_regular_file")
             return
+        # O_NOFOLLOW and lstat only cover the last component: a symlinked parent directory
+        # (~/.config/autostart -> /etc) must not reach outside --root or a never-collected file.
+        real = os.path.realpath(src)
+        root_real = os.path.realpath(self.root)
+        if real != root_real and not real.startswith(root_real.rstrip(os.sep) + os.sep):
+            self.skip(host_path, "outside_root")
+            return
+        rel = os.path.relpath(real, root_real).replace(os.sep, "/")
+        resolved = "/" + ("" if rel == "." else rel)
+        if resolved in NEVER:
+            self.skip(host_path, "never_collected")
+            return
         if st.st_size > self.max_file:
             self.skip(host_path, "larger_than_max_file_mb")
             return
@@ -261,7 +316,8 @@ class Collector:
             size = 0
             truncated = False
             failure = None
-            with self.zip.open(self._zipinfo(arcname), "w", force_zip64=True) as dst:
+            info = self._zipinfo(arcname, fst.st_size)
+            with self.zip.open(info, "w", force_zip64=True) as dst:
                 while True:
                     try:
                         chunk = fh.read(CHUNK)
@@ -278,6 +334,7 @@ class Collector:
                     size += len(chunk)
                     if truncated:
                         break
+            self._written()
         self.total += size
         entry = {
             "path": arcname,
@@ -290,6 +347,8 @@ class Collector:
             "mode": oct(stat.S_IMODE(fst.st_mode)),
             "uid": getattr(fst, "st_uid", None),
         }
+        if resolved != host_path:
+            entry["resolved_path"] = resolved  # reached through a symlinked directory
         if truncated:
             entry["truncated"] = True
         if failure is not None:
@@ -417,6 +476,7 @@ class Collector:
                 digest.update(chunk)
                 dst.write(chunk)
                 size += len(chunk)
+        self._written()
         if truncated:
             proc.kill()
         proc.wait()
@@ -701,8 +761,8 @@ class Collector:
             "errors": self.errors,
             "skipped": self.skipped,
         }
-        data = json.dumps(manifest, indent=1, ensure_ascii=False).encode("utf-8")
-        with self.zip.open(self._zipinfo("manifest.json"), "w") as dst:
+        data = json.dumps(clean_json(manifest), indent=1, ensure_ascii=False).encode("utf-8")
+        with self.zip.open(self._zipinfo("manifest.json", len(data)), "w") as dst:
             dst.write(data)
 
 

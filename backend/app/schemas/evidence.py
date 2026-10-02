@@ -6,13 +6,23 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 HEX64 = r"^[0-9a-fA-F]{64}$"
 HEX32 = r"^[0-9a-fA-F]{32}$"
 
 
 class EvidenceCreate(BaseModel):
+    @model_validator(mode="before")
+    @classmethod
+    def _no_nul(cls, data: Any) -> Any:
+        # PostgreSQL text cannot hold NUL: refuse it here (422) instead of failing the INSERT (500).
+        if isinstance(data, dict):
+            for name, value in data.items():
+                if isinstance(value, str) and "\x00" in value:
+                    raise ValueError(f"'{name}' must not contain NUL characters")
+        return data
+
     label: str | None = Field(default=None, max_length=64, description="Default: EV-NNN")
     kind: str = Field(description="disk_image|memory|evtx|pcap|triage_bundle|log|file|cloud_export")
     original_name: str = Field(min_length=1, max_length=1024)

@@ -93,6 +93,7 @@ printf '%s  %s\n' "$IMAGE_SHA" "$(basename -- "$IMAGE")" > "$IMAGE.sha256"
   printf ' "operator": %s,\n "case_ref": %s,\n' \
     "$(json "${OPERATOR:-${SUDO_USER:-$(id -un)}}")" "$(json "$CASE_REF")"
   printf ' "started_at": %s,\n "finished_at": %s,\n' "$(json "$STARTED")" "$(json "$FINISHED")"
+  printf ' "complete": %s,\n' "$([[ $RC == 0 ]] && echo true || echo false)"
   printf ' "image": {"file": %s, "size": %s, "sha256": %s, "compressed": %s}\n}\n' \
     "$(json "$(basename -- "$IMAGE")")" "$IMAGE_SIZE" "$(json "$IMAGE_SHA")" \
     "$([[ $COMPRESS == 1 ]] && echo true || echo false)"
@@ -100,4 +101,5 @@ printf '%s  %s\n' "$IMAGE_SHA" "$(basename -- "$IMAGE")" > "$IMAGE.sha256"
 
 echo "image:   $IMAGE"
 echo "sha256:  $IMAGE_SHA"
+(( RC == 0 )) || die 5 "AVML exited with code $RC: the image may be partial (kept, marked \"complete\": false)"
 echo 'Upload it as evidence kind "memory" with expected_sha256 set to the hash above.'

@@ -161,6 +161,22 @@ def test_api_flow_against_real_vault_and_overwrite_detection(
     assert report["object"]["actual"]["sha256"] == hashlib.sha256(data).hexdigest()
 
 
+def test_delete_marker_does_not_hide_the_intact_original(
+    h: Harness, minio_client: Minio, vault: MinioVault
+) -> None:
+    lead = h.make_user(UserRole.lead)
+    case = h.create_case(lead)
+    data = os.urandom(MIB + 7)
+    ev = h.create_evidence(lead, case["id"], kind="memory", original_name="host2.mem")
+    assert h.upload(lead, ev["id"], data).status_code == 200
+    assert h.post(f"/evidence/{ev['id']}/finalize", lead).json()["ok"] is True
+    # A plain DELETE under Object Lock only adds a delete marker on top of the locked version.
+    minio_client.remove_object(vault.bucket, h.key_of(ev))
+    report = h.post(f"/evidence/{ev['id']}/verify", lead).json()
+    assert {p["code"] for p in report["object"]["problems"]} == {"delete_marker_at_key"}
+    assert report["object"]["actual"]["sha256"] == hashlib.sha256(data).hexdigest()
+
+
 def test_artifact_store_roundtrip(minio_client: Minio) -> None:
     """Phase 8: report artifacts in a plain bucket; missing and oversized objects are errors."""
     from app.repositories.artifacts import ArtifactMissingError, MinioArtifactStore

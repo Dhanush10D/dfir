@@ -522,8 +522,8 @@ class EvidenceService:
             )
         vault = self._vault()
         try:
-            latest = vault.stat(key)
-            check.version_latest = latest.version_id
+            # The pinned version first: a delete marker on the key (a plain DELETE under Object
+            # Lock) hides the latest version but not the locked original.
             digests = self._hash_stored(key, ev.storage_version_id)
         except VaultObjectMissingError:
             check.fail("object_missing", "The original object is missing from the vault.")
@@ -539,6 +539,16 @@ class EvidenceService:
             )
         if digests.md5 != ev.md5 or digests.size != ev.size_bytes:
             check.fail("md5_or_size_mismatch", "Stored bytes do not match the recorded MD5/size.")
+        try:
+            latest = vault.stat(key)
+        except VaultObjectMissingError:
+            check.fail(
+                "delete_marker_at_key",
+                "The original version is intact, but the key's latest version is a delete marker "
+                "(someone deleted the object; Object Lock kept the original).",
+            )
+            return check
+        check.version_latest = latest.version_id
         if ev.storage_version_id and latest.version_id != ev.storage_version_id:
             latest_digests = self._hash_stored(key, latest.version_id)
             check.latest_sha256 = latest_digests.sha256

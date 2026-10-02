@@ -6,14 +6,14 @@
       "version": "1.0.0",
       "file": "collector/collect_linux.py",
       "eol": "lf",
-      "sha256": "c80ef4d440c1c86dbfeaf3fabd10b8962bf147496d2933ee53873c2a42a7802a"
+      "sha256": "f91fcd2bd640a64ae1977bd0780ba2066761b5c02f782413da4d485089a66b03"
     },
     {
       "name": "dfirbench-collect-linux",
       "version": "1.0.0",
       "file": "collector/collect_linux.py",
       "eol": "crlf",
-      "sha256": "bd3ba102fb10847111f6e8f278e5854512ff3b98764806dd43998bd9b9dddd76"
+      "sha256": "01fc5bd8498b1b91432b8a244db73b49897cb456632e6fc901d460540071003c"
     },
     {
       "name": "dfirbench-collect-windows",
