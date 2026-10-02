@@ -19,6 +19,8 @@ export function App() {
   const route = matchRoute(path)
 
   useEffect(() => {
+    // Keep protected URLs shareable without rendering their contents before authentication
+    // finishes restoring, and send an already-authenticated user away from the login screen.
     if (status === 'anonymous' && route.name !== 'login') navigate('/login', { replace: true })
     if (status === 'authenticated' && route.name === 'login') navigate('/cases', { replace: true })
   }, [status, route.name])

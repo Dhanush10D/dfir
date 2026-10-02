@@ -146,6 +146,8 @@ def parse_manifest(data: bytes) -> tuple[TriageManifest, str]:
     """Validated manifest and the SHA-256 of its bytes; ``ManifestError`` otherwise."""
     if len(data) > MAX_MANIFEST_BYTES:
         raise ManifestError("manifest.json is too large")
+    # Hash the original bytes before decoding or sanitizing so custody records identify exactly
+    # what the collector submitted, including any accepted UTF-8 BOM.
     digest = hashlib.sha256(data).hexdigest()
     try:
         text = data.decode("utf-8-sig")  # PowerShell 5.1 may write a BOM

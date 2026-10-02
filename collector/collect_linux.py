@@ -564,6 +564,8 @@ class Collector:
             self.write_manifest()
         finally:
             self.zip.close()
+        # Publish only after the archive is complete so interrupted collection leaves a partial
+        # artifact instead of a file that could be mistaken for finalized evidence.
         os.rename(self.partial_path, self.zip_path)
         digest = file_sha256(self.zip_path)
         with open(self.zip_path + ".sha256", "x") as fh:

@@ -110,6 +110,8 @@ def current_principal(
         principal = iam.principal_from_access_token(bearer.credentials)
     elif api_key:
         principal = iam.principal_from_api_key(api_key)
+        # API-key scope is enforced here before the request reaches a service; bearer-token
+        # principals continue through the route and service-level permission checks.
         if "write" not in principal.scopes and request.method not in SAFE_METHODS:
             raise ForbiddenError("This API key is read-only.", scope_required="write")
     else:

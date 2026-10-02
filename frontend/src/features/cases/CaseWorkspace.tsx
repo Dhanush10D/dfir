@@ -43,6 +43,7 @@ export function CaseWorkspace({ id, tab }: { id: string; tab: string }) {
   )
   if (detail.isPending) return <Loading />
   if (detail.error || !ctx) return <ErrorMessage error={detail.error ?? new Error('Case unavailable')} />
+  // Unknown tab values fall back to Overview so a stale or hand-edited URL remains usable.
   const active = TABS.find((t) => t.id === tab) ?? TABS[0]
   const Active = active!.component
   const c = ctx.detail
