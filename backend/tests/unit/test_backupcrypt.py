@@ -24,9 +24,10 @@ CHUNK = 64
 
 def _enc(data: bytes, passphrase: str = PASS) -> bytes:
     out = io.BytesIO()
-    assert encrypt_stream(io.BytesIO(data), out, passphrase, chunk=CHUNK) == hashlib.sha256(
-        data
-    ).hexdigest()
+    assert (
+        encrypt_stream(io.BytesIO(data), out, passphrase, chunk=CHUNK)
+        == hashlib.sha256(data).hexdigest()
+    )
     return out.getvalue()
 
 

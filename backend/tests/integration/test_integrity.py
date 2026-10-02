@@ -141,7 +141,7 @@ def test_manifest_round_trip_and_tail_truncation(
     with world["owner"].begin() as conn:  # earlier tests in this module tampered on purpose
         conn.execute(text("SET LOCAL session_replication_role = replica"))
         for table in ("custody_log", "events", "jobs", "bundle_members", "evidence", "cases"):
-            conn.execute(text(f"DELETE FROM {table}"))  # noqa: S608 - fixed names, owner, test DB
+            conn.execute(text(f"DELETE FROM {table}"))  # fixed names, owner, test DB
     user = h.make_user(UserRole.analyst)
     ev = _evidence(h, user)
     with h.sessions() as session:

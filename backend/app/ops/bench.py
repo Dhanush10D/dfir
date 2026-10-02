@@ -85,7 +85,7 @@ def _line(i: int, rnd: random.Random) -> str:
 
 
 def write_auth_log(path: Path, lines: int, seed: int = 10) -> int:
-    rnd = random.Random(seed)  # noqa: S311 - synthetic test data, not security
+    rnd = random.Random(seed)  # noqa: S311  # nosec B311 - synthetic test data, not security
     with path.open("w", encoding="ascii", newline="\n") as fh:
         for i in range(lines):
             fh.write(_line(i, rnd))

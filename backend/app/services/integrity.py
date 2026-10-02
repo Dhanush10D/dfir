@@ -132,7 +132,7 @@ def collect_state(session: Session) -> dict[str, Any]:
     """The state a manifest records (sorted, JSON-safe, no evidence content)."""
     revision = session.execute(text("SELECT version_num FROM alembic_version")).scalar()
     counts = {
-        table: int(session.execute(text(f"SELECT count(*) FROM {table}")).scalar_one())  # noqa: S608 - fixed table names
+        table: int(session.execute(text(f"SELECT count(*) FROM {table}")).scalar_one())  # noqa: S608  # nosec B608 - fixed table names
         for table in COUNTED_TABLES
     }
     heads: dict[str, dict[str, Any]] = {}

@@ -67,9 +67,11 @@ def test_middleware_labels_use_route_templates_not_ids() -> None:
     client.get("/api/v1/cases/very-secret-id-123")
     client.get("/api/v1/nope/also-secret")
     client.get("/elsewhere")
+    client.request("BREWSECRET", "/api/v1/cases/x")  # arbitrary method tokens are folded
     text = render([HTTP_REQUESTS.family(), HTTP_LATENCY.family()])
     assert 'route="/api/v1/cases/{case_id}",status="2xx"' in text
     assert 'route="unmatched",status="4xx"' in text
+    assert 'method="OTHER"' in text and "BREW" not in text
     assert "secret" not in text and "elsewhere" not in text
     for line in text.splitlines():
         assert line.startswith("#") or SAMPLE.match(line), line

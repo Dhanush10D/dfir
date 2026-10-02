@@ -117,6 +117,7 @@ class Histogram:
         return fam
 
 
+HTTP_METHODS = frozenset({"GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"})
 HTTP_REQUESTS = Counter(
     "dfir_http_requests_total",
     "API requests by method, route template and status class",
@@ -157,6 +158,8 @@ class MetricsMiddleware:
         finally:
             route = scope.get("route")
             template = getattr(route, "path", None) or "unmatched"
-            method = str(scope.get("method", "?"))
+            method = str(scope.get("method", "?")).upper()
+            if method not in HTTP_METHODS:  # arbitrary tokens would grow the label set
+                method = "OTHER"
             HTTP_REQUESTS.inc((method, template, f"{status[0] // 100}xx"))
             HTTP_LATENCY.observe((method, template), time.perf_counter() - started)
