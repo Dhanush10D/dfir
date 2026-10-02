@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 
 import { api, saveBlob } from '@/api/endpoints'
 import type { AiResult, ReportDetail, ReportFinding, ReportKind, ReportVerify } from '@/api/types'
@@ -118,7 +118,7 @@ function VerifyResultView({ result }: { result: ReportVerify }) {
   )
 }
 
-function SectionAiDraft({ report, section }: { report: ReportDetail; section: string }) {
+function SectionAiDraft({ report, section, dirty }: { report: ReportDetail; section: string; dirty: boolean }) {
   const client = useQueryClient()
   const [result, setResult] = useState<AiResult | null>(null)
   const draft = useMutation({ mutationFn: () => api.aiDraftSection(report.id, section), onSuccess: setResult })
@@ -142,7 +142,12 @@ function SectionAiDraft({ report, section }: { report: ReportDetail; section: st
             The draft enters the report only after someone accepts it above; it is then labelled as AI-drafted with
             the approver&apos;s name.
           </p>
-          <Button variant="primary" onClick={() => apply.mutate(result.interaction.id)} disabled={apply.isPending}>
+          <Button
+            variant="primary"
+            onClick={() => apply.mutate(result.interaction.id)}
+            disabled={apply.isPending || dirty}
+            title={dirty ? 'Save your edits first: applying reloads the report' : undefined}
+          >
             Apply accepted draft to this section
           </Button>
         </>
@@ -234,7 +239,7 @@ function FindingEditor({
 
 type EditableFinding = ReportFinding & { refsText: string }
 
-function Editor({ report }: { report: ReportDetail }) {
+function Editor({ report, onDirtyChange }: { report: ReportDetail; onDirtyChange: (dirty: boolean) => void }) {
   const { can } = useCase()
   const client = useQueryClient()
   const editable = report.status === 'draft' && can('investigate')
@@ -246,6 +251,12 @@ function Editor({ report }: { report: ReportDetail }) {
     report.findings.map((f) => ({ ...f, refsText: refsToText(f.refs) })),
   )
   const [formError, setFormError] = useState<string | null>(null)
+  const dirty =
+    title !== report.title ||
+    report.section_defs.some((s) => (sections[s.name] ?? '') !== (report.sections[s.name]?.text ?? '')) ||
+    JSON.stringify(findings) !==
+      JSON.stringify(report.findings.map((f) => ({ ...f, refsText: refsToText(f.refs) })))
+  useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
   const save = useMutation({
     mutationFn: () => {
       const out: ReportFinding[] = []
@@ -297,7 +308,9 @@ function Editor({ report }: { report: ReportDetail }) {
                 onChange={(e) => setSections((s) => ({ ...s, [sd.name]: e.target.value }))}
               />
             </label>
-            {editable && sd.ai_draft && can('ai:use') && <SectionAiDraft report={report} section={sd.name} />}
+            {editable && sd.ai_draft && can('ai:use') && (
+              <SectionAiDraft report={report} section={sd.name} dirty={dirty} />
+            )}
           </div>
         )
       })}
@@ -348,6 +361,7 @@ function ReportView({ id, onOpen }: { id: string; onOpen: (id: string) => void }
   const [preview, setPreview] = useState(false)
   const [verify, setVerify] = useState<ReportVerify | null>(null)
   const [reason, setReason] = useState('')
+  const [dirty, setDirty] = useState(false)
   const done = (r: ReportDetail) => {
     client.setQueryData(['report', r.id], r)
     void client.invalidateQueries({ queryKey: ['reports', caseId] })
@@ -393,7 +407,12 @@ function ReportView({ id, onOpen }: { id: string; onOpen: (id: string) => void }
         {r.status === 'draft' && can('investigate') && (
           <>
             <Button onClick={() => action.mutate('qa')}>Run QA</Button>
-            <Button variant="primary" onClick={() => submit.mutate(r.revision)}>
+            <Button
+              variant="primary"
+              onClick={() => submit.mutate(r.revision)}
+              disabled={dirty}
+              title={dirty ? 'Save your edits first' : undefined}
+            >
               Submit for review
             </Button>
           </>
@@ -419,7 +438,8 @@ function ReportView({ id, onOpen }: { id: string; onOpen: (id: string) => void }
           </Button>
         ))}
       </div>
-      {(r.status === 'in_review' || r.status === 'approved') && (can('approve') || r.submitted_by === userId) && (
+      {((r.status === 'in_review' && (can('approve') || r.submitted_by === userId)) ||
+        (r.status === 'approved' && can('approve'))) && (
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-sm">
             <span className="block font-medium">Reason to return to draft</span>
@@ -455,7 +475,12 @@ function ReportView({ id, onOpen }: { id: string; onOpen: (id: string) => void }
       )}
       {verify && <VerifyResultView result={verify} />}
       {preview && <Preview id={r.id} revision={r.revision} status={r.status} />}
-      <Editor key={`${r.id}-${r.revision}-${r.status}`} report={r} />
+      {dirty && r.status === 'draft' && (
+        <p role="status" className="text-xs text-amber-800">
+          Unsaved edits: save them before submitting or applying an AI draft.
+        </p>
+      )}
+      <Editor key={`${r.id}-${r.revision}-${r.status}`} report={r} onDirtyChange={setDirty} />
     </div>
   )
 }

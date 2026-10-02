@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useEffect, useRef, useState, type FormEvent } from 'react'
 
 import { api, saveBlob } from '@/api/endpoints'
 import type { Evidence, VerifyResult } from '@/api/types'
@@ -95,6 +95,17 @@ export function EvidenceTab() {
     refetchInterval: (q) =>
       q.state.data?.items.some((j) => j.status === 'queued' || j.status === 'running') ? 3000 : false,
   })
+  // Jobs create evidence too (a bundle ingest adds its members): refresh the list while jobs
+  // run and once more when they finish, plus the overview counts.
+  const active = jobs.data?.items.some((j) => j.status === 'queued' || j.status === 'running') ?? false
+  const wasActive = useRef(false)
+  useEffect(() => {
+    if (active || wasActive.current) {
+      void client.invalidateQueries({ queryKey: ['evidence', caseId] })
+      if (!active) void client.invalidateQueries({ queryKey: ['summary', caseId] })
+    }
+    wasActive.current = active
+  }, [jobs.dataUpdatedAt, active, caseId, client])
   const [custody, setCustody] = useState<Evidence | null>(null)
   const [verified, setVerified] = useState<Record<string, VerifyResult>>({})
   const verify = useMutation({

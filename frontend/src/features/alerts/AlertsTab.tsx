@@ -5,10 +5,12 @@ import { api } from '@/api/endpoints'
 import type { Alert, EventRow } from '@/api/types'
 import { Button, ErrorMessage, inputClass, Loading, Panel, SeverityChip } from '@/components/ui'
 import { AlertAiPanel } from '@/features/ai/AlertAiPanel'
+import { caseHref, navigate } from '@/app/router'
 import { useCase } from '@/features/cases/CaseContext'
 import { EventDrawer } from '@/features/explorer/EventDrawer'
 import { EventTable } from '@/features/explorer/EventTable'
 import { formatUtc } from '@/lib/format'
+import { addFilter } from '@/lib/searchLanguage'
 
 /** Mirror of the server lifecycle (services/alerts.py); the server validates every change. */
 const TRANSITIONS: Record<string, string[]> = {
@@ -64,7 +66,7 @@ function StatusControl({ alert }: { alert: Alert }) {
 }
 
 function AlertDetailPane({ alertId }: { alertId: string }) {
-  const { can } = useCase()
+  const { can, caseId } = useCase()
   const detail = useQuery({ queryKey: ['alert', alertId], queryFn: ({ signal }) => api.alert(alertId, signal) })
   const events = useQuery({
     queryKey: ['alert-events', alertId],
@@ -106,7 +108,16 @@ function AlertDetailPane({ alertId }: { alertId: string }) {
         <h4 className="text-sm font-medium">Linked events</h4>
         {events.isPending ? <Loading /> : <EventTable events={linked} onOpen={setOpen} caption="Linked events" />}
       </section>
-      {open && <EventDrawer event={open} onClose={() => setOpen(null)} onPivot={() => setOpen(null)} />}
+      {open && (
+        <EventDrawer
+          event={open}
+          onClose={() => setOpen(null)}
+          onPivot={(field, value) => {
+            setOpen(null)
+            navigate(caseHref(caseId, 'timeline', { q: addFilter('', field, value) }))
+          }}
+        />
+      )}
     </div>
   )
 }

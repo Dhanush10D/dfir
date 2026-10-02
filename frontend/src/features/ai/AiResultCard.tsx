@@ -281,12 +281,17 @@ function Review({ it }: { it: AiInteraction }) {
     mutationFn: (decision: 'accept' | 'reject') => api.aiReview(it.id, decision, ack, note),
     onSuccess: (d) => {
       setCurrent(d)
+      // The history detail is cached per id: update it too, or reopening shows Accept/Reject again.
+      client.setQueryData(['ai-interaction', it.id], d)
       void client.invalidateQueries({ queryKey: ['ai-interactions'] })
     },
   })
   const feedback = useMutation({
     mutationFn: (v: -1 | 1) => api.aiFeedback(it.id, v),
-    onSuccess: (d) => setCurrent(d),
+    onSuccess: (d) => {
+      setCurrent(d)
+      client.setQueryData(['ai-interaction', it.id], d)
+    },
   })
   const blocking = current.warnings.some((w) => BLOCKING.has(w.type))
   if (current.accepted !== null)
@@ -370,7 +375,7 @@ export function AiResultCard({ view }: { view: AiView }) {
           </ul>
         </div>
       )}
-      <Review key={it.id} it={it} />
+      <Review key={`${it.id}-${String(it.accepted)}`} it={it} />
       <Button variant="ghost" aria-expanded={showPrompt} onClick={() => setShowPrompt((s) => !s)}>
         {showPrompt ? 'Hide what was sent' : 'Show what was sent to the model'}
       </Button>

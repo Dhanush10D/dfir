@@ -49,7 +49,7 @@ function isErrorEnvelope(value: unknown): value is ErrorEnvelope {
 }
 
 let accessToken: string | null = null
-let refreshing: Promise<boolean> | null = null
+let refreshing: Promise<RefreshOutcome> | null = null
 let authLost: (() => void) | null = null
 
 export function setAccessToken(token: string | null): void {
@@ -64,28 +64,29 @@ export function setAuthLostHandler(handler: (() => void) | null): void {
   authLost = handler
 }
 
-async function doRefresh(): Promise<boolean> {
+/** ``lost``: the server refused the refresh cookie. ``unavailable``: network error, 429 or 5xx;
+ * the session may still be valid, so the user is not logged out. */
+export type RefreshOutcome = 'ok' | 'lost' | 'unavailable'
+
+async function doRefresh(): Promise<RefreshOutcome> {
+  let res: Response
   try {
-    const res = await fetch(`${API_BASE}/auth/refresh`, {
+    res = await fetch(`${API_BASE}/auth/refresh`, {
       method: 'POST',
       headers: { Accept: 'application/json', ...TOKEN_DELIVERY },
       credentials: 'same-origin',
     })
-    if (!res.ok) {
-      accessToken = null
-      return false
-    }
-    const body = (await res.json()) as { access_token?: unknown }
-    if (typeof body.access_token !== 'string') {
-      accessToken = null
-      return false
-    }
-    accessToken = body.access_token
-    return true
   } catch {
-    accessToken = null
-    return false
+    return 'unavailable'
   }
+  if (res.status === 429 || res.status >= 500) return 'unavailable'
+  const body = (await res.json().catch(() => null)) as { access_token?: unknown } | null
+  if (!res.ok || typeof body?.access_token !== 'string') {
+    accessToken = null
+    return 'lost'
+  }
+  accessToken = body.access_token
+  return 'ok'
 }
 
 /**
@@ -93,7 +94,11 @@ async function doRefresh(): Promise<boolean> {
  * (a second refresh with the already-rotated cookie would look like token theft to the server);
  * across tabs the Web Locks API serialises refreshes where available.
  */
-export function refreshAccess(): Promise<boolean> {
+export async function refreshAccess(): Promise<boolean> {
+  return (await refreshOutcome()) === 'ok'
+}
+
+export function refreshOutcome(): Promise<RefreshOutcome> {
   if (!refreshing) {
     const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined
     const run = locks ? locks.request('dfirbench-refresh', () => doRefresh()) : doRefresh()
@@ -149,8 +154,19 @@ export async function apiFetch(
 ): Promise<Response> {
   let res = await send(method, path, opts)
   if (res.status === 401 && !path.startsWith('/auth/')) {
-    const refreshed = await refreshAccess()
-    if (!refreshed) {
+    const outcome = await refreshOutcome()
+    if (outcome === 'unavailable') {
+      return new Response(
+        JSON.stringify({
+          error: {
+            code: 'session_refresh_unavailable',
+            message: 'The session could not be refreshed right now (network or server busy). Try again.',
+          },
+        }),
+        { status: 503, headers: { 'Content-Type': 'application/json' } },
+      )
+    }
+    if (outcome === 'lost') {
       authLost?.()
       return res
     }

@@ -23,7 +23,9 @@ export function Histogram({
       <div className="flex h-24 items-end gap-px" role="group" aria-label={`Histogram, ${data.total} events`}>
         {data.buckets.map((b) => {
           const start = new Date(b.ts)
-          const end = new Date(start.getTime() + step - 1000)
+          // The API's `to` is inclusive at microsecond precision: end on the bucket's last
+          // microsecond, or events after the last whole second would drop out of the zoom.
+          const end = new Date(start.getTime() + step - 1).toISOString().replace('Z', '999Z')
           const label = `${formatUtc(b.ts)}: ${b.count} events`
           return (
             <button
@@ -31,7 +33,7 @@ export function Histogram({
               type="button"
               title={label}
               aria-label={`${label}. Zoom in`}
-              onClick={() => onZoom(start.toISOString(), end.toISOString())}
+              onClick={() => onZoom(start.toISOString(), end)}
               className="min-w-0.5 flex-1 bg-sky-600 hover:bg-sky-800 focus-visible:ring-2 focus-visible:ring-sky-500 disabled:bg-slate-200"
               style={{ height: `${Math.max((b.count / max) * 100, b.count ? 4 : 1)}%` }}
               disabled={b.count === 0}

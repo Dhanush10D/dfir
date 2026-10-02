@@ -10,7 +10,7 @@ import { formatUtc } from '@/lib/format'
 
 import { EntityGraph } from './EntityGraph'
 
-const TYPES = ['', 'host', 'user', 'ip', 'process', 'hash']
+const TYPES = ['', 'host', 'user', 'ip', 'process', 'hash', 'domain', 'file'] // backend ENTITY_TYPES
 
 function EntityDetailPane({ id, onSelect }: { id: string; onSelect: (id: string) => void }) {
   const { caseId } = useCase()
