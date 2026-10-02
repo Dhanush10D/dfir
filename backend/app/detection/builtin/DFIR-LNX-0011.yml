@@ -4,7 +4,7 @@ status: stable
 level: high
 attack: [T1098]
 description: An account was added to sudo, wheel, admin, root, adm, docker or lxd.
-logsource: { source_type: [auth_log, syslog] }
+logsource: { source_type: [auth_log, syslog, journal] }
 detection:
   added: { event_code: group_member_added }
   privileged: { raw.auth.group: [sudo, wheel, admin, root, adm, docker, lxd] }

@@ -6,6 +6,7 @@ attack: [T1070]
 description: >-
   A gap of at least 12 hours that is also 50x the source's median gap between records (logging
   stopped or records removed).
+logsource: { source_type: [evtx, auth_log, syslog, journal] }
 detection:
   detector: time_gap
   params: { min_gap: 12h, factor: 50, min_events: 10 }

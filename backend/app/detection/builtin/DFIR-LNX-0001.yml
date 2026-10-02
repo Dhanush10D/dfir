@@ -4,7 +4,7 @@ status: stable
 level: medium
 attack: [T1110]
 description: At least 10 failed SSH authentications from one source IP within 5 minutes.
-logsource: { source_type: [auth_log, syslog] }
+logsource: { source_type: [auth_log, syslog, journal] }
 detection:
   selection: { event_code: [ssh_failed, ssh_max_auth] }
   group_by: [src_ip]

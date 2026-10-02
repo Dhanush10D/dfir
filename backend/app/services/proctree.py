@@ -12,7 +12,7 @@ import uuid
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import and_, func, literal, select
+from sqlalchemy import and_, false, func, literal, select
 from sqlalchemy.orm import Session
 
 from app.analysis.proctree import MAX_DEPTH, MAX_NODES, ProcessTree, ProcEvent, build_tree
@@ -65,7 +65,10 @@ class ProcessTreeService:
         for value in (start, end):
             if value is not None and value.utcoffset() is None:
                 raise AppError("invalid_filter", "Time bounds need a timezone.", 422)
-        created = and_(Event.event_category == "process", Event.action == "create")
+        # coalesce: NULL category/action rows must not sort ahead of creates (DESC is NULLS FIRST).
+        created = func.coalesce(
+            and_(Event.event_category == "process", Event.action == "create"), false()
+        )
         conds: list[Any] = [
             Event.case_id == case_id,
             func.lower(Event.host) == func.lower(literal(host)),

@@ -577,6 +577,8 @@ class DetectionService:
                     Event.ts,
                     Event.host,
                     Event.source_type,
+                    Event.event_category,
+                    Event.action,
                     source_file.label("source_file"),
                     recno,
                     *self._raw_columns({"raw.system.channel", "raw.system.provider"}),

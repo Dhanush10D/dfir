@@ -4,7 +4,7 @@ status: stable
 level: medium
 attack: [T1136.001]
 description: useradd/adduser created an account.
-logsource: { source_type: [auth_log, syslog] }
+logsource: { source_type: [auth_log, syslog, journal] }
 detection:
   selection: { event_code: user_created }
   condition: selection

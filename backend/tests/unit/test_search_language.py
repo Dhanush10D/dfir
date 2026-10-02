@@ -210,3 +210,8 @@ def test_statement_timeout_maps_to_422() -> None:
         svc._execute("x")
     assert info.value.code == "query_timeout" and info.value.status_code == 422
     assert session.rolled_back
+
+
+def test_bare_hash_pivot_matches_sysmon_prefixed_values() -> None:
+    _, params = sql('file_hash:"' + "ab" * 32 + '"')
+    assert "sha256:" + "ab" * 32 in str(params) and "ab" * 32 in str(params)

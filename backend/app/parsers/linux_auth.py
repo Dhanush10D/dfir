@@ -308,6 +308,9 @@ def _pid(value: str | None) -> int | None:
     return number if number is not None and number <= 2**31 - 1 else None
 
 
+REPEATED_RE = re.compile(r"message repeated (?P<count>[0-9]{1,9}) times: \[ ?(?P<inner>.*?) ?\]\Z")
+
+
 def classify(program: str | None, message: str) -> tuple[Rule, dict[str, str]] | None:
     for rule in RULES:
         if rule.programs is not None and (program is None or program not in rule.programs):
@@ -540,7 +543,13 @@ class LinuxAuthParser:
             pid=p.pid,
             raw=raw,
         )
-        found = classify(program, p.message)
+        message = p.message
+        repeated = REPEATED_RE.match(message)
+        if repeated:
+            # rsyslog $RepeatedMsgReduction: classify the wrapped message; keep the count.
+            message = repeated["inner"]
+            raw["repeated"] = decimal_int(repeated["count"], 9)
+        found = classify(program, message)
         if found is None:
             return event
         rule, g = found

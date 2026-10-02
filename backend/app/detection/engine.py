@@ -192,6 +192,12 @@ class _Run:
                 return bucket[0].t
         return 0.0
 
+    def prune(self, horizon: float) -> None:
+        """Drop entries older than ``horizon`` (buckets are in time order)."""
+        for bucket in self.events:
+            while bucket and bucket[0].t < horizon:
+                del bucket[0]
+
     def add(self, index: int, entry: _Entry, cap: int) -> None:
         bucket = self.events[index]
         bucket.append(entry)
@@ -390,8 +396,18 @@ class DetectionEngine:
                     del first[0]
                 if first:
                     kept.append(run)
-            elif entry.t - run.start <= spec.within_s:
-                kept.append(run)
+            else:
+                # Expire only the entries that left the window: newer step-0 events absorbed
+                # by this run must survive the oldest ones (A@0, A@8, B@12 within 10 fires).
+                run.prune(entry.t - spec.within_s)
+                for i in range(run.step):
+                    if len(run.events[i]) < spec.steps[i].min_count:
+                        run.step = i
+                        for later in run.events[i + 1 :]:
+                            later.clear()
+                        break
+                if run.events[0]:
+                    kept.append(run)
         runs[:] = kept
         last = len(spec.steps) - 1
         consumed = False

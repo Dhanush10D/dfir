@@ -150,7 +150,35 @@ def test_real_parser_output(golden: str) -> None:
     if golden.startswith("evtx"):
         assert ("host", "ie8win7") in res.entities
         machine = res.entities[("user", "workgroup\\win-qala5q3kj43$")]
-        assert ("sid", "S-1-5-18") in machine.aliases
+        # S-1-5-18 (SYSTEM) is well known: it stays its own node instead of merging hosts.
+        assert ("sid", "S-1-5-18") not in machine.aliases
+        assert ("user", "S-1-5-18") in res.entities
+        admins = res.entities[("user", "builtin\\administrators")]
+        assert ("sid", "S-1-5-32-544") in admins.aliases  # one group everywhere: still merged
     else:
         assert {"host", "user", "ip", "process"} <= types
         assert ("user", "deploy") in res.entities and ("process", "web01/sshd") in res.entities
+
+
+def test_well_known_sids_do_not_merge_machine_accounts_across_hosts() -> None:
+    # EVTX 4624/4688 put SubjectUserSid=S-1-5-18 next to SubjectUserName=<HOST>$ on every host.
+    events = [
+        {
+            "id": i,
+            "ts": T0,
+            "host": host,
+            "event_category": "process",
+            "raw.event_data.SubjectUserSid": "S-1-5-18",
+            "raw.event_data.SubjectUserName": f"{host}$",
+            "raw.event_data.SubjectDomainName": "CORP",
+        }
+        for i, host in enumerate(["ws01", "ws02", "dc01"])
+    ]
+    res = _resolve(events)
+    users = [e for e in res.entities.values() if e.type == "user"]
+    assert len(users) >= 3, [(u.canonical, u.aliases) for u in users]
+
+
+def test_sysmon_prefixed_hashes_normalize() -> None:
+    assert normalize_hash("sha256:" + "ab" * 32) == ("ab" * 32, "sha256")
+    assert normalize_hash("SHA256:" + "AB" * 32) == ("ab" * 32, "sha256")

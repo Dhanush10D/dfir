@@ -155,7 +155,7 @@ def _logsource(ls: Any, problems: list[str]) -> tuple[dict[str, Any], str]:
         problems.append(f"unsupported Windows logsource service={service!r} category={category!r}")
         return {}, "windows"
     if product == "linux" and service in ("auth", "sshd") and not category:
-        return {"source_type": ["auth_log", "syslog"]}, "linux"
+        return {"source_type": ["auth_log", "syslog", "journal"]}, "linux"
     problems.append(
         f"unsupported logsource product={product!r} service={service!r} category={category!r}"
     )

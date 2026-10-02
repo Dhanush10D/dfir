@@ -6,6 +6,7 @@ attack: [T1070.006]
 description: >-
   In record order, a source's timestamps step backwards by more than 10 minutes (clock change,
   tampering, or merged logs).
+logsource: { source_type: [evtx, auth_log, syslog, journal] }
 detection:
   detector: out_of_order
   params: { tolerance: 10m }

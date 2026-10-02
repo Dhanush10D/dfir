@@ -47,6 +47,9 @@ def like_pattern(value: str) -> str:
     return escaped.replace("*", "%")
 
 
+HASH_PREFIXES = ("md5", "sha1", "sha256", "sha512")
+
+
 def _value(term: Term) -> str:
     """The term's value; the parser guarantees one for every op except exists/range."""
     if term.value is None:
@@ -60,6 +63,10 @@ def _text(term: Term, column: Any) -> ColumnElement[bool]:
     value = _value(term)
     if term.op == "wildcard":
         return column.ilike(like_pattern(value), escape="\\")  # type: ignore[no-any-return]
+    if term.field == "file_hash" and ":" not in value:
+        # Sysmon stores "sha256:<hex>", other parsers bare hex: a bare-hex pivot matches both.
+        forms = [value.lower(), *(f"{algo}:{value.lower()}" for algo in HASH_PREFIXES)]
+        return func.lower(column).in_(forms)
     return func.lower(column) == func.lower(literal(value))
 
 

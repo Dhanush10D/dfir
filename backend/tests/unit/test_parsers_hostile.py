@@ -222,3 +222,13 @@ def test_textio_head_text_bounds() -> None:
     assert head_text(gzip.compress(b"x" * 100_000))[:5] == b"xxxxx"
     assert len(head_text(gzip.compress(b"x" * 100_000))) <= 8192
     assert head_text(b"\x1f\x8bgarbage") == b""
+
+
+def test_linux_auth_unwraps_rsyslog_repeated_messages(tmp_path: Path) -> None:
+    data = (
+        b"Jan  2 10:00:00 web01 sshd[100]: message repeated 5 times: "
+        b"[ Failed password for root from 203.0.113.9 port 5555 ssh2]\n"
+    )
+    (event,), _ = parse(tmp_path, "linux_auth", data, "auth.log")
+    assert event.event_code == "ssh_failed" and event.src_ip == "203.0.113.9"
+    assert event.raw["repeated"] == 5

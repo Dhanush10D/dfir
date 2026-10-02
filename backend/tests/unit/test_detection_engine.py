@@ -401,3 +401,62 @@ def test_parse_task_trigger_failure_is_not_fatal(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(parse_task, "after_parse", boom)
     parse_task._trigger_detection(RunResult(uuid.uuid4(), "succeeded"))  # logged, not raised
+
+
+# ---------------------------------------------------------------------------------- sequence expiry
+
+SEQ = """id: TEST-SEQ-0002
+title: s
+level: low
+detection:
+  sequence:
+    - {{name: a, match: {{event_code: a}}, min_count: {n}}}
+    - {{name: b, match: {{event_code: b}}}}
+  join_on: [host]
+  within: 10m
+"""
+
+
+def test_sequence_keeps_newer_step_events_when_the_oldest_expire() -> None:
+    r = load_rule(SEQ.format(n=1))
+    # A@0 starts the run; A@8 is absorbed into it; B@12 is within 10m of A@8 only.
+    assert fire(r, [ev(0, event_code="a"), ev(8, event_code="a"), ev(12, event_code="b")]).drafts
+    assert not fire(r, [ev(0, event_code="a"), ev(12, event_code="b")]).drafts
+
+
+def test_sequence_earlier_failures_do_not_hide_a_later_burst() -> None:
+    # LNX-0002 shape: 5 fails then a success within the window. Old fails at 0-4 must not
+    # swallow the fresh burst at 26-30 (success at 31).
+    r = load_rule(SEQ.format(n=5).replace("within: 10m", "within: 30m"))
+    old = [ev(m, event_code="a") for m in range(5)]
+    burst = [ev(26 + m, event_code="a") for m in range(5)]
+    assert fire(r, [*old, *burst, ev(31, event_code="b")]).drafts
+    # At 36 the old fails (0-4) are outside 30m and only 3 fresh ones remain: no alert.
+    assert not fire(r, [*old, *burst[2:], ev(36, event_code="b")]).drafts
+
+
+def test_linux_rules_fire_on_journal_events() -> None:
+    # journal_json emits the linux_auth event codes with source_type "journal" (systemd-only hosts).
+    from app.detection.coverage import builtin_rules
+
+    lnx = [r for r in builtin_rules() if r.id.startswith("DFIR-LNX-")]
+    engine = DetectionEngine(lnx)
+    engine.feed(ev(source_type="journal", event_code="ssh_accepted", user="root", src_ip="1.2.3.4"))
+    assert "DFIR-LNX-0003" in {d.rule.id for d in engine.drafts.values()}
+
+
+def test_anti_forensics_detectors_skip_shell_history() -> None:
+    # bash appends each session's history at exit, so overlapping sessions step backwards in time.
+    from app.detection.coverage import builtin_rules
+    from app.detection.detectors import SourceInfo
+
+    af = [r for r in builtin_rules() if r.id == "DFIR-AF-0001"]
+
+    def run(source_type: str) -> set[str]:
+        engine = DetectionEngine(af)
+        rows = [ev(m, source_type=source_type, recno=i) for i, m in enumerate([0, 60, 30, 90])]
+        engine.feed_source(SourceInfo("e1", "f"), rows)
+        return {d.rule.id for d in engine.drafts.values()}
+
+    assert run("shell_history") == set()
+    assert run("auth_log") == {"DFIR-AF-0001"}

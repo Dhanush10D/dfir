@@ -4,7 +4,7 @@ status: stable
 level: high
 attack: [T1078]
 description: SSH accepted a login for root.
-logsource: { source_type: [auth_log, syslog] }
+logsource: { source_type: [auth_log, syslog, journal] }
 detection:
   selection: { event_code: ssh_accepted, user: root }
   condition: selection

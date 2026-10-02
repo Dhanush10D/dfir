@@ -108,6 +108,16 @@ def normalize_sid(value: Any) -> str | None:
     return None if sid.lower() in USER_PLACEHOLDERS else sid.upper()
 
 
+def well_known_sid(sid: str) -> bool:
+    """SIDs that are not one account's own (SYSTEM, LOCAL SERVICE, BUILTIN groups, Everyone...).
+
+    Only domain/local account SIDs (S-1-5-21-...) and Entra ID SIDs (S-1-12-1-...) identify one
+    account. EVTX names S-1-5-18 after the machine account (``HOST$``) on every host, so a
+    well-known SID next to a ``$`` name must not merge those hosts' accounts.
+    """
+    return not sid.startswith(("S-1-5-21-", "S-1-12-1-"))
+
+
 def normalize_user(value: Any, domain: Any = None) -> tuple[str, list[tuple[str, str]]] | None:
     """-> (canonical, aliases) or None. ``domain`` is used when ``value`` has none."""
     text = _clean(value)
@@ -141,6 +151,8 @@ def normalize_hash(value: Any) -> tuple[str, str] | None:
     if text is None:
         return None
     h = text.lower()
+    if ":" in h:  # Sysmon's "sha256:<hex>"; the length still decides the algorithm
+        h = h.rpartition(":")[2]
     algo = HASH_ALGOS.get(len(h))
     if algo is None or not HEX_RE.match(h) or set(h) == {"0"}:
         return None
@@ -287,7 +299,8 @@ class EntityAccumulator:
             key = self._node(("user", norm[0]), ts, norm[1])
         if sid_n is not None:
             sid_key = self._node(("sid", sid_n), ts, [("sid", sid_n)])
-            if key is not None and sid_key is not None:
+            machine = norm is not None and norm[0].endswith("$")
+            if key is not None and sid_key is not None and not (machine and well_known_sid(sid_n)):
                 self.uf.union(key, sid_key)  # strong evidence: stated together in one event
             key = key or sid_key
         return key
