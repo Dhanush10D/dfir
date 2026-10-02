@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """Encrypted, signed backup of the compose stack (Phase 10, guide 7.6, 21.6; docs/backup-restore.md).
 
-    BACKUP_PASSPHRASE=... backend/.venv/Scripts/python scripts/backup.py --out backups/2026-10-01
+    BACKUP_PASSPHRASE=... BACKUP_KEYS_PASSPHRASE=... \\
+        backend/.venv/Scripts/python scripts/backup.py --out backups/2026-10-01
 
 Runs on the Docker host with the backend venv (for ``app.ops.backupcrypt``). Steps:
 
@@ -12,13 +13,15 @@ Runs on the Docker host with the backend venv (for ``app.ops.backupcrypt``). Ste
 3. ``db.dump.enc``: ``pg_dump -Fc`` in the postgres container (no role passwords are dumped);
 4. ``objects.tar.enc``: the MinIO volume, copied with MinIO stopped and mounted read-only, so
    object versions, Object Lock retention and metadata are restored exactly;
-5. ``keys.tar.enc``: the custody key volume (the private signing key);
+5. ``keys.tar.enc``: the custody key volume (the private signing key), encrypted with its own
+   ``BACKUP_KEYS_PASSPHRASE`` (different from ``BACKUP_PASSPHRASE``): whoever restores the data
+   does not automatically hold the key that signs custody records and manifests;
 6. ``integrity-at-backup.json``: ``integrity-check`` on the live stack at that moment (findings a
    restore must reproduce exactly, e.g. evidence a tamper demo damaged on purpose);
 7. ``index.json``: names, sizes and SHA-256 of the encrypted files;
 8. start what was running before (also after an error).
 
-Encryption: AES-256-GCM STREAM with a scrypt key from BACKUP_PASSPHRASE (never printed). Original
+Encryption: AES-256-GCM STREAM with a scrypt key from the passphrase (never printed). Original
 evidence is only ever read (read-only volume mount); nothing in the live stack is modified.
 """
 
@@ -30,6 +33,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -37,7 +41,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from app.ops.backupcrypt import check_passphrase, encrypt_stream  # noqa: E402
+from app.ops.backupcrypt import (  # noqa: E402
+    check_keys_passphrase,
+    check_passphrase,
+    encrypt_stream,
+)
 
 WRITERS = ("web", "api", "worker")
 TAR_IMAGE = "dfirbench/api:dev"
@@ -86,11 +94,22 @@ def sha256_file(path: Path) -> str:
 def encrypt_from(cmd: list[str], target: Path, passphrase: str, env: dict[str, str]) -> str:
     """Run ``cmd`` and encrypt its stdout into ``target`` (never on disk in plain text)."""
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)  # noqa: S603
-    assert proc.stdout is not None and proc.stderr is not None
-    with target.open("xb") as out:
-        plain_sha = encrypt_stream(proc.stdout, out, passphrase)
-    err = proc.stderr.read().decode("utf-8", "replace")
-    if proc.wait() != 0:
+    if proc.stdout is None or proc.stderr is None:  # cannot happen with PIPE
+        raise RuntimeError("no pipes to the dump process")
+    # stderr is drained by its own thread: a process that writes a lot of it while stdout is
+    # being read would otherwise block on a full pipe and hang the backup.
+    errors: list[bytes] = []
+    stderr = proc.stderr
+    reader = threading.Thread(target=lambda: errors.append(stderr.read()), daemon=True)
+    reader.start()
+    try:
+        with target.open("xb") as out:
+            plain_sha = encrypt_stream(proc.stdout, out, passphrase)
+    finally:
+        returncode = proc.wait()
+        reader.join(timeout=30)
+    if returncode != 0:
+        err = b"".join(errors).decode("utf-8", "replace")
         raise RuntimeError(f"{cmd[:3]} failed: {err.strip()[-2000:]}")
     return plain_sha
 
@@ -105,7 +124,7 @@ def tar_volume_cmd(volume: str) -> list[str]:
     ]
 
 
-def backup(out: Path, compose: Compose, passphrase: str) -> dict[str, Any]:
+def backup(out: Path, compose: Compose, passphrase: str, keys_passphrase: str) -> dict[str, Any]:
     out.mkdir(parents=True, exist_ok=False)
     before = compose.running()
     stopped = sorted(before & set(WRITERS))
@@ -145,8 +164,8 @@ def backup(out: Path, compose: Compose, passphrase: str) -> dict[str, Any]:
                 compose.run("start", "minio")
         files["keys.tar.enc"] = {
             "plain_sha256": encrypt_from(
-                tar_volume_cmd(compose.volume("custodykeys")), out / "keys.tar.enc", passphrase,
-                compose.env,
+                tar_volume_cmd(compose.volume("custodykeys")), out / "keys.tar.enc",
+                keys_passphrase, compose.env,
             )
         }
     finally:
@@ -157,7 +176,7 @@ def backup(out: Path, compose: Compose, passphrase: str) -> dict[str, Any]:
         info["sha256"] = sha256_file(out / name)
     index = {
         "format": "dfirbench-backup",
-        "version": 1,
+        "version": 2,  # 2: keys.tar.enc has its own passphrase (BACKUP_KEYS_PASSPHRASE)
         "created_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "project": compose.project,
         "alembic_revision": document["manifest"]["alembic_revision"],
@@ -180,11 +199,15 @@ def main() -> int:
     args = parser.parse_args()
     try:
         passphrase = check_passphrase(os.environ.get("BACKUP_PASSPHRASE"))
+        keys_passphrase = check_keys_passphrase(
+            os.environ.get("BACKUP_KEYS_PASSPHRASE"), passphrase
+        )
     except ValueError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     try:
-        index = backup(args.out, Compose(args.project, args.compose_file), passphrase)
+        compose = Compose(args.project, args.compose_file)
+        index = backup(args.out, compose, passphrase, keys_passphrase)
     except Exception as exc:  # noqa: BLE001 - operator tool: one clear line
         print(f"backup failed: {type(exc).__name__}: {exc}", file=sys.stderr)
         return 1

@@ -12,6 +12,7 @@ import pytest
 from app.ops.backupcrypt import (
     HEADER,
     BackupCryptoError,
+    check_keys_passphrase,
     check_passphrase,
     decrypt_stream,
     encrypt_stream,
@@ -90,6 +91,24 @@ def test_passphrase_policy() -> None:
     with pytest.raises(ValueError):
         encrypt_stream(io.BytesIO(b"x"), io.BytesIO(), "too-short")
     assert check_passphrase(PASS) == PASS
+
+
+def test_keys_passphrase_is_separate() -> None:
+    other = "a different passphrase for the custody keys"
+    assert check_keys_passphrase(other, PASS) == other
+    with pytest.raises(ValueError, match="must differ"):
+        check_keys_passphrase(PASS, PASS)
+    with pytest.raises(ValueError, match="BACKUP_KEYS_PASSPHRASE"):
+        check_keys_passphrase("short", PASS)
+
+
+@pytest.mark.parametrize(("log2_n", "r", "p"), [(20, 8, 1), (18, 8, 1), (15, 16, 1), (15, 8, 4)])
+def test_costly_key_derivation_from_a_header_is_refused(log2_n: int, r: int, p: int) -> None:
+    # The header is untrusted input: N = 2**20 with r = 16 would ask scrypt for 2 GiB.
+    data = bytearray(_enc(b"payload"))
+    data[9], data[10], data[11] = log2_n, r, p
+    with pytest.raises(BackupCryptoError, match="unsupported key derivation"):
+        _dec(bytes(data))
 
 
 def test_cli_reads_the_passphrase_from_the_environment(

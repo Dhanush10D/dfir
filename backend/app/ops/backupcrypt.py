@@ -49,16 +49,30 @@ class BackupCryptoError(Exception):
     """The file is not a backup, the passphrase is wrong, or the data was modified."""
 
 
-def check_passphrase(value: str | None) -> str:
+def check_passphrase(value: str | None, name: str = "BACKUP_PASSPHRASE") -> str:
     if not value or len(value) < MIN_PASSPHRASE:
-        raise ValueError(f"BACKUP_PASSPHRASE must be at least {MIN_PASSPHRASE} characters")
+        raise ValueError(f"{name} must be at least {MIN_PASSPHRASE} characters")
     if value.strip().lower() in PLACEHOLDERS:
-        raise ValueError("BACKUP_PASSPHRASE is a placeholder")
+        raise ValueError(f"{name} is a placeholder")
     return value
 
 
+def check_keys_passphrase(value: str | None, data_passphrase: str) -> str:
+    """The custody key archive has its own passphrase: holding a backup and the data passphrase
+    must not be enough to sign custody records or manifests."""
+    keys = check_passphrase(value, "BACKUP_KEYS_PASSPHRASE")
+    if keys == data_passphrase:
+        raise ValueError("BACKUP_KEYS_PASSPHRASE must differ from BACKUP_PASSPHRASE")
+    return keys
+
+
+# scrypt memory is 128 * r * N bytes: the header comes from an untrusted file, so only costs up
+# to 128 MiB (N = 2**17, r = 8) are accepted; this module writes N = 2**15 (32 MiB).
+MAX_LOG2_N = 17
+
+
 def _key(passphrase: str, salt: bytes, log2_n: int, r: int, p: int) -> bytes:
-    if not 14 <= log2_n <= 20 or not 1 <= r <= 16 or not 1 <= p <= 4:
+    if not 14 <= log2_n <= MAX_LOG2_N or r != SCRYPT_R or not 1 <= p <= 2:
         raise BackupCryptoError("unsupported key derivation parameters")
     kdf = Scrypt(salt=salt, length=32, n=2**log2_n, r=r, p=p)
     return kdf.derive(passphrase.encode("utf-8"))
