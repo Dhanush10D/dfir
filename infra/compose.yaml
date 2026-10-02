@@ -272,6 +272,10 @@ services:
     networks:
       default:
         ipv4_address: ${WEB_IP:-172.30.240.10}
+    volumes:
+      # Trusted proxies in front of nginx (docker/real-ip.conf: none by default). Behind a TLS
+      # proxy, point WEB_REAL_IP_CONF at a copy that lists it (docs/hardening.md).
+      - ${WEB_REAL_IP_CONF:-./docker/real-ip.conf}:/etc/nginx/snippets/real-ip.conf:ro
     read_only: true
     tmpfs: ["/tmp"]
     security_opt: ["no-new-privileges:true"]
