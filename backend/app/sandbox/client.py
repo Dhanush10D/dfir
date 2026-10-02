@@ -128,7 +128,12 @@ def hold_slot(
             _wipe(out_root)
             name = f"job-{uuid.uuid4().hex}"
             dirs = SlotDirs(name, in_root / name, out_root / name)
-            dirs.in_dir.mkdir(mode=0o700)
+            # Group-readable: the sandbox child runs as another uid in this group (read-only
+            # mount there); the server and this worker share the owner uid.
+            with contextlib.suppress(OSError):
+                os.chmod(in_root, 0o750)  # noqa: S103  # nosec B103 - group read, no others
+            dirs.in_dir.mkdir(mode=0o750)
+            os.chmod(dirs.in_dir, 0o750)  # noqa: S103  # nosec B103 - umask independent
             try:
                 yield dirs
             finally:
@@ -143,7 +148,7 @@ def hold_slot(
 
 
 def _write_new(path: Path, data: bytes) -> None:
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o640)
     with os.fdopen(fd, "wb") as fh:
         fh.write(data)
 

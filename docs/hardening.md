@@ -12,8 +12,9 @@ database, the object store, Redis, the network or key material.
 |---|---|---|
 | No network | `network_mode: none` (only `lo`) | `phase10-smoke.py` (no DNS, no route) |
 | Read-only root | `read_only: true`, no tmpfs | smoke (write fails with EROFS) |
-| Evidence read-only | `spoolin` mounted `:ro` | smoke (write fails with EROFS) |
-| No privileges | `cap_drop: [ALL]`, `no-new-privileges`, default seccomp profile, `ipc: private`, user `10001:10001` | smoke (`CapEff` 0, `NoNewPrivs` 1, `Seccomp` 2, uid 10001) |
+| Evidence read-only | `spoolin` mounted `:ro` | smoke (mount flag `ST_RDONLY`) |
+| No privileges for parsers | `cap_drop: [ALL]`, `no-new-privileges`, default seccomp profile, `ipc: private`; every parser child runs as uid `10002` (group `10001`) with no capabilities | smoke, probe as `10002:10001` (`CapEff` 0, `NoNewPrivs` 1, `Seccomp` 2) |
+| uid split | the server starts as root with only `SETUID`, `SETGID`, `KILL`, `DAC_OVERRIDE` (`cap_add`), keeps euid 0 to start and kill children, and reads/writes files as `10001` (fsuid); it never parses evidence | smoke (server `Uid` `0 0 0 10001`, `CapPrm` exactly those four; the child cannot signal the server, list the output spool or write the work root) |
 | Resource limits | `pids_limit` 128, `mem_limit`/`memswap_limit` 2g, `cpus` 1.0 (`SANDBOX_*`) | smoke (`docker inspect`) |
 | Per job | child process with `RLIMIT_AS`, `RLIMIT_CPU`, `RLIMIT_FSIZE`, `RLIMIT_NOFILE`, no core dumps, wall-clock timeout, output and line caps, clean environment | `test_sandbox_server.py` |
 | No secrets | the container gets only `SANDBOX_*` variables and no key volume | smoke |
@@ -41,7 +42,13 @@ keeps a partial result; a crash, a kill (memory/CPU limit) or a protocol violati
 **Why one container and not one per job.** Starting containers from the worker needs the Docker
 socket, which is root on the host; no service gets it. Isolation between jobs is therefore by
 process, lock and sweep: only one job's evidence is ever in the spool, no process of a finished
-job survives, and the next job starts only after the previous one's spool is gone. Throughput is
+job survives, and the next job starts only after the previous one's spool is gone. The sweep can
+only be trusted because the parser runs as a different uid from the server: with one shared uid
+a compromised parser could `SIGSTOP` the server, survive its job, read the next job's evidence
+and answer that job itself (independent review, 2026-10-02). Now the child (uid `10002`) cannot
+signal the server (euid 0), cannot list or write the output spool (`0700`, owner `10001`) and
+can only traverse the work root (`0710`) to its own job's directory. Files the child may read
+(the job's input in `spoolin`) are group-readable by `10001`; nothing is readable by others. Throughput is
 one parse at a time per sandbox replica (a second parse job waits for the slot while keeping its
 lease alive).
 
@@ -78,7 +85,10 @@ Per client IP (the address uvicorn trusts from the web proxy), one-minute window
 `AUTH_RATE_LIMIT_PER_MINUTE` (30) for `/auth/login` and `/auth/mfa/verify` together,
 `AUTH_REFRESH_RATE_LIMIT_PER_MINUTE` (120) for `/auth/refresh`. Over the limit: 429
 `rate_limited` with `Retry-After`, audited as `auth.rate_limited`; Redis down: 503 (fail closed).
-The per-account lockout stays. `update_user` locks the acting admin, the target and every active
+The per-account lockout stays. Behind another proxy (for example a TLS terminator in front of
+`web`), that proxy must pass the real client address and nginx must trust it
+(`set_real_ip_from`); otherwise every client shares the proxy's address and one bucket, and a
+single client can lock everyone out of login for a minute. `update_user` locks the acting admin, the target and every active
 admin in id order before reading them, so concurrent admin changes cannot deadlock or remove the
 last active admin; `mfa_enroll` locks the user row.
 

@@ -218,7 +218,10 @@ services:
   # Parser sandbox (Phase 10, guide 10.7; docs/hardening.md). Every parse job runs here, one at a
   # time, as a child process with resource limits; evidence content never reaches a process that
   # has network, database, object-store or key access. No network at all, read-only root and
-  # evidence mount, no capabilities, non-root, seccomp default profile, pids/memory/CPU limits.
+  # evidence mount, seccomp default profile, pids/memory/CPU limits. The server starts as root
+  # with only SETUID/SETGID/KILL/DAC_OVERRIDE so that each parser child runs as its own uid
+  # (10002, no capabilities) and cannot signal the server or survive into a later job; the
+  # server never parses evidence and touches files as 10001.
   parser-sandbox:
     image: dfirbench/worker:dev
     build: *worker-build
@@ -229,13 +232,17 @@ services:
       SANDBOX_WORK_DIR: /var/lib/dfirbench/sandbox-work
       SANDBOX_CHILD_MEMORY_MB: ${SANDBOX_CHILD_MEMORY_MB:-1536}
       SANDBOX_MAX_RUN_S: ${PARSER_TIMEOUT_S:-3600}
+      SANDBOX_SERVER_UID: "10001"
+      SANDBOX_CHILD_UID: "10002"
+      SANDBOX_GID: "10001"
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
-    user: "10001:10001"
+    user: "0:0"
     network_mode: none
     read_only: true
     init: true
     ipc: private
     cap_drop: ["ALL"]
+    cap_add: ["SETUID", "SETGID", "KILL", "DAC_OVERRIDE"]
     security_opt: ["no-new-privileges:true"]
     pids_limit: ${SANDBOX_PIDS_LIMIT:-128}
     mem_limit: ${SANDBOX_MEM_LIMIT:-2g}

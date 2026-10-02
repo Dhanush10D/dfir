@@ -1,11 +1,17 @@
 """Parser sandbox server: the long-running process of the ``parser-sandbox`` container.
 
-    python -m app.sandbox.server            # serve (refuses to run as root)
+    python -m app.sandbox.server            # serve (as root only with the uid split below)
     python -m app.sandbox.server --health   # healthcheck: the loop wrote its heartbeat recently
 
-The container has no network, a read-only root, no capabilities and resource limits (compose).
-The evidence spool (``SANDBOX_IN_DIR``) is mounted read-only; the server writes only the output
-spool (``SANDBOX_OUT_DIR``) and its own work volume (``SANDBOX_WORK_DIR``).
+The container has no network, a read-only root and resource limits (compose). It starts as root
+with only the SETUID, SETGID, KILL and DAC_OVERRIDE capabilities: the server keeps euid 0 so it
+can start each child as a separate uid (``SANDBOX_CHILD_UID``, no capabilities, shared group
+``SANDBOX_GID``) and kill it, and it reads and writes files as ``SANDBOX_SERVER_UID``. A
+compromised child therefore cannot signal (stop) the server, outlive its job, read the output
+spool or claim a later job. Without root the server refuses to run unless
+``SANDBOX_ALLOW_SAME_UID=1`` (development only). The evidence spool (``SANDBOX_IN_DIR``) is
+mounted read-only; the server writes only the output spool (``SANDBOX_OUT_DIR``) and its own work
+volume (``SANDBOX_WORK_DIR``).
 
 For each job (one at a time) the server:
 
@@ -36,7 +42,8 @@ import subprocess  # nosec B404 - fixed argv ([python, -m, app.sandbox.child, ..
 import sys
 import threading
 import time
-from dataclasses import dataclass
+from collections.abc import Iterator
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import IO, Any
 
@@ -85,6 +92,33 @@ class SandboxPolicy:
     sweep: bool = True  # kill every descendant after each job (needs /proc)
     child_module: str = "app.sandbox.child"  # tests substitute a misbehaving fake
     extra_env: tuple[tuple[str, str], ...] = ()  # tests: PYTHONPATH for the fake child
+    # uid split (the container, see ``main``): the child runs as ``child_uid`` with group ``gid``
+    # and no capabilities; the server keeps euid 0 (it can start and kill the child, the child
+    # cannot signal it) and touches files as ``fs_uid``:``gid``. None: same uid (tests).
+    child_uid: int | None = None
+    fs_uid: int | None = None
+    gid: int | None = None
+
+    @property
+    def uid_split(self) -> bool:
+        return self.child_uid is not None and self.fs_uid is not None and self.gid is not None
+
+
+def set_fs_ids(uid: int, gid: int) -> None:
+    """Set this thread's file-system uid/gid (Linux); threads started later inherit them.
+
+    With a non-zero fsuid the kernel drops the file capabilities (DAC override) from the
+    effective set and files are created as ``uid:gid``; ``set_fs_ids(0, 0)`` restores them.
+    """
+    import ctypes
+
+    libc = ctypes.CDLL(None, use_errno=True)
+    libc.setfsgid(gid)
+    libc.setfsuid(uid)
+    # Both calls return the previous id and never report failure: read the ids back (-1 is
+    # invalid, so it changes nothing and returns the current id).
+    if libc.setfsuid(-1) != uid or libc.setfsgid(-1) != gid:
+        raise OSError("setfsuid/setfsgid failed")
 
 
 def set_subreaper() -> None:
@@ -315,13 +349,34 @@ class SandboxServer:
         with contextlib.suppress(OSError):
             (self.work_dir / HEARTBEAT_FILE).write_bytes(str(int(time.time())).encode())
 
+    @contextlib.contextmanager
+    def _fs_root(self) -> Iterator[None]:
+        """Root file access while removing what the child wrote (uid split only)."""
+        if not self.policy.uid_split:
+            yield
+            return
+        set_fs_ids(0, 0)
+        try:
+            yield
+        finally:
+            set_fs_ids(self.policy.fs_uid, self.policy.gid)  # type: ignore[arg-type]
+
+    def _remove_work(self, path: Path) -> None:
+        with self._fs_root():
+            remove_tree(path)
+
     def startup(self) -> None:
         """Forget unfinished work of an earlier server run (its outputs and scratch dirs)."""
+        if self.policy.uid_split:
+            # The child (group ``gid``) may only traverse to its own job's work directory and
+            # never sees the output spool, so it cannot claim or answer a job itself.
+            os.chmod(self.work_dir, 0o710)  # noqa: S103  # nosec B103 - group: traverse only
+            os.chmod(self.out_dir, 0o700)
         for entry in self._job_entries(self.out_dir):
             if not (entry / EXIT_FILE).is_file():
                 remove_tree(entry)
         for entry in self._job_entries(self.work_dir):
-            remove_tree(entry)
+            self._remove_work(entry)
         self.heartbeat(force=True)
 
     @staticmethod
@@ -419,9 +474,13 @@ class SandboxServer:
         timeout = min(request.timeout_s, self.policy.max_run_s)
         pump.max_bytes = min(request.max_output_bytes + MAX_RESULT_BYTES, pump.max_bytes)
         work = self.work_dir / name
-        remove_tree(work)
+        self._remove_work(work)
         work.mkdir(mode=0o700)
         (work / "tmp").mkdir(mode=0o700)
+        split = self.policy.uid_split
+        if split:  # writable for the child through the shared group, nothing else is
+            os.chmod(work, 0o770)  # noqa: S103  # nosec B103 - the child group, no others
+            os.chmod(work / "tmp", 0o770)  # noqa: S103  # nosec B103
         argv = [
             self.policy.python,
             "-m",
@@ -453,13 +512,19 @@ class SandboxServer:
                     close_fds=True,
                     shell=False,
                     start_new_session=sys.platform != "win32",
+                    # uid split: real, effective and saved ids all become the child's, which
+                    # clears every capability before the child runs.
+                    user=self.policy.child_uid if split else None,
+                    group=self.policy.gid if split else None,
+                    extra_groups=[] if split else None,
+                    umask=0o077 if split else -1,
                 )
         except OSError:
-            remove_tree(work)
+            self._remove_work(work)
             return finish("failed_start", None)
         if proc.stdout is None:  # cannot happen with stdout=PIPE
             self._kill(proc)
-            remove_tree(work)
+            self._remove_work(work)
             return finish("failed_start", None)
         reader = threading.Thread(target=pump.pump, args=(proc.stdout,), daemon=True)
         reader.start()
@@ -497,7 +562,7 @@ class SandboxServer:
             else:
                 reason = "child_error"
         self._log_stderr(name, stderr_path)
-        remove_tree(work)
+        self._remove_work(work)
         if reason == "abandoned":
             reason = "cancelled"
         return finish(reason, returncode)
@@ -550,6 +615,17 @@ def policy_from_env() -> SandboxPolicy:
     )
 
 
+def uid_split_from_env() -> tuple[int, int, int] | None:
+    """``(server fs uid, child uid, shared gid)`` from the environment: all set, none root."""
+    names = ("SANDBOX_SERVER_UID", "SANDBOX_CHILD_UID", "SANDBOX_GID")
+    if not all(os.environ.get(n, "").strip() for n in names):
+        return None
+    fs_uid, child_uid, gid = (_env_int(n, 0) for n in names)
+    if fs_uid == child_uid:
+        raise ValueError("SANDBOX_CHILD_UID must differ from SANDBOX_SERVER_UID")
+    return fs_uid, child_uid, gid
+
+
 def health(work_dir: Path) -> int:
     try:
         age = time.time() - (work_dir / HEARTBEAT_FILE).stat().st_mtime
@@ -575,8 +651,27 @@ def main(argv: list[str] | None = None) -> int:
     from app.core.logging import setup_logging
 
     setup_logging(os.environ.get("LOG_LEVEL", "INFO").upper(), True)
+    policy = policy_from_env()
     if hasattr(os, "geteuid") and os.geteuid() == 0:
-        log.error("sandbox_refuses_root")
+        # The container starts as root with only SETUID, SETGID, KILL and DAC_OVERRIDE: the
+        # server starts each child as another uid and keeps the right to kill it, while a
+        # compromised child cannot signal (stop) the server or touch its files.
+        try:
+            split = uid_split_from_env()
+        except ValueError:
+            split = None
+        if split is None:
+            log.error("sandbox_root_needs_uid_split")
+            return 2
+        fs_uid, child_uid, gid = split
+        if sys.platform != "win32":  # always true here (geteuid exists); for type checkers
+            os.setgroups([])
+        os.umask(0o077)
+        set_fs_ids(fs_uid, gid)
+        policy = replace(policy, child_uid=child_uid, fs_uid=fs_uid, gid=gid)
+    elif os.environ.get("SANDBOX_ALLOW_SAME_UID") != "1":
+        # Without the split a parser could stop the server and outlive its job.
+        log.error("sandbox_needs_uid_split")
         return 2
     if sys.platform.startswith("linux"):
         try:
@@ -584,9 +679,9 @@ def main(argv: list[str] | None = None) -> int:
         except OSError:
             log.error("sandbox_no_subreaper")
             return 2
-    policy = policy_from_env()
     log.info(
         "sandbox_started",
+        uid_split=policy.uid_split,
         memory_mb=policy.child_memory_mb,
         max_run_s=policy.max_run_s,
         max_output_mb=policy.max_output_bytes // MIB,

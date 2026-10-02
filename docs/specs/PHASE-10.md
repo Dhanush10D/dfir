@@ -44,8 +44,12 @@ new parsers, detection content and UI features; JWT/TOTP key rotation; KMS/HSM k
    asks for a container per parser job. Starting containers from the worker needs the Docker
    socket, which is root on the host, so the worker never gets it. Instead compose runs a
    `parser-sandbox` service from the worker image with `network_mode: none`, `read_only: true`,
-   `cap_drop: [ALL]`, `no-new-privileges`, the default seccomp profile, `init: true`, user
-   `10001:10001`, `pids_limit`, `mem_limit` and `cpus`. It shares two volumes with the worker:
+   `cap_drop: [ALL]`, `no-new-privileges`, the default seccomp profile, `init: true`,
+   `pids_limit`, `mem_limit` and `cpus`. **uid split** (added after the independent review: with
+   one shared uid a parser could stop the server and outlive its job): the container starts as
+   root with only `cap_add: [SETUID, SETGID, KILL, DAC_OVERRIDE]`; the server keeps euid 0,
+   touches files as `10001` (fsuid) and starts every child as uid `10002`, group `10001`, no
+   supplementary groups and no capabilities, so the child cannot signal the server. It shares two volumes with the worker:
    `spoolin` (read-write in the worker, **read-only** in the sandbox: the evidence copy and the
    request) and `spoolout` (the sandbox writes the output stream there). A third volume,
    `sandboxwork`, is mounted only in the sandbox (per-job scratch for external engines).
@@ -243,8 +247,9 @@ scripts only).
   through nginx, 401 without token, 200 with; security headers on every location.
 
 ## Acceptance criteria (executable)
-1. The parser container has no network, a read-only root and evidence mount, no capabilities,
-   runs as non-root with limits, and parse jobs run in it: `phase10-smoke.py` sandbox section.
+1. The parser container has no network, a read-only root and evidence mount, and limits; parser
+   children run as their own non-root uid with no capabilities and cannot signal the server; and
+   parse jobs run in it: `phase10-smoke.py` sandbox section.
 2. Hostile/broken parser output and runaway parsers are contained: `test_sandbox_server.py`,
    `test_sandbox_protocol.py`, spool integration tests.
 3. The app cannot regain owner privileges: smoke + `test_provision.py`; verify denial checks.

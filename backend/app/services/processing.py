@@ -237,7 +237,7 @@ def insert_event_rows(session: Session, rows: list[dict[str, Any]]) -> int:
                 values[raw_index] = json.dumps(values[raw_index], ensure_ascii=False)
                 copy.write_row(values)
         cur.execute(
-            f"INSERT INTO events ({column_sql}) SELECT {column_sql} FROM {STAGE_TABLE} "  # noqa: S608 - fixed names
+            f"INSERT INTO events ({column_sql}) SELECT {column_sql} FROM {STAGE_TABLE} "  # noqa: S608  # nosec B608 - fixed names
             "ON CONFLICT (id, ts) DO NOTHING RETURNING id"
         )
         inserted = len(cur.fetchall())
@@ -644,7 +644,8 @@ class ProcessingService:
                     evidence_size=digest["size"],
                     evidence_version_id=ev.storage_version_id,
                 )
-                os.chmod(path, stat.S_IRUSR)  # read-only for the parser
+                # Read-only for the parser; in spool mode also for the sandbox child's group.
+                os.chmod(path, stat.S_IRUSR | (stat.S_IRGRP if slot else 0))
                 deleted = self._replace_previous(session, job_id, claim)
                 manifest["replaced_previous_events"] = deleted
                 reference, ref_source = (

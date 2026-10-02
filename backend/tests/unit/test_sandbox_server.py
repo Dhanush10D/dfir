@@ -42,6 +42,7 @@ from app.sandbox.server import (
     descendants,
     health,
     main,
+    uid_split_from_env,
 )
 from tests.unit.deep_helpers import context
 
@@ -329,13 +330,54 @@ def test_health_needs_a_recent_heartbeat(tmp_path: Path) -> None:
     assert health(tmp_path) == 1
 
 
-def test_server_refuses_to_run_as_root(
+UID_SPLIT_VARS = (
+    "SANDBOX_SERVER_UID",
+    "SANDBOX_CHILD_UID",
+    "SANDBOX_GID",
+    "SANDBOX_ALLOW_SAME_UID",
+)
+
+
+def test_server_refuses_root_without_a_uid_split(
     spool: dict[str, Path], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    for name in UID_SPLIT_VARS:
+        monkeypatch.delenv(name, raising=False)
     monkeypatch.setattr(os, "geteuid", lambda: 0, raising=False)
     argv = ["--in", str(spool["in"]), "--out", str(spool["out"]), "--work", str(spool["work"])]
     assert main(argv) == 2
     assert main([]) == 2  # directories are required
+    # The child must not share the server's uid.
+    monkeypatch.setenv("SANDBOX_SERVER_UID", "10001")
+    monkeypatch.setenv("SANDBOX_CHILD_UID", "10001")
+    monkeypatch.setenv("SANDBOX_GID", "10001")
+    assert main(argv) == 2
+
+
+def test_server_refuses_a_shared_uid_unless_allowed(
+    spool: dict[str, Path], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for name in UID_SPLIT_VARS:
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(os, "geteuid", lambda: 10001, raising=False)
+    argv = ["--in", str(spool["in"]), "--out", str(spool["out"]), "--work", str(spool["work"])]
+    assert main(argv) == 2  # a parser could stop a same-uid server and outlive its job
+
+
+def test_uid_split_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
+    for name in UID_SPLIT_VARS:
+        monkeypatch.delenv(name, raising=False)
+    assert uid_split_from_env() is None
+    monkeypatch.setenv("SANDBOX_SERVER_UID", "10001")
+    monkeypatch.setenv("SANDBOX_CHILD_UID", "10002")
+    assert uid_split_from_env() is None  # all three are required
+    monkeypatch.setenv("SANDBOX_GID", "10001")
+    assert uid_split_from_env() == (10001, 10002, 10001)
+    monkeypatch.setenv("SANDBOX_CHILD_UID", "0")
+    with pytest.raises(ValueError):
+        uid_split_from_env()  # never root
+    assert not SandboxPolicy().uid_split
+    assert SandboxPolicy(child_uid=10002, fs_uid=10001, gid=10001).uid_split
 
 
 def test_exit_record_is_valid_json(spool: dict[str, Path]) -> None:

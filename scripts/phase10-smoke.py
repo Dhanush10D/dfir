@@ -70,7 +70,10 @@ def compose(*args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
 
 
 def in_sandbox(script: str) -> subprocess.CompletedProcess[str]:
-    return compose("exec", "-T", "parser-sandbox", "python", "-c", script, check=False)
+    # As the parser child's uid and group: what a compromised parser could do.
+    return compose(
+        "exec", "-T", "-u", "10002:10001", "parser-sandbox", "python", "-c", script, check=False
+    )
 
 
 def inspect(service: str) -> dict[str, Any]:
@@ -106,12 +109,14 @@ def check_sandbox_container() -> None:
     expect(host["ReadonlyRootfs"] is True, "sandbox: read-only root file system")
     expect([c.upper() for c in host.get("CapDrop") or []] == ["ALL"], "sandbox: CapDrop ALL",
            host.get("CapDrop"))
-    expect(not host.get("CapAdd"), "sandbox: no capability added", host.get("CapAdd"))
+    cap_add = sorted(c.upper().removeprefix("CAP_") for c in host.get("CapAdd") or [])
+    expect(cap_add == ["DAC_OVERRIDE", "KILL", "SETGID", "SETUID"],
+           "sandbox: only the capabilities for the uid split", cap_add)
     sec = host.get("SecurityOpt") or []
     expect(any("no-new-privileges" in s for s in sec), "sandbox: no-new-privileges", sec)
     expect(not any("unconfined" in s for s in sec), "sandbox: seccomp/apparmor not disabled", sec)
     expect(host.get("Privileged") is False, "sandbox: not privileged")
-    expect(info["Config"]["User"] == "10001:10001", "sandbox: runs as 10001:10001",
+    expect(info["Config"]["User"] == "0:0", "sandbox: server starts as root (uid split)",
            info["Config"]["User"])
     expect((host.get("PidsLimit") or 0) > 0, "sandbox: pids limit", host.get("PidsLimit"))
     expect((host.get("Memory") or 0) > 0, "sandbox: memory limit", host.get("Memory"))
@@ -139,22 +144,46 @@ def check_sandbox_container() -> None:
         "out['dns'] = attempt(lambda: socket.getaddrinfo('postgres', 5432))\n"
         "out['tcp'] = attempt(lambda: socket.create_connection(('1.1.1.1', 53), timeout=3))\n"
         "out['write_root'] = attempt(lambda: open('/sandbox-probe', 'w'))\n"
-        "out['write_spool'] = attempt(lambda: open('/var/lib/dfirbench/spool/in/probe', 'w'))\n"
+        "out['spool_ro'] = bool(os.statvfs('/var/lib/dfirbench/spool/in').f_flag & os.ST_RDONLY)\n"
+        "out['list_out'] = attempt(lambda: os.listdir('/var/lib/dfirbench/spool/out'))\n"
+        "out['write_work'] = attempt(lambda: open('/var/lib/dfirbench/sandbox-work/probe', 'w'))\n"
+        "def cmd(p):\n"
+        "    try:\n"
+        "        return open('/proc/' + p + '/cmdline', 'rb').read()\n"
+        "    except OSError:\n"
+        "        return b''\n"
+        "server = [p for p in os.listdir('/proc') if p.isdigit()\n"
+        "          and b'app.sandbox.server' in cmd(p) and b'--health' not in cmd(p)\n"
+        "          and b'docker-init' not in cmd(p)]\n"
+        "out['servers'] = len(server)\n"
+        "st = open('/proc/' + server[0] + '/status').read().splitlines() if server else []\n"
+        "out['server_uid'] = [l.split()[1:] for l in st if l.startswith('Uid:')]\n"
+        "out['server_capprm'] = [l.split()[1] for l in st if l.startswith('CapPrm')]\n"
+        "out['signal_server'] = attempt(lambda: os.kill(int(server[0]), 0))\n"
         "out['secrets'] = sorted(k for k in os.environ if k in %r)\n"
         "out['keys'] = os.path.exists('/var/lib/dfirbench/keys/custody-dev.pem')\n"
         "print(json.dumps(out))\n" % (SECRET_NAMES,)
     )
     expect(probe.returncode == 0, "sandbox: probe ran", probe.stderr)
     out = json.loads(probe.stdout.strip().splitlines()[-1])
-    expect(out["uid"] == 10001 and out["gid"] == 10001, "sandbox: non-root inside", out)
+    expect(out["uid"] == 10002 and out["gid"] == 10001, "sandbox: child uid 10002", out)
     expect(int(out["capeff"], 16) == 0, "sandbox: no effective capabilities", out["capeff"])
     expect(out["nnp"] == "1", "sandbox: NoNewPrivs set", out["nnp"])
     expect(out["seccomp"] == "2", "sandbox: seccomp filter active", out["seccomp"])
     expect(out["ifaces"] == ["lo"], "sandbox: only the loopback interface", out["ifaces"])
     expect(out["dns"] != "ok" and out["tcp"] != "ok", "sandbox: no DNS and no route out", out)
     expect(out["write_root"].startswith("OSError:30"), "sandbox: root is read-only", out)
-    expect(out["write_spool"].startswith("OSError:30"), "sandbox: evidence mount is read-only",
-           out)
+    expect(out["spool_ro"] is True, "sandbox: evidence mount is read-only", out)
+    expect(out["list_out"].startswith("PermissionError"), "sandbox child: no output spool", out)
+    expect(out["write_work"].startswith("PermissionError"), "sandbox child: no work root", out)
+    # The server keeps euid 0 and four capabilities; the child cannot signal (stop) it.
+    caps = (1 << 1) | (1 << 5) | (1 << 6) | (1 << 7)  # DAC_OVERRIDE, KILL, SETGID, SETUID
+    expect(out["servers"] == 1 and out["server_uid"] == [["0", "0", "0", "10001"]],
+           "sandbox: server euid 0, file uid 10001", out)
+    expect([int(c, 16) for c in out["server_capprm"]] == [caps],
+           "sandbox: server holds only the uid-split capabilities", out)
+    expect(out["signal_server"].startswith("PermissionError"),
+           "sandbox child: cannot signal the server", out)
     expect(out["secrets"] == [] and out["keys"] is False, "sandbox: no secrets, no custody key",
            out)
 

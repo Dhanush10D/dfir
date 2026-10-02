@@ -58,8 +58,12 @@ ENV PATH=/opt/venv/bin:/opt/dfir/bin:$PATH \
 RUN groupadd --system --gid 10001 dfir \
  && useradd --system --uid 10001 --gid dfir --home-dir /work --shell /usr/sbin/nologin dfir \
  && mkdir -p /work && chown dfir:dfir /work \
+ && useradd --system --uid 10002 --gid dfir --home-dir /nonexistent --no-create-home \
+      --shell /usr/sbin/nologin dfirparse \
  && install -d -o dfir -g dfir -m 0700 /var/lib/dfirbench/keys /var/lib/dfirbench/scratch \
-      /var/lib/dfirbench/spool/in /var/lib/dfirbench/spool/out /var/lib/dfirbench/sandbox-work
+      /var/lib/dfirbench/spool/out \
+ && install -d -o dfir -g dfir -m 0750 /var/lib/dfirbench/spool/in \
+ && install -d -o dfir -g dfir -m 0710 /var/lib/dfirbench/sandbox-work
 COPY --from=build /opt/venv /opt/venv
 WORKDIR /work
 USER dfir:dfir
