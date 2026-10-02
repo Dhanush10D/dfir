@@ -104,5 +104,6 @@ original string kept in `ts_original`, and `custody_log` / `audit_log` are appen
 (UPDATE, DELETE and TRUNCATE are rejected by triggers).
 
 Contributors:
-1)Harshitha V 
+1) Harshitha V 
+2) Dhanush S
 
