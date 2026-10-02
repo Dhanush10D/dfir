@@ -358,10 +358,17 @@ class YearResolver:
 
 def _local_to_utc(naive: datetime, tz: ZoneInfo, stats: ParseStats, location: str) -> datetime:
     local = naive.replace(tzinfo=tz)
+    offset = local.utcoffset()
+    if offset is None:  # cannot happen with ZoneInfo
+        raise ValueError(f"no UTC offset for {naive} in {tz}")
+    # fold=0 and fold=1 give different offsets only in a spring-forward gap or a fall-back
+    # overlap (PEP 495): everywhere else (every line in UTC) one subtraction is exact.
+    if local.replace(fold=1).utcoffset() == offset:
+        return (naive - offset).replace(tzinfo=UTC)
     roundtrip = local.astimezone(UTC).astimezone(tz).replace(tzinfo=None)
-    if roundtrip != naive:  # in a spring-forward gap (fold=0/1 offsets differ there too)
+    if roundtrip != naive:  # in a spring-forward gap
         stats.warn("nonexistent_local_time", location)
-    elif local.replace(fold=1).utcoffset() != local.utcoffset():
+    else:
         stats.warn("ambiguous_local_time", location)
     return local.astimezone(UTC)
 
