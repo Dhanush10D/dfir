@@ -59,6 +59,12 @@ curl -fsS -m 10 http://127.0.0.1:8000/api/v1/ready | tee /dev/stderr | gq '"stat
 curl -fsS -m 10 http://127.0.0.1:8080/api/v1/health | gq '"status":"ok"'
 echo
 
+step "web: trusted-proxy include loaded, no proxy trusted by default (clients cannot spoof)"
+"${COMPOSE[@]}" exec -T web nginx -T 2>/dev/null | gq "configuration file /etc/nginx/snippets/real-ip.conf"
+if "${COMPOSE[@]}" exec -T web nginx -T 2>/dev/null | gq -E "^[[:space:]]*set_real_ip_from"; then
+  echo "the default web config trusts a proxy" >&2; exit 1
+fi
+
 step "web: strict CSP on the SPA"
 curl -fsS -m 10 -D - -o "$DEVNULL" http://127.0.0.1:8080/cases | tee /dev/stderr \
   | grep -i '^content-security-policy:' | gq "script-src 'self'"
@@ -179,11 +185,12 @@ done
 
 step "the real app login (password from DATABASE_URL) cannot become the owner or another role"
 # (SET ROLE inside the loop above runs with the owner as session user, so it is checked here.)
-APP_PW="${DATABASE_APP_PASSWORD:-dfir_app_dev_password}"
+# Passed by name (-e PGPASSWORD): the value never appears on a command line or in `ps`.
+export PGPASSWORD="${DATABASE_APP_PASSWORD:-dfir_app_dev_password}"
 for stmt in "SET ROLE dfir" "SET SESSION AUTHORIZATION dfir" "RESET ROLE; SET ROLE dfir" \
             "CREATE ROLE dfir_rogue LOGIN" "ALTER ROLE dfirbench_app SUPERUSER" \
             "GRANT dfir TO dfirbench_app" "UPDATE custody_log SET action = 'x'"; do
-  out="$("${COMPOSE[@]}" exec -T -e PGPASSWORD="$APP_PW" postgres psql -h 127.0.0.1 \
+  out="$("${COMPOSE[@]}" exec -T -e PGPASSWORD postgres psql -h 127.0.0.1 \
          -U dfirbench_app -d dfirbench -v ON_ERROR_STOP=1 -c "$stmt" 2>&1 || true)"
   if ! grep -q "permission denied" <<<"$out"; then
     echo "app login was NOT denied: $stmt -> $out" >&2
@@ -191,10 +198,10 @@ for stmt in "SET ROLE dfir" "SET SESSION AUTHORIZATION dfir" "RESET ROLE; SET RO
   fi
   echo "denied (app login): $stmt"
 done
-"${COMPOSE[@]}" exec -T -e PGPASSWORD="$APP_PW" postgres psql -h 127.0.0.1 -U dfirbench_app \
+"${COMPOSE[@]}" exec -T -e PGPASSWORD postgres psql -h 127.0.0.1 -U dfirbench_app \
   -d dfirbench -At -c "SELECT rolsuper OR rolcreaterole OR rolcreatedb FROM pg_roles WHERE rolname = current_user" \
   | gq -x f
-unset APP_PW
+unset PGPASSWORD
 
 step "alembic upgrade head + drift check (host -> compose Postgres, owner login)"
 "$BIN/alembic" upgrade head
@@ -234,7 +241,8 @@ step "backup -> restore drill into a separate project, verified against the sign
 DRILL="$ROOT/var/verify-drill-$(date +%s)"
 mkdir -p "$DRILL"
 BACKUP_PASSPHRASE="verify-$RANDOM-$RANDOM-$(date +%s)-backup-passphrase"
-export BACKUP_PASSPHRASE
+BACKUP_KEYS_PASSPHRASE="verify-$RANDOM-$RANDOM-$(date +%s)-custody-keys-passphrase"
+export BACKUP_PASSPHRASE BACKUP_KEYS_PASSPHRASE
 "${COMPOSE[@]}" run --rm --no-deps -T api python -m app.core.signing show \
   /var/lib/dfirbench/keys/custody-dev.pem > "$DRILL/pub.txt" 2>/dev/null
 "$PY" - "$DRILL" <<'PYEOF'
@@ -249,26 +257,48 @@ print("trust anchor (from the live key, not from the backup):", key_id)
 PYEOF
 "$PY" "$ROOT/scripts/backup.py" --out "$DRILL/backup"
 bash "$ROOT/scripts/wait-healthy.sh" 180
+# Exit 0: verified, no findings; 3: verified, and the backup already held findings (the live
+# stack keeps the tamper evidence the earlier smokes create on purpose); anything else fails.
+rc=0
 "$PY" "$ROOT/scripts/restore.py" --from "$DRILL/backup" --project dfirbench-restore \
-  --trusted-keys "$DRILL/trusted.json" --tmp-dir "$DRILL" > "$DRILL/restore.json"
+  --trusted-keys "$DRILL/trusted.json" > "$DRILL/restore.json" 2> "$DRILL/restore.err" || rc=$?
+cat "$DRILL/restore.err"
+case "$rc" in
+  0) gq "^RESTORE VERIFIED: " "$DRILL/restore.err" ;;
+  3) gq "^RESTORE VERIFIED WITH KNOWN FINDINGS: " "$DRILL/restore.err"
+     gq "^  known finding: " "$DRILL/restore.err" ;;
+  *) echo "restore drill failed (exit $rc)" >&2; exit 1 ;;
+esac
+# No plaintext is written to the host: the drill directory holds only the encrypted backup.
+if find "$DRILL" -name '*.tar' -o -name '*.dump' | gq .; then
+  echo "plaintext backup files on the host" >&2; exit 1
+fi
 step "a tampered backup and a wrong passphrase are refused before anything is restored"
 cp -r "$DRILL/backup" "$DRILL/tampered"
 "$PY" -c "import sys; p=sys.argv[1]; b=bytearray(open(p,'rb').read()); b[4096]^=1; open(p,'wb').write(b)" \
   "$DRILL/tampered/db.dump.enc"
 if "$PY" "$ROOT/scripts/restore.py" --from "$DRILL/tampered" --project dfirbench-restore \
-     --trusted-keys "$DRILL/trusted.json" --tmp-dir "$DRILL"; then
+     --trusted-keys "$DRILL/trusted.json"; then
   echo "a tampered backup was restored" >&2; exit 1
 fi
 if BACKUP_PASSPHRASE="a-wrong-passphrase-that-is-long" "$PY" "$ROOT/scripts/restore.py" \
-     --from "$DRILL/backup" --project dfirbench-restore --trusted-keys "$DRILL/trusted.json" \
-     --tmp-dir "$DRILL"; then
+     --from "$DRILL/backup" --project dfirbench-restore --trusted-keys "$DRILL/trusted.json"; then
   echo "a wrong passphrase was accepted" >&2; exit 1
+fi
+# The data passphrase alone does not open the custody key archive.
+if BACKUP_KEYS_PASSPHRASE="$BACKUP_PASSPHRASE" "$PY" "$ROOT/scripts/restore.py" \
+     --from "$DRILL/backup" --project dfirbench-restore --trusted-keys "$DRILL/trusted.json"; then
+  echo "the data passphrase opened the key archive" >&2; exit 1
+fi
+if BACKUP_KEYS_PASSPHRASE="a-wrong-keys-passphrase-that-is-long" "$PY" "$ROOT/scripts/restore.py" \
+     --from "$DRILL/backup" --project dfirbench-restore --trusted-keys "$DRILL/trusted.json"; then
+  echo "a wrong keys passphrase was accepted" >&2; exit 1
 fi
 if docker volume ls -q | gq '^dfirbench-restore_'; then
   echo "restore drill left volumes behind" >&2; exit 1
 fi
 rm -rf "$DRILL"
-unset BACKUP_PASSPHRASE
+unset BACKUP_PASSPHRASE BACKUP_KEYS_PASSPHRASE
 
 step "free memory for the test run: stop web, api, worker and the sandbox (postgres/minio/redis stay up)"
 "${COMPOSE[@]}" stop web api worker parser-sandbox

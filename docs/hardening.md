@@ -85,10 +85,16 @@ Per client IP (the address uvicorn trusts from the web proxy), one-minute window
 `AUTH_RATE_LIMIT_PER_MINUTE` (30) for `/auth/login` and `/auth/mfa/verify` together,
 `AUTH_REFRESH_RATE_LIMIT_PER_MINUTE` (120) for `/auth/refresh`. Over the limit: 429
 `rate_limited` with `Retry-After`, audited as `auth.rate_limited`; Redis down: 503 (fail closed).
-The per-account lockout stays. Behind another proxy (for example a TLS terminator in front of
-`web`), that proxy must pass the real client address and nginx must trust it
-(`set_real_ip_from`); otherwise every client shares the proxy's address and one bucket, and a
-single client can lock everyone out of login for a minute. `update_user` locks the acting admin, the target and every active
+The per-account lockout stays. The client IP is nginx's `$remote_addr`, which nginx passes on
+as `X-Forwarded-For`; uvicorn trusts that header only from the web container. By default nginx
+trusts no proxy, so a client cannot pick its own address with a forged header. Behind a TLS
+terminator or load balancer, every request would come from that proxy: all users would share one
+bucket, and one client could lock everyone out of login for a minute. To avoid this, list the
+proxy in a copy of `infra/docker/real-ip.conf` (`set_real_ip_from`, `real_ip_header
+X-Forwarded-For`, `real_ip_recursive on`) and mount it with `WEB_REAL_IP_CONF`. nginx then uses
+the client address the proxy reports, and only for requests that really come from that proxy.
+`verify-phase10.sh` checks that the include is loaded and that the default trusts no proxy.
+`update_user` locks the acting admin, the target and every active
 admin in id order before reading them, so concurrent admin changes cannot deadlock or remove the
 last active admin; `mfa_enroll` locks the user row.
 

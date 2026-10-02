@@ -157,7 +157,7 @@ new parsers, detection content and UI features; JWT/TOTP key rotation; KMS/HSM k
    generated table in `TOOL_VALIDATION.md`. `--check` fails when either is stale; a unit test runs
    it. Engines replaced by fake binaries in tests (tsk_fs, volatility, zeek) are marked as such.
 10. **Scans**: `scripts/scan.sh` (run by the verify script; needs network) and a CI `security`
-    job. Gating: gitleaks (whole history, `.gitleaks.toml` allowlists test fixtures that contain
+    job. Gating: gitleaks (whole history, `.gitleaksignore` baselines reviewed fingerprints of test fixtures that contain
     fake secrets on purpose), pip-audit on the backend environment and `npm audit
     --audit-level=high` fail the run; Trivy fails on CRITICAL findings with a fix available in
     Python packages, and reports OS-package findings without failing (base-image updates are a
@@ -198,7 +198,7 @@ new parsers, detection content and UI features; JWT/TOTP key rotation; KMS/HSM k
 * `infra/compose.yaml` (`parser-sandbox`, volumes, login URL, migrate command, metrics token),
   `infra/docker/worker.Dockerfile` (spool directories; Volatility constraints with hashes,
   `infra/docker/volatility-requirements.txt`), `infra/docker/security-headers.conf` +
-  `nginx.conf`, `.github/workflows/ci.yml`, `.gitleaks.toml`, `.trivyignore`, `.env.example`.
+  `nginx.conf`, `.github/workflows/ci.yml`, `.gitleaksignore`, `.trivyignore`, `.env.example`.
 * Docs: `docs/hardening.md`, `docs/backup-restore.md`, `docs/validation/BENCHMARK.md`,
   `docs/validation/TOOL_VALIDATION.md`, `docs/validation/tool-validation.json`.
 
