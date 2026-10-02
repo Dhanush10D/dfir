@@ -232,6 +232,12 @@ def decrypt_into(
             )
     except BrokenPipeError:
         pass  # the consumer exited early: its exit code and stderr say why
+    except OSError:
+        # Windows reports a write to a pipe whose reader has exited as EINVAL, not EPIPE.
+        with contextlib.suppress(subprocess.TimeoutExpired):
+            proc.wait(timeout=10)
+        if proc.returncode is None:
+            raise  # the consumer is still running: the error is ours
     finally:
         with contextlib.suppress(OSError):
             proc.stdin.close()
