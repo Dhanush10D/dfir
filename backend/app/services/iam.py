@@ -407,6 +407,8 @@ class IAMService:
             self._revoke_families(row.user_id, "user_inactive", None)
             self.session.commit()
             raise UnauthenticatedError("Account is not active.", "token_invalid")
+        # Rotation makes each refresh token single-use; the revoked predecessor remains available
+        # above so replay can revoke the entire session family.
         plaintext, new_row = self._issue_refresh(
             user, row.family_id, row.session_started_at, now, meta
         )

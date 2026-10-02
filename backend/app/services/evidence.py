@@ -445,6 +445,8 @@ class EvidenceService:
             raise AppError("vault_not_worm", "The stored object has no Object Lock retention.", 503)
 
         ev = self._lock(evidence_id)
+        # Re-lock after the external vault read: finalization must compare and update the same
+        # evidence version that was checked, without holding a database transaction during I/O.
         if ev.status != "uploaded":
             raise InvalidStateError("Only uploaded evidence can be finalized.", status=ev.status)
         mismatches: list[dict[str, Any]] = []
