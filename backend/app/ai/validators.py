@@ -26,7 +26,9 @@ CLAIM_TOKEN_RE = re.compile(
     r"|\bhttps?://[^\s\"'<>]{3,300}"  # URLs
 )
 TEXT_KEYS = ("statement", "description", "rationale", "action", "why")
-TOP_LEVEL_TEXT = ("summary", "answer")
+# Narrative fields checked against the whole pack: report_draft's ``text`` is the Markdown
+# applied into a report, and gaps/limitations are shown next to the findings.
+TOP_LEVEL_TEXT = ("summary", "answer", "text", "gaps", "limitations")
 
 
 @dataclass
@@ -99,6 +101,18 @@ def _norm(text: str) -> str:
     return text.lower().replace("[.]", ".").replace("hxxp", "http")
 
 
+def _tokens(normalized: str) -> set[str]:
+    """Claim tokens of already-normalized record text: whole IPs/hashes/URLs, not substrings
+    (10.0.0.5 is not supported by 10.0.0.55, nor an MD5 by the first half of a SHA-256)."""
+    return claim_tokens(normalized)
+
+
+def _bounded_in(value: str, text: str) -> bool:
+    """``value`` occurs in ``text`` as a whole item (not inside a longer IP, hash or name)."""
+    pattern = r"(?<![\w.])" + re.escape(value) + r"(?![\w])"
+    return re.search(pattern, text) is not None
+
+
 def check_citations(
     data: Mapping[str, Any],
     record_text: Mapping[str, str],
@@ -130,6 +144,7 @@ def check_citations(
                 report.uncited.append(f"{name}[{i}]")
 
     all_text = _norm("\n".join(record_text.values()))
+    all_tokens = _tokens(all_text)
 
     def cited_text(cites: Iterable[str]) -> str:
         return _norm("\n".join(record_text.get(c, "") for c in cites))
@@ -137,7 +152,7 @@ def check_citations(
     def walk(obj: Any, path: str) -> None:
         if isinstance(obj, Mapping):
             cites = [str(c) for c in obj.get("cites") or []]
-            scope = cited_text(cites) if cites else all_text
+            scope = _tokens(cited_text(cites)) if cites else all_tokens
             for key in TEXT_KEYS:
                 value = obj.get(key)
                 if isinstance(value, str):
@@ -154,16 +169,20 @@ def check_citations(
     walk(data, "")
     for key in TOP_LEVEL_TEXT:
         value = data.get(key)
-        if isinstance(value, str):
-            missing = sorted(t for t in claim_tokens(value) if _norm(t) not in all_text)
+        texts = [value] if isinstance(value, str) else value if isinstance(value, list) else []
+        for i, item in enumerate(texts):
+            if not isinstance(item, str):
+                continue
+            missing = sorted(t for t in claim_tokens(item) if _norm(t) not in all_tokens)
             if missing:
-                report.unsupported.append({"path": key, "tokens": missing})
+                path = key if isinstance(value, str) else f"{key}[{i}]"
+                report.unsupported.append({"path": path, "tokens": missing})
     for name in indicator_lists:
         for i, item in enumerate(data.get(name) or []):
             if not isinstance(item, Mapping):
                 continue
             value = str(item.get("value") or "")
             scope = cited_text([str(c) for c in item.get("cites") or []])
-            if value and _norm(value) not in scope:
+            if value and not _bounded_in(_norm(value), scope):
                 report.unsupported.append({"path": f"{name}[{i}].value", "tokens": [value]})
     return report

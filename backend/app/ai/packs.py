@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any, Literal
 
-from app.ai.sanitize import clean_text, detect_injection
+from app.ai.sanitize import clean_text, detect_injection, strip_invisible
 
 RecordKind = Literal["event", "alert", "script", "decoded"]
 PREFIX: dict[RecordKind, str] = {"event": "E", "alert": "A", "script": "S", "decoded": "D"}
@@ -93,6 +93,9 @@ def _raw(value: object) -> str | None:
     return str(value)
 
 
+_QUOTE_BACKSLASHES = re.compile(r'\\+(?="|\Z)')
+
+
 def _value(
     value: object, max_chars: int, redact: Redact | None = None, field: str | None = None
 ) -> str | None:
@@ -100,11 +103,16 @@ def _value(
     if raw is None:
         return None
     if redact is not None:
-        raw = redact(raw, field)
+        # Fold NFKC and drop zero-width/format characters first: "pass\u200bword=" or full-width
+        # forms must not hide a secret from the patterns and reappear after clean_text.
+        raw = redact(strip_invisible(raw), field)
     text = clean_text(raw, max_chars)
     if not text:
         return None
     if any(ch in text for ch in ' ="'):
+        # Double the backslashes that precede a quote or end the value, then escape quotes: a
+        # value ending in \" must not close its own quotes and forge fields. Paths stay readable.
+        text = _QUOTE_BACKSLASHES.sub(lambda m: m.group(0) * 2, text)
         return '"' + text.replace('"', '\\"') + '"'
     return text
 

@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import threading
 import time
 import urllib.parse
@@ -65,8 +66,12 @@ def is_local_url(url: str | None) -> bool:
     if not url:
         return False
     host = urllib.parse.urlsplit(url).hostname or ""
-    if host == "localhost" or ("." not in host and ":" not in host and host):
+    if host == "localhost":
         return True
+    if "." not in host and ":" not in host and host:
+        # A compose service name, but not a numeric literal: resolvers read "134744072" or
+        # "0x08080808" as an IPv4 address (8.8.8.8).
+        return not re.fullmatch(r"(0x[0-9a-f]+|[0-9]+)", host, re.IGNORECASE)
     try:
         return ipaddress.ip_address(host).is_loopback
     except ValueError:

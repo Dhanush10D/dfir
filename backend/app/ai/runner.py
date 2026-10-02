@@ -19,6 +19,7 @@ from app.ai.prompts import TEMPLATES, render_user
 from app.ai.redaction import Policy, Redactor
 from app.ai.schemas import provider_schema
 from app.ai.validators import CitationReport, check_citations, parse_output
+from app.core.exceptions import AppError
 
 MAX_PROMPT_TEXT = 256 * 1024
 MAX_ECHO = 8000  # characters of a rejected reply echoed back in the corrective turn
@@ -115,7 +116,10 @@ class FeatureRunner:
         user = render_user(
             evidence=evidence,
             question=redactor.redact(question) if question is not None else None,
-            context={k: redactor.redact(v) for k, v in context.items()} if context else None,
+            # By field name, so strict mode replaces a bare host/user value (narrative filter).
+            context={k: redactor.redact_value(v, k) for k, v in context.items()}
+            if context
+            else None,
             max_question_chars=self.max_question_chars,
         )
         schema = provider_schema(spec.output)
@@ -146,7 +150,15 @@ class FeatureRunner:
                 schema=schema,
                 max_tokens=self.max_tokens,
             )
-            response, stats = self.gateway.complete(req, user_key=user_key, case_key=case_key)
+            try:
+                response, stats = self.gateway.complete(req, user_key=user_key, case_key=case_key)
+            except AppError as exc:
+                if attempt == 1:
+                    raise
+                # The corrective retry was refused (rate limit, size, provider): finish with the
+                # first reply, whose tokens and provider call must still be recorded.
+                outcome.problems = [*outcome.problems, f"corrective retry not sent: {exc.code}"]
+                break
             outcome.attempts = attempt
             outcome.response = response
             outcome.latency_ms += stats.latency_ms
