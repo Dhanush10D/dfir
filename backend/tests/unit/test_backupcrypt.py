@@ -42,7 +42,8 @@ def _dec(blob: bytes, passphrase: str = PASS) -> bytes:
 def test_round_trip(size: int) -> None:
     data = os.urandom(size)
     blob = _enc(data)
-    assert data not in blob or size == 0
+    # A short random input can occur in the salt, nonce or tags by chance (1 byte: ~20 %).
+    assert size < 16 or data not in blob
     assert _dec(blob) == data
 
 
