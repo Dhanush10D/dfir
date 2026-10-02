@@ -1,30 +1,15 @@
 # gitleaks baseline (Phase 10, scripts/scan.sh): reviewed findings that are not secrets.
 # All are test fixtures (fake AWS key / PEM blocks / test passwords in redaction and signing
-# tests, also in the deleted phase-9 backup folders) or a type annotation of the private signing key variable.
+# tests) or a type annotation of the private signing key variable.
 # Format: <commit>:<file>:<rule>:<line> (gitleaks fingerprints). Any new finding fails the scan.
-1b913791bbaf8569054204254a7e9d8617b92e82:unreviewed-phase-9/files/backend/tests/integration/conftest.py:generic-api-key:115
-1b913791bbaf8569054204254a7e9d8617b92e82:unreviewed-phase-9/files/backend/tests/integration/conftest.py:generic-api-key:116
-1b913791bbaf8569054204254a7e9d8617b92e82:unreviewed-phase-9/files/backend/tests/integration/harness.py:generic-api-key:57
-1b913791bbaf8569054204254a7e9d8617b92e82:unreviewed-phase-9/files/backend/tests/integration/test_integrations.py:generic-api-key:319
-1b913791bbaf8569054204254a7e9d8617b92e82:unreviewed-phase-9/files/frontend/src/features/integrations/IntegrationsPage.test.tsx:generic-api-key:38
-2e10beba1d43d22a85faa93bd01be0609bc45814:backend/tests/unit/test_ai_text.py:private-key:331
-349c48e12ee654dc4643a2e26763e62b938a8c13:backend/tests/unit/test_ai_text.py:aws-access-token:112
-349c48e12ee654dc4643a2e26763e62b938a8c13:backend/tests/unit/test_ai_text.py:aws-access-token:123
-414e272160b24f64906a2c910d025a00723f9e1f:phase-9/files/backend/tests/integration/conftest.py:generic-api-key:115
-414e272160b24f64906a2c910d025a00723f9e1f:phase-9/files/backend/tests/integration/conftest.py:generic-api-key:116
-414e272160b24f64906a2c910d025a00723f9e1f:phase-9/files/backend/tests/integration/harness.py:generic-api-key:57
-414e272160b24f64906a2c910d025a00723f9e1f:phase-9/files/backend/tests/integration/test_integrations.py:generic-api-key:319
-414e272160b24f64906a2c910d025a00723f9e1f:phase-9/files/frontend/src/features/integrations/IntegrationsPage.test.tsx:generic-api-key:38
-b5c3da050d030531d5a67de0a90986711c70e287:backend/app/core/signing.py:generic-api-key:67
-b5c3da050d030531d5a67de0a90986711c70e287:backend/tests/integration/conftest.py:generic-api-key:115
-b5c3da050d030531d5a67de0a90986711c70e287:backend/tests/integration/conftest.py:generic-api-key:116
-b5c3da050d030531d5a67de0a90986711c70e287:backend/tests/integration/harness.py:generic-api-key:27
-b5c3da050d030531d5a67de0a90986711c70e287:backend/tests/unit/test_signing.py:private-key:30
-cedffdbc4a6a69e54bc801da46301ea6303b43da:backend/tests/integration/test_integrations.py:generic-api-key:319
-d03da1edddabd9fab71d28144eb5145b18b6ddb2:frontend/src/features/integrations/IntegrationsPage.test.tsx:generic-api-key:38
-d16043b05d2a8085bd79798625dbe1cdd9487945:backend/app/core/signing.py:generic-api-key:67
-d16043b05d2a8085bd79798625dbe1cdd9487945:backend/tests/integration/conftest.py:generic-api-key:115
-d16043b05d2a8085bd79798625dbe1cdd9487945:backend/tests/integration/conftest.py:generic-api-key:116
-d16043b05d2a8085bd79798625dbe1cdd9487945:backend/tests/integration/harness.py:generic-api-key:27
-d16043b05d2a8085bd79798625dbe1cdd9487945:backend/tests/unit/test_signing.py:private-key:30
-70e7c91ec64a271b94066c2ded3a604b3cf9c179:.gitleaksignore:generic-api-key:3
+23d53ab4284f6f21aa154fb70409b6b4513c31f3:backend/tests/unit/test_ai_text.py:aws-access-token:112
+23d53ab4284f6f21aa154fb70409b6b4513c31f3:backend/tests/unit/test_ai_text.py:aws-access-token:123
+54ac25590d38e8bdd5610346afdc85fb3ca2d525:backend/tests/integration/test_integrations.py:generic-api-key:319
+999c50f98d38645d080f119abe243077e39a0ded:.gitleaksignore:generic-api-key:3
+aab73c8e8ec2658c20640de8ab3ea96df9be6937:frontend/src/features/integrations/IntegrationsPage.test.tsx:generic-api-key:38
+ac77c0c3cffbcd87fd031d6e9c154eac3b17a47c:backend/app/core/signing.py:generic-api-key:67
+ac77c0c3cffbcd87fd031d6e9c154eac3b17a47c:backend/tests/integration/conftest.py:generic-api-key:115
+ac77c0c3cffbcd87fd031d6e9c154eac3b17a47c:backend/tests/integration/conftest.py:generic-api-key:116
+ac77c0c3cffbcd87fd031d6e9c154eac3b17a47c:backend/tests/integration/harness.py:generic-api-key:27
+ac77c0c3cffbcd87fd031d6e9c154eac3b17a47c:backend/tests/unit/test_signing.py:private-key:30
+f072459488e34794320c2235454dda16fd3b3b43:backend/tests/unit/test_ai_text.py:private-key:331
