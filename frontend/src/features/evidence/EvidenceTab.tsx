@@ -49,6 +49,8 @@ function UploadForm() {
     mutationFn: () => api.upload(caseId, file as File, kind),
     onSuccess: () => {
       setFile(null)
+      // The upload response is shown immediately, while invalidation makes the evidence list
+      // authoritative again after the server has recorded the new custody state.
       void client.invalidateQueries({ queryKey: ['evidence', caseId] })
     },
   })
