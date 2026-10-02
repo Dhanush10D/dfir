@@ -11,9 +11,14 @@
 # benchmark, the image scans and the frontend build, which run one after the other.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && { pwd -W 2>/dev/null || pwd; })"  # pwd -W: C:/... in Git Bash (MSYS_NO_PATHCONV below)
 COMPOSE=(docker compose -f "$ROOT/infra/compose.yaml")
 step() { printf '\n==> %s\n' "$*"; }
+# grep that reads all of its input: `grep -q` exits on the first match, so under pipefail the
+# writer (curl, docker) can fail with SIGPIPE / "error on write" and abort the script.
+gq() { grep "$@" >/dev/null; }
+# Native Windows curl gets arguments unconverted (MSYS_NO_PATHCONV), so /dev/null is NUL there.
+if [[ "${OSTYPE:-}" == msys* || "${OSTYPE:-}" == cygwin* ]]; then DEVNULL=NUL; else DEVNULL=/dev/null; fi
 export MSYS_NO_PATHCONV=1  # Git Bash: container paths stay as written
 
 cd "$ROOT/backend"
@@ -49,17 +54,17 @@ export AUTH_RATE_LIMIT_PER_MINUTE=1000 AUTH_REFRESH_RATE_LIMIT_PER_MINUTE=40
 bash "$ROOT/scripts/wait-healthy.sh" 300
 
 step "HTTP probes"
-curl -fsS -m 10 http://127.0.0.1:8000/api/v1/health | grep -q '"status":"ok"'
-curl -fsS -m 10 http://127.0.0.1:8000/api/v1/ready | tee /dev/stderr | grep -q '"status":"ready"'
-curl -fsS -m 10 http://127.0.0.1:8080/api/v1/health | grep -q '"status":"ok"'
+curl -fsS -m 10 http://127.0.0.1:8000/api/v1/health | gq '"status":"ok"'
+curl -fsS -m 10 http://127.0.0.1:8000/api/v1/ready | tee /dev/stderr | gq '"status":"ready"'
+curl -fsS -m 10 http://127.0.0.1:8080/api/v1/health | gq '"status":"ok"'
 echo
 
 step "web: strict CSP on the SPA"
-curl -fsS -m 10 -D - -o /dev/null http://127.0.0.1:8080/cases | tee /dev/stderr \
-  | grep -i '^content-security-policy:' | grep -q "script-src 'self'"
+curl -fsS -m 10 -D - -o "$DEVNULL" http://127.0.0.1:8080/cases | tee /dev/stderr \
+  | grep -i '^content-security-policy:' | gq "script-src 'self'"
 
 step "the migrate job provisioned the app login; the app runs as dfirbench_app; worker tasks"
-"${COMPOSE[@]}" logs --no-color migrate | grep -q "login=True member_of=\[\] role=dfirbench_app"
+"${COMPOSE[@]}" logs --no-color migrate | gq "login=True member_of=\[\] role=dfirbench_app"
 "${COMPOSE[@]}" exec -T api python -c "
 from sqlalchemy import text
 from app.db.session import get_engine
@@ -188,19 +193,19 @@ for stmt in "SET ROLE dfir" "SET SESSION AUTHORIZATION dfir" "RESET ROLE; SET RO
 done
 "${COMPOSE[@]}" exec -T -e PGPASSWORD="$APP_PW" postgres psql -h 127.0.0.1 -U dfirbench_app \
   -d dfirbench -At -c "SELECT rolsuper OR rolcreaterole OR rolcreatedb FROM pg_roles WHERE rolname = current_user" \
-  | grep -qx f
+  | gq -x f
 unset APP_PW
 
 step "alembic upgrade head + drift check (host -> compose Postgres, owner login)"
 "$BIN/alembic" upgrade head
-"$BIN/alembic" current | grep -q '(head)'
+"$BIN/alembic" current | gq '(head)'
 "$BIN/alembic" check
 
 step "alembic round trip of migrations 0009-0012 (downgrade 0008 -> upgrade head)"
 "$BIN/alembic" downgrade 0008
-"$BIN/alembic" current | grep -q '0008'
+"$BIN/alembic" current | gq '0008'
 "$BIN/alembic" upgrade head
-"$BIN/alembic" current | grep -q '(head)'
+"$BIN/alembic" current | gq '(head)'
 "$BIN/alembic" check
 
 step "live smokes (Phases 1-9) through the running API (parsing now runs in the sandbox)"
@@ -223,7 +228,7 @@ step "the app login survives a migration round trip on live data (0012 down/up),
 "$BIN/alembic" check
 "${COMPOSE[@]}" restart api >/dev/null
 bash "$ROOT/scripts/wait-healthy.sh" 180
-curl -fsS -m 10 http://127.0.0.1:8000/api/v1/ready | grep -q '"status":"ready"'
+curl -fsS -m 10 http://127.0.0.1:8000/api/v1/ready | gq '"status":"ready"'
 
 step "backup -> restore drill into a separate project, verified against the signed manifest"
 DRILL="$ROOT/var/verify-drill-$(date +%s)"
@@ -259,7 +264,7 @@ if BACKUP_PASSPHRASE="a-wrong-passphrase-that-is-long" "$PY" "$ROOT/scripts/rest
      --tmp-dir "$DRILL"; then
   echo "a wrong passphrase was accepted" >&2; exit 1
 fi
-if docker volume ls -q | grep -q '^dfirbench-restore_'; then
+if docker volume ls -q | gq '^dfirbench-restore_'; then
   echo "restore drill left volumes behind" >&2; exit 1
 fi
 rm -rf "$DRILL"
@@ -282,7 +287,7 @@ step "tool validation appendix is current (guide 22.7)"
 
 step "benchmark: 200 000 events (parse, ingest, search, detection) with floors"
 "$BIN/python" "$ROOT/scripts/benchmark.py" --events 200000 --search-runs 20 \
-  --min-parse-lps 5000 --min-ingest-eps 1500 --max-search-p95-ms 2000 --max-detect-s 300 \
+  --min-parse-lps 20000 --min-ingest-eps 2000 --max-search-p95-ms 2000 --max-detect-s 300 \
   --json-out "$ROOT/var/benchmark.json"
 
 step "scans: gitleaks, pip-audit, npm audit, Trivy (api, worker) + SBOMs"

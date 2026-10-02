@@ -71,6 +71,16 @@ finding (JSON on stdout), 2 an error.
 
 ## Limits (Standard profile)
 
+* The passphrase protects `keys.tar.enc`, which holds the private custody signing key. Whoever
+  has a backup and its passphrase can sign custody records and manifests, so treat the
+  passphrase like that key. During a restore the decrypted files sit in a temporary directory
+  on the host (mode `0700` on POSIX; on Windows only the user profile's permissions apply) and
+  are deleted afterwards. Run restores on a trusted host.
+* `restore.py` reports VERIFIED when the restored stack matches the backup's signed manifest and
+  reproduces exactly the integrity findings recorded at backup time ("N findings recorded at
+  backup time reproduced exactly"). VERIFIED therefore does not mean there are no findings: a
+  problem that already existed when the backup was taken is restored with it. Check N.
+
 * No WAL archiving or point-in-time recovery: backups are full logical dumps taken in a short
   maintenance window. Production with a recovery-point objective below a day should add WAL
   archiving and MinIO bucket/site replication (guide 21.6); both are post-v1.

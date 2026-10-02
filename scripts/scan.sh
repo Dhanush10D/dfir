@@ -14,7 +14,7 @@
 # Ignored advisories need an entry with a reason in .trivyignore / scripts/scan-ignore.txt.
 set -euo pipefail
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && { pwd -W 2>/dev/null || pwd; })"  # C:/... in Git Bash, so it survives MSYS_NO_PATHCONV
 OUT="$ROOT/var/scan"
 mkdir -p "$OUT"
 GITLEAKS_IMAGE="zricethezav/gitleaks:v8.30.0@sha256:691af3c7c5a48b16f187ce3446d5f194838f91238f27270ed36eef6359a574d9"

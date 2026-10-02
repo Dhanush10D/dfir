@@ -1,6 +1,6 @@
 # gitleaks baseline (Phase 10, scripts/scan.sh): reviewed findings that are not secrets.
 # All are test fixtures (fake AWS key / PEM blocks / test passwords in redaction and signing
-# tests, also in the deleted phase-9 backup folders) or the annotation `private_key: Ed25519PrivateKey`.
+# tests, also in the deleted phase-9 backup folders) or a type annotation of the private signing key variable.
 # Format: <commit>:<file>:<rule>:<line> (gitleaks fingerprints). Any new finding fails the scan.
 1b913791bbaf8569054204254a7e9d8617b92e82:unreviewed-phase-9/files/backend/tests/integration/conftest.py:generic-api-key:115
 1b913791bbaf8569054204254a7e9d8617b92e82:unreviewed-phase-9/files/backend/tests/integration/conftest.py:generic-api-key:116
@@ -27,3 +27,4 @@ d16043b05d2a8085bd79798625dbe1cdd9487945:backend/tests/integration/conftest.py:g
 d16043b05d2a8085bd79798625dbe1cdd9487945:backend/tests/integration/conftest.py:generic-api-key:116
 d16043b05d2a8085bd79798625dbe1cdd9487945:backend/tests/integration/harness.py:generic-api-key:27
 d16043b05d2a8085bd79798625dbe1cdd9487945:backend/tests/unit/test_signing.py:private-key:30
+70e7c91ec64a271b94066c2ded3a604b3cf9c179:.gitleaksignore:generic-api-key:3

@@ -4,7 +4,7 @@
 set -euo pipefail
 
 TIMEOUT="${1:-240}"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && { pwd -W 2>/dev/null || pwd; })"  # C:/... in Git Bash, so it survives MSYS_NO_PATHCONV
 COMPOSE=(docker compose -f "$ROOT/infra/compose.yaml")
 SERVICES=(postgres redis minio parser-sandbox api worker web)
 ONESHOT=(migrate storage-init keygen)
