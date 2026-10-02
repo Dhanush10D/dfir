@@ -42,6 +42,7 @@ from app.sandbox.server import (
     descendants,
     health,
     main,
+    set_subreaper,
     uid_split_from_env,
 )
 from tests.unit.deep_helpers import context
@@ -169,7 +170,8 @@ def test_child_environment_holds_no_credentials(
 
 
 def test_timeout_kills_the_child_and_keeps_what_it_wrote(spool: dict[str, Path]) -> None:
-    name = make_job(spool, {"mode": "sleep"}, timeout_s=1)
+    # 5 s: the child must get past interpreter start-up and imports to write its first line.
+    name = make_job(spool, {"mode": "sleep"}, timeout_s=5)
     started = time.monotonic()
     info = run(spool, name)
     assert info.reason == "timeout" and not info.result_seen
@@ -259,6 +261,9 @@ def test_stray_processes_are_killed_after_the_job(spool: dict[str, Path]) -> Non
 
 @pytest.mark.skipif(not LINUX, reason="/proc process tree")
 def test_orphan_holding_stdout_does_not_hang_the_server(spool: dict[str, Path]) -> None:
+    # As in `main`: the server is a subreaper, so the orphan stays its descendant for the sweep
+    # (otherwise it re-parents to the container's init and keeps the pipe open).
+    set_subreaper()
     name = make_job(spool, {"mode": "orphan"})
     started = time.monotonic()
     info = run(spool, name, sweep=True)

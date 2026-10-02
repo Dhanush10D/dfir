@@ -184,7 +184,8 @@ def test_sandbox_timeout_keeps_a_partial_result(
 ) -> None:
     with Sandbox(tmp_path / "slow", fake_mode="sleep") as box:
         job = _job(h, analyst, AUTH_LOG)
-        result = h.processing(**box.settings(parser_timeout_s=1)).run(uuid.UUID(job))
+        # 5 s: the child must get past start-up and imports to write its first event.
+        result = h.processing(**box.settings(parser_timeout_s=5)).run(uuid.UUID(job))
     assert result.outcome == "partial", result
     assert result.error == "stopped: parser sandbox time limit"
     assert len(_rows(db_engine, job)) == 1
