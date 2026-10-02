@@ -40,6 +40,9 @@ def make_celery() -> Celery:
         worker_prefetch_multiplier=1,
         task_time_limit=settings.parser_timeout_s + 300,
         task_soft_time_limit=settings.parser_timeout_s,
+        # acks_late + Redis: an unacked task is redelivered after visibility_timeout (default
+        # 1 h). Keep it above the hard time limit so a long parse is not handed out twice.
+        broker_transport_options={"visibility_timeout": settings.parser_timeout_s + 900},
         task_serializer="json",
         result_serializer="json",
         accept_content=["json"],

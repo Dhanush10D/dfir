@@ -25,6 +25,9 @@ from app.parsers.timeconv import TimestampError, filetime
 
 SOURCE = "lnk"
 MAX_BYTES = 16 * 1024 * 1024
+# LnkParse3 copies the remaining buffer for every extra-data block (O(n^2) on a body of tiny
+# blocks: 1 MiB took 35 s). Real shortcuts are a few KiB, so the library sees at most this much.
+LIBRARY_BYTES = 256 * 1024
 HEADER = b"\x4c\x00\x00\x00\x01\x14\x02\x00\x00\x00\x00\x00\xc0\x00\x00\x00\x00\x00\x00\x46"
 TIMES = (("target_created", 28), ("target_modified", 44), ("target_accessed", 36))
 STRING_KEYS = (
@@ -106,7 +109,9 @@ class LnkParser:
         stats.bytes_read = len(data)
         if data[:20] != HEADER or len(data) < 76:
             raise ParserInputError("not a Windows shortcut (bad header)")
-        details, error = link_details(data)
+        if len(data) > LIBRARY_BYTES:
+            stats.warn("lnk_truncated_for_parsing", f"{len(data)} bytes, first {LIBRARY_BYTES}")
+        details, error = link_details(data[:LIBRARY_BYTES])
         if error:
             stats.read()
             stats.error("link info/string data", "lnk_structure_unreadable", error)

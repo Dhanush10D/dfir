@@ -232,3 +232,33 @@ def test_linux_auth_unwraps_rsyslog_repeated_messages(tmp_path: Path) -> None:
     (event,), _ = parse(tmp_path, "linux_auth", data, "auth.log")
     assert event.event_code == "ssh_failed" and event.src_ip == "203.0.113.9"
     assert event.raw["repeated"] == 5
+
+
+def test_evtx_string_table_cycle_skips_the_chunk_instead_of_hanging(tmp_path: Path) -> None:
+    import struct
+    import time
+
+    data = bytearray((FIXTURES / "evtx" / "new_user_security.evtx").read_bytes())
+    chunk = 0x1000
+    for i in range(64):
+        ofs = struct.unpack_from("<I", data, chunk + 0x80 + 4 * i)[0]
+        if ofs:
+            struct.pack_into("<I", data, chunk + ofs, ofs)  # the entry points to itself
+            break
+    started = time.monotonic()
+    events, stats = parse(tmp_path, "evtx", bytes(data), "loop.evtx")
+    assert time.monotonic() - started < 10
+    assert stats.assumptions.get("incomplete") == "chunk_bad_tables" and not events
+
+
+def test_lnk_body_of_tiny_extra_blocks_is_bounded(tmp_path: Path) -> None:
+    import time
+
+    from app.parsers.lnk import HEADER
+
+    # 76-byte header with no flags, then 2 MiB of 4-byte extra-data blocks.
+    data = HEADER + bytes(76 - len(HEADER)) + b"\x04\x00\x00\x00" * (512 * 1024)
+    started = time.monotonic()
+    _, stats = parse(tmp_path, "lnk", data, "x.lnk")
+    assert time.monotonic() - started < 20
+    assert stats.warnings["lnk_truncated_for_parsing"] == 1

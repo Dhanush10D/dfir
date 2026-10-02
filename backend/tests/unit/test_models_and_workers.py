@@ -172,3 +172,11 @@ def test_layer_boundaries() -> None:
                 if m.startswith(("app.db", "sqlalchemy", "requests", "httpx", "app.services"))
             ]
     assert problems == []
+
+
+def test_redis_visibility_timeout_outlasts_the_hard_time_limit() -> None:
+    # acks_late on Redis: a task still running past visibility_timeout would be redelivered.
+    from app.workers.celery_app import celery_app
+
+    conf = celery_app.conf
+    assert conf.broker_transport_options["visibility_timeout"] > conf.task_time_limit

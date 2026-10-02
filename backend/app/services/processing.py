@@ -314,6 +314,7 @@ class EventSink:
 
     def flush(self) -> None:
         rows = self.pending
+        inserted = 0
         try:
             if rows:
                 self._ensure_partitions(rows)
@@ -321,9 +322,6 @@ class EventSink:
             if rows:
                 # In this transaction, after lock_running: a cancel cannot interleave.
                 inserted = insert_event_rows(self.session, rows)
-                self.inserted += inserted
-                if inserted < len(rows):
-                    self.stats.warn("duplicate_event_id", detail=str(len(rows) - inserted))
             self.session.execute(
                 update(Job)
                 .where(Job.id == self.job_id)
@@ -339,6 +337,11 @@ class EventSink:
         except OperationalError as exc:
             self.session.rollback()
             raise TransientJobError(f"database unavailable: {type(exc).__name__}") from exc
+        # Counted only once committed: a stop between the insert and the commit rolls the batch
+        # back, and the retry in _flush_quietly must not see it as duplicates.
+        self.inserted += inserted
+        if inserted < len(rows):
+            self.stats.warn("duplicate_event_id", detail=str(len(rows) - inserted))
         self.pending = []
         self.last_flush = time.monotonic()
 
@@ -838,6 +841,7 @@ class ProcessingService:
         if sink is None:
             return
         try:
+            sink.session.rollback()  # a stop may have landed after the insert, before the commit
             sink.flush()
         except Exception:  # noqa: BLE001 - best effort; the outcome is recorded either way
             sink.session.rollback()

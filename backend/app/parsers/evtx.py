@@ -343,6 +343,36 @@ def _sysmon(eid: str, data: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+MAX_TABLE_STEPS = 8192  # string + template nodes per chunk (a 64 KiB chunk holds far fewer)
+
+
+def _tables_bounded(chunk: Any) -> bool:
+    """False if a chunk's string or template hash chains loop or run past ``MAX_TABLE_STEPS``.
+
+    Mirrors ``ChunkHeader._load_strings`` / ``_load_templates`` (64 string buckets at 0x80, 32
+    template buckets at 0x180, ``next_offset`` at node offset 0) with a visited set.
+    """
+    steps = 0
+    try:
+        for base, buckets, template in ((0x80, 64, False), (0x180, 32, True)):
+            for i in range(buckets):
+                ofs = int(chunk.unpack_dword(base + i * 4))
+                seen: set[int] = set()
+                while ofs > 0:
+                    if template and (
+                        chunk.unpack_byte(ofs - 10) != 0x0C or chunk.unpack_dword(ofs - 4) != ofs
+                    ):
+                        break  # the library stops this bucket here too
+                    if ofs in seen or steps >= MAX_TABLE_STEPS:
+                        return False
+                    seen.add(ofs)
+                    steps += 1
+                    ofs = int(chunk.unpack_dword(ofs))
+    except Exception:  # noqa: BLE001 - unreadable tables fail later, inside the record walk
+        return True
+    return True
+
+
 def _record_xml(xml: str, stats: ParseStats, location: str) -> Element:
     if XML_INVALID.search(xml):
         stats.warn("xml_invalid_chars_replaced", location)
@@ -455,6 +485,13 @@ class EvtxParser:
                 stats.warn("inactive_chunk_parsed", location)
             if not chunk.verify():
                 stats.warn("chunk_checksum_mismatch", location)
+            if not _tables_bounded(chunk):
+                # python-evtx follows these linked lists without a visited set: a cycle would
+                # hang the parser (no exception, no progress call), so the chunk is skipped.
+                stats.read()
+                stats.error(location, "chunk_bad_tables", n=1)
+                stats.assumptions["incomplete"] = "chunk_bad_tables"
+                continue
             yield from self._chunk_records(ctx, chunk, index, location)
         if seen < declared:
             missing = declared - seen
