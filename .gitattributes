@@ -6,3 +6,5 @@
 *.pcap binary
 *.zip binary
 backend/tests/fixtures/deep/bin/** binary
+*.pdf binary
+data/demo/evidence/** binary

@@ -1,0 +1,6 @@
+type,value,source,confidence
+ip,203.0.113.45,demo: SSH brute force and dropper host,0.9
+ip,198.51.100.23,demo: exfiltration endpoint,0.9
+domain,cdn-update.example,demo: dropper download host,0.6
+domain,files.exfil-drop.example,demo: exfiltration host,0.6
+sha256,17709153986a80ed587d9c4fe2c8616a101e9885d70f672fae58193b5e116524,demo: dropper script /tmp/.x.sh,0.9

@@ -1,0 +1,60 @@
+2026-09-14T01:02:11+00:00 web01 CRON[1180]: pam_unix(cron:session): session opened for user root(uid=0) by (uid=0)
+2026-09-14T01:02:12+00:00 web01 CRON[1180]: pam_unix(cron:session): session closed for user root
+2026-09-14T01:30:04+00:00 web01 sshd[1201]: Accepted publickey for deploy from 10.20.0.5 port 50122 ssh2: ED25519 SHA256:q2wD0bXaYh8ex0FJhsDk2ByGdq2v9zU0O7iu4NRnJ1c
+2026-09-14T01:30:04+00:00 web01 sshd[1201]: pam_unix(sshd:session): session opened for user deploy(uid=1001) by (uid=0)
+2026-09-14T01:31:40+00:00 web01 sudo:   deploy : TTY=pts/0 ; PWD=/home/deploy ; USER=root ; COMMAND=/usr/bin/systemctl restart nginx
+2026-09-14T01:44:02+00:00 web01 sshd[1201]: Disconnected from user deploy 10.20.0.5 port 50122
+2026-09-14T02:10:03+00:00 web01 sshd[2200]: Failed password for root from 203.0.113.45 port 41000 ssh2
+2026-09-14T02:10:11+00:00 web01 sshd[2203]: Invalid user admin from 203.0.113.45 port 41007
+2026-09-14T02:10:13+00:00 web01 sshd[2203]: Failed password for invalid user admin from 203.0.113.45 port 41007 ssh2
+2026-09-14T02:10:19+00:00 web01 sshd[2206]: Invalid user ubuntu from 203.0.113.45 port 41014
+2026-09-14T02:10:21+00:00 web01 sshd[2206]: Failed password for invalid user ubuntu from 203.0.113.45 port 41014 ssh2
+2026-09-14T02:10:27+00:00 web01 sshd[2209]: Failed password for deploy from 203.0.113.45 port 41021 ssh2
+2026-09-14T02:10:35+00:00 web01 sshd[2212]: Invalid user test from 203.0.113.45 port 41028
+2026-09-14T02:10:37+00:00 web01 sshd[2212]: Failed password for invalid user test from 203.0.113.45 port 41028 ssh2
+2026-09-14T02:10:43+00:00 web01 sshd[2215]: Invalid user oracle from 203.0.113.45 port 41035
+2026-09-14T02:10:45+00:00 web01 sshd[2215]: Failed password for invalid user oracle from 203.0.113.45 port 41035 ssh2
+2026-09-14T02:10:51+00:00 web01 sshd[2218]: Failed password for root from 203.0.113.45 port 41042 ssh2
+2026-09-14T02:10:59+00:00 web01 sshd[2221]: Invalid user admin from 203.0.113.45 port 41049
+2026-09-14T02:11:01+00:00 web01 sshd[2221]: Failed password for invalid user admin from 203.0.113.45 port 41049 ssh2
+2026-09-14T02:11:07+00:00 web01 sshd[2224]: Invalid user ubuntu from 203.0.113.45 port 41056
+2026-09-14T02:11:09+00:00 web01 sshd[2224]: Failed password for invalid user ubuntu from 203.0.113.45 port 41056 ssh2
+2026-09-14T02:11:15+00:00 web01 sshd[2227]: Failed password for deploy from 203.0.113.45 port 41063 ssh2
+2026-09-14T02:11:23+00:00 web01 sshd[2230]: Invalid user test from 203.0.113.45 port 41070
+2026-09-14T02:11:25+00:00 web01 sshd[2230]: Failed password for invalid user test from 203.0.113.45 port 41070 ssh2
+2026-09-14T02:11:31+00:00 web01 sshd[2233]: Invalid user oracle from 203.0.113.45 port 41077
+2026-09-14T02:11:33+00:00 web01 sshd[2233]: Failed password for invalid user oracle from 203.0.113.45 port 41077 ssh2
+2026-09-14T02:11:39+00:00 web01 sshd[2236]: Failed password for root from 203.0.113.45 port 41084 ssh2
+2026-09-14T02:11:47+00:00 web01 sshd[2239]: Invalid user admin from 203.0.113.45 port 41091
+2026-09-14T02:11:49+00:00 web01 sshd[2239]: Failed password for invalid user admin from 203.0.113.45 port 41091 ssh2
+2026-09-14T02:11:55+00:00 web01 sshd[2242]: Invalid user ubuntu from 203.0.113.45 port 41098
+2026-09-14T02:11:57+00:00 web01 sshd[2242]: Failed password for invalid user ubuntu from 203.0.113.45 port 41098 ssh2
+2026-09-14T02:12:03+00:00 web01 sshd[2245]: Failed password for deploy from 203.0.113.45 port 41105 ssh2
+2026-09-14T02:12:11+00:00 web01 sshd[2248]: Invalid user test from 203.0.113.45 port 41112
+2026-09-14T02:12:13+00:00 web01 sshd[2248]: Failed password for invalid user test from 203.0.113.45 port 41112 ssh2
+2026-09-14T02:12:19+00:00 web01 sshd[2251]: Invalid user oracle from 203.0.113.45 port 41119
+2026-09-14T02:12:21+00:00 web01 sshd[2251]: Failed password for invalid user oracle from 203.0.113.45 port 41119 ssh2
+2026-09-14T02:12:27+00:00 web01 sshd[2254]: Failed password for root from 203.0.113.45 port 41126 ssh2
+2026-09-14T02:12:35+00:00 web01 sshd[2257]: Invalid user admin from 203.0.113.45 port 41133
+2026-09-14T02:12:37+00:00 web01 sshd[2257]: Failed password for invalid user admin from 203.0.113.45 port 41133 ssh2
+2026-09-14T02:12:43+00:00 web01 sshd[2260]: Invalid user ubuntu from 203.0.113.45 port 41140
+2026-09-14T02:12:45+00:00 web01 sshd[2260]: Failed password for invalid user ubuntu from 203.0.113.45 port 41140 ssh2
+2026-09-14T02:12:51+00:00 web01 sshd[2263]: Failed password for deploy from 203.0.113.45 port 41147 ssh2
+2026-09-14T02:12:59+00:00 web01 sshd[2266]: Invalid user test from 203.0.113.45 port 41154
+2026-09-14T02:13:01+00:00 web01 sshd[2266]: Failed password for invalid user test from 203.0.113.45 port 41154 ssh2
+2026-09-14T02:13:07+00:00 web01 sshd[2269]: Invalid user oracle from 203.0.113.45 port 41161
+2026-09-14T02:13:09+00:00 web01 sshd[2269]: Failed password for invalid user oracle from 203.0.113.45 port 41161 ssh2
+2026-09-14T02:14:05+00:00 web01 sshd[2290]: Accepted password for deploy from 203.0.113.45 port 41388 ssh2
+2026-09-14T02:14:05+00:00 web01 sshd[2290]: pam_unix(sshd:session): session opened for user deploy(uid=1001) by (uid=0)
+2026-09-14T02:14:06+00:00 web01 systemd-logind[612]: New session 57 of user deploy.
+2026-09-14T02:15:31+00:00 web01 sudo:   deploy : TTY=pts/1 ; PWD=/home/deploy ; USER=root ; COMMAND=/bin/bash
+2026-09-14T02:21:10+00:00 web01 useradd[2350]: new group: name=backupsvc, GID=1002
+2026-09-14T02:21:10+00:00 web01 useradd[2350]: new user: name=backupsvc, UID=1002, GID=1002, home=/home/backupsvc, shell=/bin/bash, from=/dev/pts/1
+2026-09-14T02:21:24+00:00 web01 usermod[2356]: add 'backupsvc' to group 'sudo'
+2026-09-14T02:21:39+00:00 web01 passwd[2359]: pam_unix(passwd:chauthtok): password changed for backupsvc
+2026-09-14T02:40:12+00:00 web01 sshd[2412]: Accepted password for root from 203.0.113.45 port 41702 ssh2
+2026-09-14T02:40:12+00:00 web01 sshd[2412]: pam_unix(sshd:session): session opened for user root(uid=0) by (uid=0)
+2026-09-14T02:58:40+00:00 web01 sshd[2412]: Disconnected from user root 203.0.113.45 port 41702
+2026-09-14T03:04:55+00:00 web01 sshd[2290]: Disconnected from user deploy 203.0.113.45 port 41388
+2026-09-14T07:02:11+00:00 web01 CRON[3301]: pam_unix(cron:session): session opened for user root(uid=0) by (uid=0)
+2026-09-14T07:02:12+00:00 web01 CRON[3301]: pam_unix(cron:session): session closed for user root
