@@ -151,7 +151,7 @@ flowchart TB
   I[Integrations<br/>Slack, Teams, SMTP,<br/>VirusTotal, MISP, SIEM]
 
   U -->|HTTPS via your proxy| W --> A
-  C -. ZIP bundle upload .-> U
+  C -.->|"ZIP bundle upload"| U
   A --> P
   A --> R
   A --> M
@@ -159,8 +159,8 @@ flowchart TB
   K --> P
   K --> M
   K <-->|spool files only| S
-  A -. only through ai/gateway.py .-> X
-  K -. signed webhooks, allow-listed .-> I
+  A -.->|"only through ai/gateway.py"| X
+  K -.->|"signed webhooks"| I
 ```
 
 Design rules that keep the evidence trustworthy:
