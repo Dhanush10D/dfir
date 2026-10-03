@@ -16,3 +16,10 @@ Source: `docs/BUILD_GUIDE.md` section 23. Each phase is built, verified, then pu
 | 9 | Response + integrations | 19 | YAML playbooks, approvals, notifications, outbound webhooks, SIEM/EDR webhook ingest, MISP/VT enrichment (mockable) |
 | 10 | Hardening + validation | 20, 21.4, 22 | Sandboxed parser containers (no network, read-only), security tests, scans, perf benchmark, backup/restore, tool validation appendix |
 | 11 | Docs + demo | 25 | README, user/admin guides, demo case loader + e2e smoke script, THIRD_PARTY.md, CHANGELOG, test/coverage/AI-eval reports |
+
+Phase 11 as delivered: README, `docs/user-guide.md`, `docs/admin-guide.md`, `docs/limitations.md`,
+`docs/validation/TEST_REPORT.md`, `THIRD_PARTY.md`, `LICENSE`, sample signed reports in
+`docs/samples/`. The demo case loader became synthetic demo evidence for a live walkthrough
+(`data/demo/`) plus `scripts/demo-check.py`, which loads it through the API and checks the expected
+alerts. Not done (see `docs/BACKLOG.md`): Playwright UI tests, a live-model AI evaluation, a CHANGELOG,
+a demo video and slides.

@@ -14,7 +14,7 @@ list in `docs/specs/PHASE-10.md`.
 | ~~Separate least-privilege DB role for the app~~ **Partly done in Phase 1**: migration 0002 creates `dfirbench_app` (no UPDATE/DELETE/TRUNCATE on `custody_log`/`audit_log`) and the API/worker run every session as it (`DATABASE_APP_ROLE`, `SET ROLE` at connect). Remaining: a separate LOGIN role with its own password so a compromised app cannot `RESET ROLE` back to the owner; migrations keep the owner login | Needs secret provisioning for a second DB password in compose/CI | **Done in Phase 10**: API/worker log in as `dfirbench_app` (provision-app-login, `DATABASE_MIGRATE_URL`); RESET ROLE/SET ROLE denied (verify, smoke) |
 | ~~`AuditMiddleware` writing `audit_log` rows per request~~ | Done in Phase 1 | - |
 | ~~Events partition maintenance~~ **Done in Phase 2** (ingest ensures partitions, the function moves stray `events_default` rows). Remaining: retention by dropping partitions | Needs a scheduler and a retention policy | Post-v1: retention needs a legal retention policy and a scheduler |
-| Reverse proxy with TLS (Caddy) in compose | Dev stack binds to 127.0.0.1 only | Post-v1: dev stack binds 127.0.0.1; deployment TLS goes in the Phase 11 admin guide |
+| Reverse proxy with TLS (Caddy) in compose | Dev stack binds to 127.0.0.1 only | Post-v1: dev stack binds 127.0.0.1; deployment TLS documented in docs/admin-guide.md (Phase 11) |
 | `/metrics` (Prometheus), OpenTelemetry traces | Observability hardening | **Done in Phase 10** for `/metrics` (token, docs/hardening.md); OpenTelemetry traces post-v1 (new dependencies and a collector service) |
 | pip-audit, Trivy image scan, gitleaks, SBOM (Syft), cosign signing in CI | Security pipeline | **Done in Phase 10**: scripts/scan.sh + CI `security` job (pip-audit, npm audit, gitleaks, Trivy, CycloneDX SBOMs); cosign signing post-v1 (needs a registry and release pipeline) |
 | ~~Forensic binaries in the worker image~~ **Partly done in Phase 6**: Sleuth Kit (with Debian's libewf), Volatility 3 (own venv), YARA (yara-python) and the tool version file. Remaining: Plaso, Hayabusa, tshark, Suricata (image size / RAM), Zeek (optional engine, wrapper exists) | Image size on the 7.6 GB dev host | Post-v1: Plaso/Hayabusa/tshark/Suricata/Zeek do not fit the 7.8 GB dev host |
@@ -37,7 +37,7 @@ list in `docs/specs/PHASE-10.md`.
 | Per-IP rate limiting on `/auth/*` (guide 14.3) and alerting on suspicious login patterns | Account lockout covers brute force per account for now | **Done in Phase 10** for per-IP limits (login+MFA, refresh; 429, audited, fail closed); alerting on login patterns post-v1 (needs a scheduler/alert rules) |
 | Breached-password check through a k-anonymity API (HIBP-style); Phase 1 uses a bundled offline list | Needs egress; tests must stay offline | Post-v1: needs egress; the offline list stays |
 | OIDC/SSO (Keycloak/Authlib) and WebAuthn | P2 in the guide | Later |
-| Accept several JWT `kid`s at once for zero-downtime JWT key rotation; `TOTP_ENC_KEY` rotation (re-wrap) | Single key per purpose is enough for dev | Post-v1: key rotation procedures go into the Phase 11 admin guide; single node needs a planned logout |
+| Accept several JWT `kid`s at once for zero-downtime JWT key rotation; `TOTP_ENC_KEY` rotation (re-wrap) | Single key per purpose is enough for dev | Post-v1: rotation procedures documented in docs/admin-guide.md section 9 (Phase 11); single node needs a planned logout |
 | Resumable/chunked uploads (tus or presigned S3 multipart) for very large images; Phase 1 streams one `PUT` (multipart to MinIO, bounded memory) | Works for the Standard profile; resumability is a UX improvement (not needed for Phase 5 bundles) | Post-v1: UX feature, uploads already stream with bounded memory |
 | Reaper for evidence stuck in `uploaded` (never finalized) and for orphaned object versions left by a failed DB commit after a successful vault write | Rare; detectable (finalize/verify compare versions); needs Celery beat | Post-v1: needs a scheduler; integrity-check reports such items |
 | ~~`/cases/{id}/summary`~~ | Done in Phase 4 | - |
@@ -46,7 +46,7 @@ list in `docs/specs/PHASE-10.md`.
 | Custody signing keys in Vault/KMS or an HSM, with the trusted-keys file (`CUSTODY_TRUSTED_KEYS_PATH`) distributed from the secret manager; today both are files (dev key in the `custodykeys` volume) | Needs a secret manager | Post-v1: needs a secret manager; backups now carry the key encrypted |
 | Two admins changing each other concurrently can deadlock in `update_user` (target read unlocked, acting admin locked in `_reauth`); Postgres aborts one as a 500. Lock both rows in id order, or map the deadlock to 409 | Rare; no data harm | **Done in Phase 10**: `update_user` locks actor, target and all active admins in id order (test_security.py) |
 | Notify admins when the published `signing_keys` row differs from the trusted key (today it is logged and reported only when someone runs verify) | Needs the scheduler / periodic re-verify | Partly done in Phase 10: integrity-check reports `signing_key_mismatch`; notifications need the scheduler (post-v1) |
-| Test migration 0003's `GRANT dfirbench_app TO CURRENT_USER` with a non-superuser (CREATEROLE) owner on PG16 | Compose and CI owners are superusers | Post-v1: `CREATE EXTENSION vector` needs a superuser or a pre-created extension; documented in the Phase 11 admin guide |
+| Test migration 0003's `GRANT dfirbench_app TO CURRENT_USER` with a non-superuser (CREATEROLE) owner on PG16 | Compose and CI owners are superusers | Post-v1: `CREATE EXTENSION vector` needs a superuser or a pre-created extension; documented in docs/admin-guide.md (Phase 11) |
 
 ## From Phase 2
 
@@ -88,11 +88,11 @@ list in `docs/specs/PHASE-10.md`.
 | ECharts / Cytoscape for charts and the graph | Small hand-written SVG components; no new npm dependencies | Later |
 | Entity merge suggestions + analyst approval; time-scoped IP-to-host mapping; domain and file entities; alert nodes in the graph; shortest path | Deterministic resolution first; Phase 7 kept to the roadmap's AI features | Post-v1: analysis feature |
 | File browser (TSK listing) and file extraction (`icat`) | Phase 6 ships the TSK timeline (`tsk_fs`); a browsable listing needs an API + UI | Post-v1: needs an API + UI |
-| Playwright end-to-end tests of the UI | Vitest + Testing Library cover components; live API smoke covers the backend | Phase 11 |
+| Playwright end-to-end tests of the UI | Vitest + Testing Library cover components; live API smoke covers the backend | Post-v1: not done in Phase 11 (memory on the dev host); `scripts/demo-check.py` covers the demo flow over the API |
 | MFA enrolment UI and admin screens (users, rules, IOCs) | Login with TOTP works; enrolment/admin via API | Post-v1: UI feature; enrolment works via the API |
 | Export as a background job (larger than `EXPORT_MAX_ROWS`) | Synchronous capped export (10 000 rows) is audited with its hash; Phase 8 reports are also synchronous and capped | Post-v1: needs background render jobs |
 | Serve the CSP / security headers from one nginx include file instead of repeating them per location | Single-file config copied into the image; `phase4-smoke.py` checks every location | **Done in Phase 10**: `infra/docker/security-headers.conf`, checked on every location by phase10-smoke.py |
-| DB trigger on `notes` requiring `version = OLD.version + 1` with a matching `note_versions` row, so history can't be skipped by the app role | The service layer writes history under a row lock; the app role can't delete or alter versions | Phase 11 |
+| DB trigger on `notes` requiring `version = OLD.version + 1` with a matching `note_versions` row, so history can't be skipped by the app role | The service layer writes history under a row lock; the app role can't delete or alter versions | Post-v1: defence in depth; not in the Phase 11 (docs) scope |
 
 ## From Phase 5
 
@@ -141,7 +141,7 @@ list in `docs/specs/PHASE-10.md`.
 | The daily budget is checked before a call, so concurrent in-flight calls can overshoot it by a few calls; a Redis reservation would make it exact | Per-user/per-case rate limits bound the overshoot | Post-v1: overshoot bounded by rate limits |
 | Multi-turn chat (conversation memory) and streaming answers in the UI | Single-question chat keeps every answer independently verifiable | Later |
 | Anthropic prompt caching (`cache_control`) on the stable system prompts | Cost optimisation; needs real traffic to measure | Later |
-| A live-model evaluation run (`python -m app.ai.eval --provider live --record ...`) with the report stored next to the prompt versions | Needs an API key and network; the offline suites run in CI | Phase 11 (AI-eval report) |
+| A live-model evaluation run (`python -m app.ai.eval --provider live --record ...`) with the report stored next to the prompt versions | Needs an API key and network; the offline suites run in CI | Post-v1: Phase 11 reports the offline suites (docs/validation/TEST_REPORT.md); a live run needs an API key |
 | Citation links to alerts open the Alerts tab, not the specific alert; deep links for alerts | UI polish | Post-v1: UI polish |
 | Run `scripts/phase7-smoke.py` in the CI compose-smoke job (stack started with `ENABLE_AI=true LLM_PROVIDER=fake`) | CI smoke covers Phases 1-3 today; verify-phase7.sh runs it locally | **Done in Phase 10**: CI compose-smoke runs the Phase 1-3, 7, 9 and 10 smokes |
 
