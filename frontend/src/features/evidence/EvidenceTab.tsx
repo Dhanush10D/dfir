@@ -44,11 +44,13 @@ function UploadForm() {
   const { caseId } = useCase()
   const client = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
+  const [pickerKey, setPickerKey] = useState(0)
   const [kind, setKind] = useState('log')
   const upload = useMutation({
     mutationFn: () => api.upload(caseId, file as File, kind),
     onSuccess: () => {
       setFile(null)
+      setPickerKey((k) => k + 1) // clear the picker too, so the same file can be chosen again
       // The upload response is shown immediately, while invalidation makes the evidence list
       // authoritative again after the server has recorded the new custody state.
       void client.invalidateQueries({ queryKey: ['evidence', caseId] })
@@ -62,7 +64,12 @@ function UploadForm() {
     <form onSubmit={submit} className="mt-3 flex flex-wrap items-end gap-2" aria-label="Upload evidence">
       <label className="text-sm">
         <span className="mb-1 block font-medium">File</span>
-        <input type="file" className="text-sm" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
+        <input
+          key={pickerKey}
+          type="file"
+          className="cursor-pointer text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-slate-200 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-900 hover:file:bg-slate-300 dark:file:bg-slate-700 dark:file:text-slate-100 dark:hover:file:bg-slate-600"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
       </label>
       <label className="text-sm">
         <span className="mb-1 block font-medium">Kind</span>
@@ -72,9 +79,15 @@ function UploadForm() {
           ))}
         </select>
       </label>
-      <Button type="submit" variant="primary" disabled={!file || upload.isPending}>
+      <Button
+        type="submit"
+        variant="primary"
+        disabled={!file || upload.isPending}
+        title={file ? undefined : 'Choose a file first'}
+      >
         {upload.isPending ? 'Uploading…' : 'Upload'}
       </Button>
+      {!file && !upload.isPending && <p className="text-xs text-slate-500">Choose a file to enable Upload.</p>}
       <ErrorMessage error={upload.error} />
       {upload.data && (
         <p role="status" className="text-sm">

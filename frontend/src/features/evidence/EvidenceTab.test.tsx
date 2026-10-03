@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 
 import { EvidenceTab } from '@/features/evidence/EvidenceTab'
 import { ANALYST, CASE_ID, jsonResponse, renderInCase, routeFetch } from '@/test/utils'
@@ -35,5 +35,25 @@ describe('triage bundles in the evidence list', () => {
     expect(screen.getByText('from EV-001')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Ingest bundle' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Process' })).toBeInTheDocument()
+  })
+})
+
+describe('upload form', () => {
+  it('explains the disabled Upload button and enables it once a file is chosen', async () => {
+    vi.stubGlobal(
+      'fetch',
+      routeFetch({
+        [`GET /api/v1/cases/${CASE_ID}/evidence`]: () => jsonResponse(200, { items: [], total: 0 }),
+        [`GET /api/v1/cases/${CASE_ID}/jobs`]: () => jsonResponse(200, { items: [], total: 0 }),
+      }),
+    )
+    renderInCase(<EvidenceTab />, ANALYST)
+    const upload = await screen.findByRole('button', { name: 'Upload' })
+    expect(upload).toBeDisabled()
+    expect(upload).toHaveAttribute('title', 'Choose a file first')
+    expect(screen.getByText('Choose a file to enable Upload.')).toBeInTheDocument()
+    const picker = screen.getByLabelText('File')
+    fireEvent.change(picker, { target: { files: [new File(['x'], 'Security.evtx')] } })
+    expect(upload).toBeEnabled()
   })
 })
