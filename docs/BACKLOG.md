@@ -189,3 +189,11 @@ list in `docs/specs/PHASE-10.md`.
 | A containerised backup/restore tool (today the scripts run on the Docker host with the backend venv) | Host scripts can pipe Docker volumes without giving any service the Docker socket | Post-v1 |
 | Scheduled `integrity-check` with notifications (and custody anchors between backups) | Needs the scheduler (see the Celery beat items) | Post-v1 |
 | Event ingest needs the database's `TEMPORARY` privilege for the COPY staging table; fall back to multi-row INSERT where it is revoked | Default PostgreSQL grants it to `PUBLIC`; documented in docs/hardening.md | Post-v1 |
+
+## From the full audit (2026-10-02)
+
+| Item | Why deferred | Target |
+|---|---|---|
+| Threshold rules count an rsyslog `message repeated N times` line once (its count is kept in `raw.repeated`) | Weighting events needs an engine change; the line is now classified (code, source IP) instead of ignored | Post-v1 |
+| Bundle ingest rejects the whole bundle for one member over the compression-ratio limit (the collector now stores large members, so its own bundles pass) | Quarantining a single member changes the ingest contract and custody records | Post-v1 |
+| API keys can be created without expiry and without re-entering the password | Needs a UI change for the password prompt; keys now end with password change, logout-all, deactivation and MFA reset | Post-v1 |

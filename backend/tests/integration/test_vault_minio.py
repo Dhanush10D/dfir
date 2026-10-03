@@ -9,6 +9,7 @@ from __future__ import annotations
 import hashlib
 import io
 import os
+import time
 import uuid
 import warnings
 from collections.abc import Iterator
@@ -171,9 +172,19 @@ def test_delete_marker_does_not_hide_the_intact_original(
     assert h.upload(lead, ev["id"], data).status_code == 200
     assert h.post(f"/evidence/{ev['id']}/finalize", lead).json()["ok"] is True
     # A plain DELETE under Object Lock only adds a delete marker on top of the locked version.
-    minio_client.remove_object(vault.bucket, h.key_of(ev))
+    key = h.key_of(ev)
+    minio_client.remove_object(vault.bucket, key)
+    deadline = time.monotonic() + 10  # a freshly started MinIO can show the marker late
+    while time.monotonic() < deadline:
+        try:
+            minio_client.stat_object(vault.bucket, key)
+        except S3Error:
+            break
+        time.sleep(0.2)
+    else:
+        pytest.fail("MinIO never showed the delete marker on the key")
     report = h.post(f"/evidence/{ev['id']}/verify", lead).json()
-    assert {p["code"] for p in report["object"]["problems"]} == {"delete_marker_at_key"}
+    assert {p["code"] for p in report["object"]["problems"]} == {"delete_marker_at_key"}, report
     assert report["object"]["actual"]["sha256"] == hashlib.sha256(data).hexdigest()
 
 

@@ -545,7 +545,7 @@
    "passed": true,
    "positive_alerts": 1,
    "rule": "DFIR-AF-0001",
-   "rule_sha256": "79ece5ff9d7448839e1eca90595752c6a374e2d355536999b10aef3e243edd4f"
+   "rule_sha256": "ca592d03cc3f7de045355a4a3fddf0d0edc33bf21a52c5421f1b54fd6ba34209"
   },
   {
    "attack": [
@@ -555,7 +555,7 @@
    "passed": true,
    "positive_alerts": 1,
    "rule": "DFIR-AF-0002",
-   "rule_sha256": "786dad9f59851bead1d477fa78a827aeff0783b4916f7f27e3a630051133c20f"
+   "rule_sha256": "2c45795533963d86b1bfe61954aaf170747bd2f72254a7155a70eb28ccc3cd96"
   },
   {
    "attack": [
@@ -583,7 +583,7 @@
    "passed": true,
    "positive_alerts": 1,
    "rule": "DFIR-LNX-0001",
-   "rule_sha256": "a242bf07de2acb5c028b050e61c0fc32264383920959279787c2168b6832223c"
+   "rule_sha256": "8d712db455455238de671846ad69cb34877fe8f3c222a0e127c4d227afad954f"
   },
   {
    "attack": [
@@ -593,7 +593,7 @@
    "passed": true,
    "positive_alerts": 1,
    "rule": "DFIR-LNX-0002",
-   "rule_sha256": "58eb6c4926d02db0b2d829538f4adfe7ac40b3a54bed94b001585a96fa70a817"
+   "rule_sha256": "a584502a440d292c89cd4f6d09f427fcc567f900ab23ad34244ef64e6aba33cc"
   },
   {
    "attack": [
@@ -603,7 +603,7 @@
    "passed": true,
    "positive_alerts": 1,
    "rule": "DFIR-LNX-0003",
-   "rule_sha256": "e799d0052c02377d16f46432cf5ac1fd4900ddfdd4dc782066543ce193f0ebfb"
+   "rule_sha256": "d3a493ae2062248873603c6d278f4dd2d17ad421d8eb3b57cab43d55c82d2f28"
   },
   {
    "attack": [
@@ -613,7 +613,7 @@
    "passed": true,
    "positive_alerts": 1,
    "rule": "DFIR-LNX-0004",
-   "rule_sha256": "d07f68e97826b5dc52f4e6ed8bba2e94af2245f1df24cf62ad41f06371694b72"
+   "rule_sha256": "709b93ab939e638f8dea7ade24b4f7864e06c6957072dff0f2d58ac904d5a0b0"
   },
   {
    "attack": [
@@ -623,7 +623,7 @@
    "passed": true,
    "positive_alerts": 1,
    "rule": "DFIR-LNX-0011",
-   "rule_sha256": "9bef94704a94e4b845be74be2d2d38abac9202146a7955de27fc0084a1fd6ae0"
+   "rule_sha256": "fd61daf1da380aceb8ad957fb3cc457f8534c4f9ee35a2004ade6ee0fcb2c03c"
   },
   {
    "attack": [

@@ -450,9 +450,10 @@ def test_entity_resolution_and_graph(world: World, db_engine: Engine) -> None:
     hosts = {e["canonical"]: e for e in entities(type="host")}
     assert {"web01", "ie8win7", "ws-042"} <= set(hosts)  # WS-042 + ws-042.corp.local merged
     users = {e["canonical"] for e in entities(type="user")}
-    # CORP\alice and alice@corp.local are one user; the EVTX SID was merged with its account name
+    # CORP\alice and alice@corp.local are one user. S-1-5-18 (SYSTEM) is well known: next to a
+    # HOST$ name it stays its own entity instead of merging every host's machine account.
     assert "corp\\alice" in users and "alice@corp.local" not in users
-    assert "workgroup\\win-qala5q3kj43$" in users and "S-1-5-18" not in users
+    assert "workgroup\\win-qala5q3kj43$" in users and "S-1-5-18" in users
     assert {e["canonical"] for e in entities(type="ip")} >= {"203.0.113.50", "10.0.4.17"}
     assert entities(q="corp.local")  # alias search
     assert (
@@ -470,7 +471,7 @@ def test_entity_resolution_and_graph(world: World, db_engine: Engine) -> None:
     sid_aliases = {
         a["alias"] for a in h.get(f"/entities/{sid_user['id']}", world.viewer).json()["aliases"]
     }
-    assert "S-1-5-18" in sid_aliases
+    assert "S-1-5-18" not in sid_aliases  # SYSTEM's SID is not this machine account's own
     assert h.get(f"/entities/{sid_user['id']}", world.outsider).status_code == 404
 
     g = h.get(f"/cases/{cid}/graph", world.viewer, params={"max_nodes": 3}).json()
