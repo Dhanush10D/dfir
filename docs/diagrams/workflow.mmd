@@ -1,0 +1,10 @@
+flowchart LR
+  A[Collect<br/>logs, images,<br/>triage bundles] --> B[Upload<br/>hash while streaming,<br/>WORM vault]
+  B --> C[Custody<br/>signed, hash-chained<br/>record]
+  B --> D[Parse<br/>sandboxed parsers,<br/>normalised UTC events]
+  D --> E[Detect<br/>rules, IOCs,<br/>anti-forensics]
+  E --> F[Investigate<br/>timeline, alerts,<br/>ATT&CK, graph]
+  F --> G[AI assist<br/>cited, validated,<br/>human-accepted]
+  F --> H[Respond<br/>playbooks,<br/>approvals]
+  F --> I[Report<br/>snapshot, QA, approve,<br/>sign, verify]
+  G --> F

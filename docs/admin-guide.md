@@ -50,19 +50,7 @@ Data lives in named Docker volumes (project `dfirbench`):
 | `dfirbench_redisdata` | Queue state | no |
 | `dfirbench_scratch`, `dfirbench_spool*`, `dfirbench_sandboxwork` | Temporary job files | no |
 
-```mermaid
-flowchart LR
-  browser[Browser] -->|HTTP 8080| web[web: nginx + React UI]
-  web -->|/api| api[api: FastAPI]
-  api --> pg[(PostgreSQL 16 + pgvector)]
-  api --> redis[(Redis)]
-  api --> minio[(MinIO evidence vault)]
-  api -. optional .-> llm[LLM provider]
-  redis --> worker[worker: Celery]
-  worker --> pg
-  worker --> minio
-  worker -->|spool files| sandbox[parser-sandbox: no network]
-```
+![Deployed services and how they connect](images/deployment.png)
 
 ## 2. Requirements
 

@@ -94,18 +94,7 @@ dfirbench brings the whole investigation into one web application:
 
 ## How it works: the workflow
 
-```mermaid
-flowchart LR
-  A[Collect<br/>logs, images,<br/>triage bundles] --> B[Upload<br/>hash while streaming,<br/>WORM vault]
-  B --> C[Custody<br/>signed, hash-chained<br/>record]
-  B --> D[Parse<br/>sandboxed parsers,<br/>normalised UTC events]
-  D --> E[Detect<br/>rules, IOCs,<br/>anti-forensics]
-  E --> F[Investigate<br/>timeline, alerts,<br/>ATT&CK, graph]
-  F --> G[AI assist<br/>cited, validated,<br/>human-accepted]
-  F --> H[Respond<br/>playbooks,<br/>approvals]
-  F --> I[Report<br/>snapshot, QA, approve,<br/>sign, verify]
-  G --> F
-```
+![dfirbench workflow: collect, upload, custody, parse, detect, investigate, AI assist, respond, report](docs/images/workflow.png)
 
 Step by step, for one piece of evidence:
 
@@ -132,36 +121,7 @@ Step by step, for one piece of evidence:
 
 ## System architecture
 
-```mermaid
-flowchart TB
-  subgraph Client
-    U[Browser: React + TypeScript UI]
-    C[Triage collectors<br/>Windows / Linux]
-  end
-  subgraph Host["Docker Compose host (127.0.0.1)"]
-    W[web: nginx<br/>static UI, /api proxy,<br/>security headers]
-    A[api: FastAPI<br/>auth, RBAC, services,<br/>AI gateway, reports]
-    K[worker: Celery<br/>parse, detect, ingest,<br/>notifications]
-    S[parser-sandbox<br/>no network, read-only,<br/>no capabilities]
-    P[(PostgreSQL 16 + pgvector<br/>cases, events, custody,<br/>audit, AI index)]
-    R[(Redis<br/>queues, rate limits)]
-    M[(MinIO<br/>evidence: Object Lock<br/>artifacts: reports)]
-  end
-  X[LLM provider<br/>Anthropic / Ollama /<br/>OpenAI-compatible]
-  I[Integrations<br/>Slack, Teams, SMTP,<br/>VirusTotal, MISP, SIEM]
-
-  U -->|HTTPS via your proxy| W --> A
-  C -.->|"ZIP bundle upload"| U
-  A --> P
-  A --> R
-  A --> M
-  R --> K
-  K --> P
-  K --> M
-  K <-->|spool files only| S
-  A -.->|"only through ai/gateway.py"| X
-  K -.->|"signed webhooks"| I
-```
+![dfirbench system architecture: browser and collectors, web, api, worker, parser sandbox, PostgreSQL, Redis, MinIO, LLM provider, integrations](docs/images/architecture.png)
 
 Design rules that keep the evidence trustworthy:
 

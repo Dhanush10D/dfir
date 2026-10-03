@@ -1,0 +1,28 @@
+flowchart TB
+  subgraph Client
+    U[Browser: React + TypeScript UI]
+    C[Triage collectors<br/>Windows / Linux]
+  end
+  subgraph Host["Docker Compose host (127.0.0.1)"]
+    W[web: nginx<br/>static UI, /api proxy,<br/>security headers]
+    A[api: FastAPI<br/>auth, RBAC, services,<br/>AI gateway, reports]
+    K[worker: Celery<br/>parse, detect, ingest,<br/>notifications]
+    S[parser-sandbox<br/>no network, read-only,<br/>no capabilities]
+    P[(PostgreSQL 16 + pgvector<br/>cases, events, custody,<br/>audit, AI index)]
+    R[(Redis<br/>queues, rate limits)]
+    M[(MinIO<br/>evidence: Object Lock<br/>artifacts: reports)]
+  end
+  X[LLM provider<br/>Anthropic / Ollama /<br/>OpenAI-compatible]
+  I[Integrations<br/>Slack, Teams, SMTP,<br/>VirusTotal, MISP, SIEM]
+
+  U -->|HTTPS via your proxy| W --> A
+  C -.->|"ZIP bundle upload"| U
+  A --> P
+  A --> R
+  A --> M
+  R --> K
+  K --> P
+  K --> M
+  K <-->|spool files only| S
+  A -.->|"only through ai/gateway.py"| X
+  K -.->|"signed webhooks"| I
