@@ -78,7 +78,8 @@ describe('AI analyst tab', () => {
   it('shows a cited, badged answer rendered as text with an event link', async () => {
     vi.stubGlobal('fetch', routes({ [`POST /api/v1/ai/cases/${CASE_ID}/chat`]: () => jsonResponse(200, chatResult()) }))
     renderInCase(<AiTab />, ANALYST)
-    expect(await screen.findByText(/models claude-haiku-4-5-20251001/)).toBeInTheDocument()
+    expect(await screen.findByText('AI for this case: on')).toBeInTheDocument()
+    expect(screen.queryByText(/switched off|not configured/)).toBeNull() // no status banner when the AI works
     fireEvent.change(screen.getByPlaceholderText('What did the attacker do on ws-042?'), {
       target: { value: 'what did bob do?' },
     })

@@ -210,18 +210,12 @@ export function AiTab() {
       <Panel title="AI analyst">
         {status.isPending && <Loading />}
         <ErrorMessage error={status.error} />
-        {s && (
-          <p className="text-sm">
-            {s.enabled ? 'AI is on' : 'AI is switched off on this server'} · provider {s.provider}
-            {s.local_only ? ' (local only)' : ''} · models {s.models.fast} / {s.models.strong} · redaction{' '}
-            {s.redaction_policy}
-            {s.enabled && !s.configured ? ' · provider not configured' : ''}
+        {/* Only say something when the AI cannot answer; provider details live on each result card. */}
+        {s && (!s.enabled || !s.configured) && (
+          <p className="mb-2 text-sm text-amber-800 dark:text-amber-300">
+            {s.enabled ? 'The AI provider is not configured on this server.' : 'AI is switched off on this server.'}
           </p>
         )}
-        <p className="text-xs text-slate-500">
-          Answers are suggestions grounded in this case's evidence. Citations are checked on the server; nothing is
-          changed until a person accepts it.
-        </p>
         <CaseSwitch />
       </Panel>
       {usable ? (
