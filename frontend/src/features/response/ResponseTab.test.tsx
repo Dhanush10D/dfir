@@ -115,6 +115,30 @@ function routes(detail: Record<string, unknown>, calls: { url: string; body: str
   return routeFetch({
     'GET /api/v1/playbooks': () => jsonResponse(200, PLAYBOOKS),
     [`GET /api/v1/cases/${CASE_ID}/playbook-runs`]: () => jsonResponse(200, { items: [detail] }),
+    [`GET /api/v1/cases/${CASE_ID}/alerts`]: () =>
+      jsonResponse(200, {
+        items: [
+          {
+            id: ALERT,
+            case_id: CASE_ID,
+            rule_id: 'DFIR-WIN-0010',
+            title: 'Suspicious thing',
+            severity: 'high',
+            confidence: 0.9,
+            risk_score: 80,
+            status: 'new',
+            status_reason: null,
+            host: 'ws-042',
+            user: null,
+            attack_tags: ['T1486'],
+            first_seen: '2026-09-30T08:00:00Z',
+            last_seen: '2026-09-30T08:05:00Z',
+            event_count: 3,
+            stale: false,
+          },
+        ],
+        total: 1,
+      }),
     [`GET /api/v1/cases/${CASE_ID}/action-requests`]: () => jsonResponse(200, { items: pending }),
     [`GET /api/v1/playbook-runs/${RUN}`]: () => jsonResponse(200, detail),
     [`PATCH /api/v1/playbook-runs/${RUN}/steps/c1`]: (init) => {
@@ -282,8 +306,9 @@ describe('response tab', () => {
   it('suggests playbooks whose trigger matches the alert', async () => {
     vi.stubGlobal('fetch', routes(run([step()])))
     renderInCase(<ResponseTab />, ANALYST)
-    const input = await screen.findByLabelText('Triggering alert id (optional)')
-    fireEvent.change(input, { target: { value: ALERT } })
+    const select = await screen.findByLabelText('Triggering alert (optional)')
+    await screen.findByRole('option', { name: /Suspicious thing/ })
+    fireEvent.change(select, { target: { value: ALERT } })
     expect(await screen.findByText(/Suggested for this alert/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PB-RANSOMWARE-01' })).toBeInTheDocument()
   })

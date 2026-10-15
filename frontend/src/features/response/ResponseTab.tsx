@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState, type FormEvent } from 'react'
 
 import { api } from '@/api/endpoints'
+import { useLocation } from '@/app/router'
 import type { ActionRequest, PlaybookRunDetail, RunPlan, RunStep, StepOp, StepPlan } from '@/api/types'
 import { Button, ErrorMessage, inputClass, Loading, Panel } from '@/components/ui'
 import { useCase } from '@/features/cases/CaseContext'
@@ -87,16 +88,23 @@ function StartForm({ onStarted }: { onStarted: (id: string) => void }) {
   const client = useQueryClient()
   const playbooks = useQuery({ queryKey: ['playbooks'], queryFn: ({ signal }) => api.playbooks(signal) })
   const [playbookId, setPlaybookId] = useState('')
-  const [alertId, setAlertId] = useState('')
+  // "Run a playbook" on an alert links here with ?alert=<id>.
+  const fromLink = useLocation().params.get('alert') ?? ''
+  const [alertId, setAlertId] = useState(ALERT_ID.test(fromLink) ? fromLink : '')
   const [plan, setPlan] = useState<RunPlan | null>(null)
+  const alerts = useQuery({
+    queryKey: ['response-alerts', caseId],
+    queryFn: ({ signal }) => api.alerts(caseId, new URLSearchParams({ limit: '200' }), signal),
+  })
   const enabled = (playbooks.data?.items ?? []).filter((p) => p.enabled)
-  const chosen = playbookId || enabled[0]?.id || ''
   const alertKey = alertId.trim()
   const suggestions = useQuery({
     queryKey: ['alert-playbooks', alertKey],
     queryFn: ({ signal }) => api.alertPlaybooks(alertKey, signal),
     enabled: ALERT_ID.test(alertKey),
   })
+  // An explicit choice wins; otherwise the best match for the chosen alert, then the first playbook.
+  const chosen = playbookId || suggestions.data?.items[0]?.id || enabled[0]?.id || ''
   const start = useMutation({
     mutationFn: () => api.startRun(caseId, chosen, alertId.trim() || null),
     onSuccess: (run) => {
@@ -128,14 +136,22 @@ function StartForm({ onStarted }: { onStarted: (id: string) => void }) {
           </select>
         </label>
         <label className="text-sm">
-          <span className="mb-1 block font-medium">Triggering alert id (optional)</span>
-          <input
-            className={`${inputClass} w-80 font-mono`}
+          <span className="mb-1 block font-medium">Triggering alert (optional)</span>
+          <select
+            className={`${inputClass} w-96 max-w-full`}
             value={alertId}
-            maxLength={36}
-            pattern="[0-9a-fA-F-]{36}"
-            onChange={(e) => setAlertId(e.target.value)}
-          />
+            onChange={(e) => {
+              setAlertId(e.target.value)
+              setPlaybookId('') // let the suggestion for the new alert apply
+            }}
+          >
+            <option value="">No alert: start for the whole case</option>
+            {(alerts.data?.items ?? []).map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.severity.toUpperCase()} · {a.title} · {a.host ?? '-'} · {formatUtc(a.last_seen)}
+              </option>
+            ))}
+          </select>
         </label>
         <Button onClick={() => preview.mutate()} disabled={!chosen || preview.isPending}>
           Dry run

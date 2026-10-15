@@ -5,6 +5,7 @@ import { api } from '@/api/endpoints'
 import type { Alert, EventRow } from '@/api/types'
 import { Button, ErrorMessage, inputClass, Loading, Panel, SeverityChip } from '@/components/ui'
 import { AlertAiPanel } from '@/features/ai/AlertAiPanel'
+import { Link } from '@/app/Link'
 import { caseHref, navigate } from '@/app/router'
 import { useCase } from '@/features/cases/CaseContext'
 import { EventDrawer } from '@/features/explorer/EventDrawer'
@@ -92,6 +93,14 @@ function AlertDetailPane({ alertId }: { alertId: string }) {
         </p>
         {a.status_reason && <p className="text-sm">Reason: {a.status_reason}</p>}
       </div>
+      {can('investigate') && (
+        <Link
+          to={caseHref(caseId, 'response', { alert: a.id })}
+          className="inline-block text-sm text-sky-700 hover:underline dark:text-sky-400"
+        >
+          Run a playbook for this alert →
+        </Link>
+      )}
       {can('alert:update') && <StatusControl key={a.status} alert={a} />}
       {can('ai:use') && <AlertAiPanel key={a.id} alertId={a.id} />}
       <section aria-label="Alert history">
