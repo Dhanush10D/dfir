@@ -753,3 +753,41 @@ export interface NotificationRule {
   recipients: NotificationRecipients[]
   enabled: boolean
 }
+
+export type UserRole = 'admin' | 'lead' | 'analyst' | 'viewer' | 'auditor'
+
+/** A user as an administrator sees it (GET /users). */
+export interface AdminUser {
+  id: string
+  email: string
+  display_name: string
+  role: UserRole
+  mfa_enabled: boolean
+  is_active: boolean
+  failed_logins: number
+  locked_until: string | null
+  last_login_at: string | null
+  created_at: string
+}
+
+export interface CaseMember {
+  user_id: string
+  email: string
+  display_name: string
+  global_role: UserRole
+  case_role: UserRole
+}
+
+export interface AuditEntry {
+  id: number
+  ts: string
+  user_id: string | null
+  ip: string | null
+  method: string | null
+  path: string | null
+  status: number | null
+  action: string
+  object_type: string | null
+  object_id: string | null
+  detail: Record<string, unknown>
+}

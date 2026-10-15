@@ -1,5 +1,9 @@
 import { apiFetch, apiGet, apiPost, apiRequest, ApiError } from './client'
 import type {
+  AdminUser,
+  AuditEntry,
+  CaseMember,
+  UserRole,
   AiIndex,
   AiInteraction,
   AiInteractionDetail,
@@ -340,4 +344,31 @@ export const api = {
     apiRequest<{ rules: NotificationRule[] }>('PUT', '/settings/notification-rules', { body: { rules } }),
   aiFeedback: (id: string, value: -1 | 0 | 1) =>
     apiPost<AiInteraction>(`/ai/interactions/${enc(id)}/feedback`, { value }),
+  users: (signal?: AbortSignal) => apiGet<AdminUser[]>('/users', { signal }),
+  createUser: (body: {
+    email: string
+    display_name: string
+    role: UserRole
+    password: string
+    admin_password?: string
+  }) => apiPost<AdminUser>('/users', body),
+  updateUser: (
+    id: string,
+    body: {
+      display_name?: string
+      role?: UserRole
+      is_active?: boolean
+      reset_mfa?: boolean
+      unlock?: boolean
+      admin_password?: string
+    },
+  ) => apiRequest<AdminUser>('PATCH', `/users/${enc(id)}`, { body }),
+  members: (caseId: string, signal?: AbortSignal) =>
+    apiGet<CaseMember[]>(`/cases/${enc(caseId)}/members`, { signal }),
+  setMember: (caseId: string, userId: string, role: UserRole) =>
+    apiPost<CaseMember[]>(`/cases/${enc(caseId)}/members`, { user_id: userId, role }),
+  removeMember: (caseId: string, userId: string) =>
+    apiRequest<void>('DELETE', `/cases/${enc(caseId)}/members/${enc(userId)}`),
+  audit: (limit: number, signal?: AbortSignal) =>
+    apiGet<{ items: AuditEntry[]; total: number }>(`/audit?limit=${limit}`, { signal }),
 }

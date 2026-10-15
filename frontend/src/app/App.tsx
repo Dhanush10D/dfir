@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 
 import { useAuth } from '@/auth/AuthContext'
+import { AdminPage } from '@/features/admin/AdminPage'
 import { Button, Loading } from '@/components/ui'
 import { CaseList } from '@/features/cases/CaseList'
 import { CaseWorkspace } from '@/features/cases/CaseWorkspace'
@@ -54,6 +55,11 @@ export function App() {
                   Integrations
                 </Link>
               )}
+              {can('users:manage') && (
+                <Link to="/admin" className="text-sm text-slate-600 hover:text-slate-900 dark:text-slate-300">
+                  Admin
+                </Link>
+              )}
             </nav>
           </div>
           <div className="flex items-center gap-3 text-sm">
@@ -71,6 +77,8 @@ export function App() {
           <IntegrationsPage />
         ) : route.name === 'notifications' ? (
           <NotificationsPage />
+        ) : route.name === 'admin' ? (
+          <AdminPage />
         ) : route.name === 'notfound' ? (
           <p>Page not found.</p>
         ) : (

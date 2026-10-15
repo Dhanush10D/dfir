@@ -45,6 +45,7 @@ export type Route =
   | { name: 'case'; id: string; tab: string }
   | { name: 'integrations' }
   | { name: 'notifications' }
+  | { name: 'admin' }
   | { name: 'notfound' }
 
 export function matchRoute(path: string): Route {
@@ -52,6 +53,7 @@ export function matchRoute(path: string): Route {
   if (path === '/' || path === '/cases') return { name: 'cases' }
   if (path === '/integrations') return { name: 'integrations' }
   if (path === '/notifications') return { name: 'notifications' }
+  if (path === '/admin') return { name: 'admin' }
   const m = /^\/cases\/([0-9a-fA-F-]{36})(?:\/([a-z]+))?\/?$/.exec(path)
   if (m) return { name: 'case', id: m[1] as string, tab: m[2] ?? 'overview' }
   return { name: 'notfound' }

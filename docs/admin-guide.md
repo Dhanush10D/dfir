@@ -222,9 +222,23 @@ Typical setup: investigators are **analysts**, the person who signs reports is a
 management gets **viewer**, internal audit or legal gets **auditor**. Report approval always needs
 two different people (four eyes), enforced by the database as well as the API.
 
+### Managing users (Admin page)
+
+Admins get an **Admin** link in the top bar (`/admin`). It shows account and case counts, and lets
+you:
+
+* **Create an account**: name, e-mail, role and password (or **Generate strong password**).
+  Creating a lead or admin asks for your own password again.
+* **Manage** an account: rename it, change its role, disable or enable it, unlock it, reset MFA
+  (role, activation and MFA changes ask for your password).
+* **Case access**: add people to a case or remove them. Analysts, leads and viewers only see the
+  cases they are added to; admins and auditors see every case. A lead on a case can approve its
+  playbook actions.
+* See the API and AI provider status and the latest audit entries.
+
 ### Managing users (API)
 
-User management has no screen yet; use the interactive API docs at
+The same operations are available from the interactive API docs at
 <http://127.0.0.1:8000/api/v1/docs> (sign in with `POST /auth/login`, click **Authorize**, paste
 the `access_token`) or `curl`:
 
