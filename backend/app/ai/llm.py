@@ -54,10 +54,18 @@ class EmbeddingProvider(Protocol):
 class ProviderError(Exception):
     """A provider call failed. ``transient`` errors may be retried within the deadline."""
 
-    def __init__(self, message: str, *, transient: bool, status: int | None = None) -> None:
+    def __init__(
+        self,
+        message: str,
+        *,
+        transient: bool,
+        status: int | None = None,
+        retry_after: float | None = None,
+    ) -> None:
         super().__init__(message)
         self.transient = transient
         self.status = status
+        self.retry_after = retry_after  # seconds the provider asked us to wait (HTTP 429)
 
 
 # ------------------------------------------------------------------ errors mapped to HTTP

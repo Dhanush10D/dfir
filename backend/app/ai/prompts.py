@@ -91,7 +91,8 @@ running it.
 Output JSON fields: "summary"; "risk" (benign, suspicious, malicious or unknown); "behaviors"
 (list of {{"description", "cites"}}); "indicators" (list of {{"type" (url, domain, ip, email,
 hash, path, registry, other), "value" (exactly as it appears in the cited record), "cites"}});
-"attack_candidates" (list of {{"technique", "rationale", "cites"}}); "limitations".
+"attack_candidates" (list of {{"technique" (ATT&CK id such as T1059.004), "rationale", "cites"}});
+"limitations".
 """
 
 REPORT_DRAFT = """FEATURE: report_draft

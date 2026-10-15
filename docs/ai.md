@@ -60,7 +60,7 @@ runs in a bounded thread pool), and one retry of transient errors. SDK retries a
 |---|---|---|---|
 | `anthropic` (default) | official SDK `anthropic==1.9.0` | yes | structured outputs (`output_config.format`), no `temperature`, optional `LLM_EFFORT` (not sent to Haiku), server-side refusal fallback (`fallbacks="default"`, beta `server-side-fallback-2026-07-01`) on models that support it; `stop_reason: refusal` is stored as status `refused` |
 | `ollama` | `POST {LLM_BASE_URL}/api/chat` with `format=<schema>` | no if the URL is loopback or a compose service name | also embeddings via `/api/embed` |
-| `openai_compat` | `POST {LLM_BASE_URL}/chat/completions` with a JSON-schema `response_format` | as above | vLLM, LM Studio, llama.cpp server, hosted APIs |
+| `openai_compat` | `POST {LLM_BASE_URL}/chat/completions` with a JSON-schema `response_format` | as above | vLLM, LM Studio, llama.cpp server, hosted APIs (Groq); optional `LLM_EFFORT` sent as `reasoning_effort`; HTTP 429 `Retry-After` honoured |
 | `fake` | none (offline) | no | deterministic demo/test provider; refused when `APP_ENV=prod` |
 
 Defaults: `LLM_MODEL_FAST=claude-haiku-4-5-20251001` (A1), `LLM_MODEL_STRONG=claude-sonnet-5-5`
@@ -76,6 +76,28 @@ ENABLE_AI=true
 LLM_PROVIDER=anthropic
 LLM_API_KEY=<your key>
 ```
+
+Free hosted setup with Groq (no card needed; Groq's `gpt-oss` models support strict JSON-schema
+output, which `openai_compat` sends). The free tier allows only about 8,000 tokens per minute per
+model, so the evidence pack and the output cap are lowered to fit one request under that limit.
+`LLM_EFFORT=low` keeps the model's hidden reasoning short (it counts against `AI_MAX_TOKENS`), and
+on HTTP 429 the gateway waits as long as Groq's `Retry-After` says before each of the two retries:
+
+```
+ENABLE_AI=true
+LLM_PROVIDER=openai_compat
+LLM_BASE_URL=https://api.groq.com/openai/v1
+LLM_API_KEY=<your Groq key>
+LLM_MODEL_FAST=openai/gpt-oss-20b
+LLM_MODEL_STRONG=openai/gpt-oss-120b
+AI_MAX_INPUT_CHARS=20000
+AI_MAX_TOKENS=3000
+AI_MAX_PACK_RECORDS=20
+LLM_EFFORT=low
+LLM_MAX_RETRIES=2
+```
+
+Groq gives no embeddings endpoint; keep the default local `EMBEDDING_PROVIDER=hashing`.
 
 Local-only setup (no data leaves the host): `AI_LOCAL_ONLY=true`, `LLM_PROVIDER=ollama`,
 `LLM_BASE_URL=http://ollama:11434`, model ids of models pulled into Ollama.

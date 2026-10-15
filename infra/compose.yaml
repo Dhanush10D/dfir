@@ -41,7 +41,13 @@ x-backend-env: &backend-env
   LLM_BASE_URL: ${LLM_BASE_URL:-}
   LLM_MODEL_FAST: ${LLM_MODEL_FAST:-claude-haiku-4-5-20251001}
   LLM_MODEL_STRONG: ${LLM_MODEL_STRONG:-claude-sonnet-5-5}
+  LLM_EFFORT: ${LLM_EFFORT:-}
+  LLM_MAX_RETRIES: ${LLM_MAX_RETRIES:-1}
   AI_REDACTION_POLICY: ${AI_REDACTION_POLICY:-standard}
+  # Lower these for free-tier providers with small per-minute token limits (docs/ai.md).
+  AI_MAX_TOKENS: ${AI_MAX_TOKENS:-8000}
+  AI_MAX_INPUT_CHARS: ${AI_MAX_INPUT_CHARS:-120000}
+  AI_MAX_PACK_RECORDS: ${AI_MAX_PACK_RECORDS:-150}
   # Response + integrations (Phase 9, docs/response.md). The key-encryption key for integration
   # secrets lives outside the database; the dev placeholder below is refused by APP_ENV=prod (use
   # INTEGRATION_KEK_PATH with a mounted file there). Outbound traffic: public https only unless

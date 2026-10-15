@@ -169,6 +169,60 @@ def test_gateway_retries_transient_once_and_not_fatal() -> None:
 # ------------------------------------------------------------------ HTTP providers
 
 
+def test_openai_compat_sends_reasoning_effort_only_when_set() -> None:
+    ok = {"choices": [{"message": {"content": '{"a": 1}'}, "finish_reason": "stop"}]}
+    for effort, sent in ((None, None), ("low", "low"), ("max", "high")):
+        cap = Capture([httpx2.Response(200, json=ok)])
+        OpenAICompatProvider(
+            base_url="https://api.example.com/v1",
+            effort=effort,
+            transport=httpx2.MockTransport(cap),
+        ).complete(REQ, model="m", timeout_s=5)
+        assert json.loads(cap.requests[0].content).get("reasoning_effort") == sent
+    # compose passes LLM_EFFORT="" when unset
+    assert Settings(_env_file=None, llm_effort="").llm_effort is None  # type: ignore[call-arg]
+
+
+def test_http_429_waits_for_retry_after_before_retrying() -> None:
+    ok = {"choices": [{"message": {"content": '{"a": 1}'}, "finish_reason": "stop"}]}
+    limited = httpx2.Response(429, headers={"retry-after": "7.5"}, json={"error": {}})
+    cap = Capture([limited, httpx2.Response(200, json=ok)])
+    p = OpenAICompatProvider(
+        base_url="https://api.example.com/v1", api_key="k", transport=httpx2.MockTransport(cap)
+    )
+    slept: list[float] = []
+    cfg = GatewayConfig(
+        enabled=True,
+        local_only=False,
+        model_fast="f",
+        model_strong="s",
+        max_input_chars=100_000,
+        timeout_s=30.0,
+        max_retries=1,
+        embedding_model="hashing-v1",
+    )
+    gw = Gateway(p, cfg, MemoryRateLimiter(100, 100), sleep=slept.append)
+    resp, stats = gw.complete(REQ, user_key="u", case_key="c")
+    assert resp.text == '{"a": 1}' and stats.attempts == 2 and slept == [7.5]
+    # Absent, malformed or huge values fall back to the short backoff or the cap.
+    with pytest.raises(ProviderError) as exc:
+        OpenAICompatProvider(
+            base_url="https://api.example.com/v1",
+            transport=httpx2.MockTransport(
+                Capture([httpx2.Response(429, headers={"retry-after": "3600"}, json={})])
+            ),
+        ).complete(REQ, model="m", timeout_s=5)
+    assert exc.value.transient and exc.value.retry_after == 60.0
+    with pytest.raises(ProviderError) as exc:
+        OpenAICompatProvider(
+            base_url="https://api.example.com/v1",
+            transport=httpx2.MockTransport(
+                Capture([httpx2.Response(429, headers={"retry-after": "soon"}, json={})])
+            ),
+        ).complete(REQ, model="m", timeout_s=5)
+    assert exc.value.retry_after is None
+
+
 def test_openai_compat_request_and_response() -> None:
     ok = {
         "model": "local-model",

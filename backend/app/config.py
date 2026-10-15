@@ -191,7 +191,8 @@ class Settings(BaseSettings):
     llm_model_strong: str = Field(default="claude-sonnet-5-5", min_length=1, max_length=128)
     llm_timeout_s: float = Field(default=120.0, gt=0, le=900)  # per attempt
     llm_max_retries: int = Field(default=1, ge=0, le=3)  # transient errors, inside one deadline
-    llm_effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None  # Anthropic only
+    # Anthropic effort; openai_compat sends it as reasoning_effort
+    llm_effort: Literal["low", "medium", "high", "xhigh", "max"] | None = None
     llm_anthropic_fallbacks: bool = True  # server-side refusal fallback where supported
     llm_price_input_per_mtok: float | None = Field(default=None, ge=0)  # USD, for cost_usd
     llm_price_output_per_mtok: float | None = Field(default=None, ge=0)
@@ -277,6 +278,12 @@ class Settings(BaseSettings):
                 return json.loads(text)
             return [part.strip() for part in text.split(",") if part.strip()]
         return value
+
+    @field_validator("llm_effort", mode="before")
+    @classmethod
+    def _empty_effort_is_unset(cls, value: object) -> object:
+        # compose passes LLM_EFFORT="" when it is not set in .env
+        return None if value == "" else value
 
     @field_validator("log_level")
     @classmethod

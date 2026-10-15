@@ -197,6 +197,7 @@ class _HttpProvider:
                 f"{self.name}: HTTP {resp.status_code}",
                 transient=transient,
                 status=resp.status_code,
+                retry_after=_retry_after(resp.headers.get("retry-after")),
             )
         if len(resp.content) > MAX_RESPONSE_BYTES:
             raise ProviderError(f"{self.name}: response too large", transient=False)
@@ -209,11 +210,31 @@ class _HttpProvider:
         return data
 
 
+MAX_RETRY_AFTER_S = 60.0
+
+
+def _retry_after(value: str | None) -> float | None:
+    """Seconds from a Retry-After header (delta-seconds form only), capped."""
+    try:
+        seconds = float(value) if value is not None else None
+    except ValueError:
+        return None
+    if seconds is None or seconds != seconds or seconds < 0:  # missing, NaN, negative
+        return None
+    return min(seconds, MAX_RETRY_AFTER_S)
+
+
 class OpenAICompatProvider(_HttpProvider):
     """``POST {base}/chat/completions`` with a JSON-schema ``response_format``; embeddings via
     ``POST {base}/embeddings`` (base usually ends in ``/v1``)."""
 
     name = "openai_compat"
+
+    def __init__(self, *, effort: str | None = None, **kw: Any) -> None:
+        super().__init__(**kw)
+        # OpenAI-style reasoning models (gpt-oss, o-series) take low | medium | high; reasoning
+        # tokens count against max_tokens, so "low" leaves room for the JSON answer.
+        self.effort = {"xhigh": "high", "max": "high"}.get(effort or "", effort)
 
     def complete(self, req: LLMRequest, *, model: str, timeout_s: float) -> LLMResponse:
         body: dict[str, Any] = {
@@ -222,6 +243,8 @@ class OpenAICompatProvider(_HttpProvider):
             "max_tokens": req.max_tokens,
             "temperature": 0,
         }
+        if self.effort:
+            body["reasoning_effort"] = self.effort
         if req.schema is not None:
             body["response_format"] = {
                 "type": "json_schema",
@@ -307,7 +330,9 @@ def build_provider(settings: Settings) -> LLMProvider:
         raise AiUnavailableError(f"LLM_BASE_URL is required for LLM_PROVIDER={kind}.")
     if kind == "ollama":
         return OllamaProvider(base_url=settings.llm_base_url, api_key=key)
-    return OpenAICompatProvider(base_url=settings.llm_base_url, api_key=key)
+    return OpenAICompatProvider(
+        base_url=settings.llm_base_url, api_key=key, effort=settings.llm_effort
+    )
 
 
 def build_embedding_provider(settings: Settings) -> EmbeddingProvider | None:
@@ -509,7 +534,10 @@ class Gateway:
                     else ("temporarily unavailable" if err.transient else "error")
                 )
                 raise AiProviderError(f"The AI provider call failed ({reason}).") from err
-            self.sleep(min(1.0 * attempt, max(deadline - self.clock(), 0)))
+            # Free tiers answer 429 with Retry-After (per-minute token windows): wait that long
+            # instead of retrying straight into the same limit.
+            wait = err.retry_after if err.retry_after is not None else 1.0 * attempt
+            self.sleep(min(wait, max(deadline - self.clock(), 0)))
 
     def complete(
         self, req: LLMRequest, *, user_key: str, case_key: str | None
