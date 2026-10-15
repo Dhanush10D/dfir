@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 
 import { api } from '@/api/endpoints'
 import type { Integration, IntegrationType, NotificationRecipients, NotificationRule } from '@/api/types'
@@ -40,19 +40,32 @@ function typeInfo(type: IntegrationType) {
   return TYPES.find((t) => t.id === type) ?? TYPES[0]!
 }
 
+const labelClass = 'flex flex-col gap-1 text-sm'
+const fieldClass = `${inputClass} w-full`
+const subPanelClass = 'rounded-md border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-950/40'
+const checkClass = 'inline-flex items-center gap-2'
+
+function Field({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <label className={labelClass}>
+      <span className="font-medium">{label}</span>
+      {children}
+    </label>
+  )
+}
+
 function SecretInput({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
-    <label className="text-sm">
-      <span className="mb-1 block font-medium">{label}</span>
+    <Field label={label}>
       <input
         type="password"
         autoComplete="new-password"
-        className={`${inputClass} w-72`}
+        className={fieldClass}
         value={value}
         maxLength={4096}
         onChange={(e) => onChange(e.target.value)}
       />
-    </label>
+    </Field>
   )
 }
 
@@ -116,65 +129,59 @@ function CreateForm({ secretsAvailable }: { secretsAvailable: boolean }) {
     create.mutate()
   }
   return (
-    <form onSubmit={submit} aria-label="New integration" className="flex flex-wrap items-end gap-2">
-      <label className="text-sm">
-        <span className="mb-1 block font-medium">Type</span>
-        <select className={inputClass} value={type} onChange={(e) => setType(e.target.value as IntegrationType)}>
-          {TYPES.map((t) => (
-            <option key={t.id} value={t.id}>
-              {t.label}
-            </option>
-          ))}
-        </select>
-      </label>
-      <label className="text-sm">
-        <span className="mb-1 block font-medium">Name</span>
-        <input className={inputClass} value={name} maxLength={64} required onChange={(e) => setName(e.target.value)} />
-      </label>
-      {(type === 'webhook_out' || type === 'misp') && (
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">URL (https)</span>
-          <input className={`${inputClass} w-80`} value={url} maxLength={2048} required onChange={(e) => setUrl(e.target.value)} />
-        </label>
-      )}
-      {type === 'misp' && (
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Highest TLP to send</span>
-          <select className={inputClass} value={maxTlp} onChange={(e) => setMaxTlp(e.target.value)}>
-            {['clear', 'green', 'amber', 'amber+strict'].map((t) => (
-              <option key={t}>{t}</option>
+    <form onSubmit={submit} aria-label="New integration" className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Field label="Type">
+          <select className={fieldClass} value={type} onChange={(e) => setType(e.target.value as IntegrationType)}>
+            {TYPES.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.label}
+              </option>
             ))}
           </select>
-        </label>
-      )}
-      {type === 'webhook_in' && (
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Case id (alerts go to this case)</span>
-          <input className={`${inputClass} w-80 font-mono`} value={caseId} maxLength={36} required onChange={(e) => setCaseId(e.target.value)} />
-        </label>
-      )}
-      {type === 'email' && (
-        <>
-          <label className="text-sm">
-            <span className="mb-1 block font-medium">SMTP host</span>
-            <input className={inputClass} value={host} maxLength={253} required onChange={(e) => setHost(e.target.value)} />
-          </label>
-          <label className="text-sm">
-            <span className="mb-1 block font-medium">Sender</span>
-            <input className={inputClass} value={sender} maxLength={320} required onChange={(e) => setSender(e.target.value)} />
-          </label>
-          <label className="text-sm">
-            <span className="mb-1 block font-medium">Recipients (comma separated)</span>
-            <input className={`${inputClass} w-72`} value={recipients} required onChange={(e) => setRecipients(e.target.value)} />
-          </label>
-        </>
-      )}
+        </Field>
+        <Field label="Name">
+          <input className={fieldClass} value={name} maxLength={64} required onChange={(e) => setName(e.target.value)} />
+        </Field>
+        {(type === 'webhook_out' || type === 'misp') && (
+          <Field label="URL (https)">
+            <input className={fieldClass} value={url} maxLength={2048} required onChange={(e) => setUrl(e.target.value)} />
+          </Field>
+        )}
+        {type === 'misp' && (
+          <Field label="Highest TLP to send">
+            <select className={fieldClass} value={maxTlp} onChange={(e) => setMaxTlp(e.target.value)}>
+              {['clear', 'green', 'amber', 'amber+strict'].map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </Field>
+        )}
+        {type === 'webhook_in' && (
+          <Field label="Case id (alerts go to this case)">
+            <input className={`${fieldClass} font-mono`} value={caseId} maxLength={36} required onChange={(e) => setCaseId(e.target.value)} />
+          </Field>
+        )}
+        {type === 'email' && (
+          <>
+            <Field label="SMTP host">
+              <input className={fieldClass} value={host} maxLength={253} required onChange={(e) => setHost(e.target.value)} />
+            </Field>
+            <Field label="Sender">
+              <input className={fieldClass} value={sender} maxLength={320} required onChange={(e) => setSender(e.target.value)} />
+            </Field>
+            <Field label="Recipients (comma separated)">
+              <input className={fieldClass} value={recipients} required onChange={(e) => setRecipients(e.target.value)} />
+            </Field>
+          </>
+        )}
+      </div>
       {CHANNELS.has(type) && (
-        <>
-          <fieldset className="text-sm">
-            <legend className="mb-1 font-medium">Events</legend>
+        <fieldset className="text-sm">
+          <legend className="mb-2 font-medium">Events</legend>
+          <div className="grid gap-x-4 gap-y-2 sm:grid-cols-2 lg:grid-cols-4">
             {EVENTS.map((ev) => (
-              <label key={ev} className="mr-2 inline-flex items-center gap-1">
+              <label key={ev} className={`${checkClass} font-mono text-xs`}>
                 <input
                   type="checkbox"
                   checked={events.includes(ev)}
@@ -183,27 +190,35 @@ function CreateForm({ secretsAvailable }: { secretsAvailable: boolean }) {
                 {ev}
               </label>
             ))}
-          </fieldset>
-          <label className="text-sm">
-            <span className="mb-1 block font-medium">Minimum severity</span>
-            <select className={inputClass} value={minSeverity} onChange={(e) => setMinSeverity(e.target.value)}>
+          </div>
+        </fieldset>
+      )}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {CHANNELS.has(type) && (
+          <Field label="Minimum severity">
+            <select className={fieldClass} value={minSeverity} onChange={(e) => setMinSeverity(e.target.value)}>
               {SEVERITIES.map((s) => (
                 <option key={s} value={s}>
                   {s || 'any'}
                 </option>
               ))}
             </select>
-          </label>
-          <label className="inline-flex items-center gap-1 text-sm">
-            <input type="checkbox" checked={details} onChange={(e) => setDetails(e.target.checked)} />
-            Include evidence-derived details (alert title, host)
-          </label>
-        </>
+          </Field>
+        )}
+        <SecretInput label={info.secretLabel} value={secret} onChange={setSecret} />
+      </div>
+      {CHANNELS.has(type) && (
+        <label className={`${checkClass} text-sm`}>
+          <input type="checkbox" checked={details} onChange={(e) => setDetails(e.target.checked)} />
+          Include evidence-derived details (alert title, host)
+        </label>
       )}
-      <SecretInput label={info.secretLabel} value={secret} onChange={setSecret} />
-      <Button type="submit" variant="primary" disabled={create.isPending || (!secretsAvailable && secret !== '')}>
-        Create (disabled)
-      </Button>
+      <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
+        <Button type="submit" variant="primary" disabled={create.isPending || (!secretsAvailable && secret !== '')}>
+          Create integration
+        </Button>
+        <span className="text-xs text-slate-500">New integrations start disabled. Enable one below once it is set up.</span>
+      </div>
       {!secretsAvailable && (
         <p className="text-sm text-amber-800 dark:text-amber-300">
           No key-encryption key is configured on the server (INTEGRATION_KEK): secrets cannot be saved.
@@ -265,41 +280,54 @@ function Row({ item }: { item: Integration }) {
     },
   })
   return (
-    <li className="border-t border-slate-200 py-2 text-sm dark:border-slate-800">
-      <p>
-        <span className="font-semibold">{item.name}</span> <span className="text-slate-500">({info.label})</span>{' '}
-        <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs dark:bg-slate-700">
+    <li className="space-y-3 rounded-md border border-slate-200 p-4 text-sm dark:border-slate-800">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="font-semibold">{item.name}</span>
+        <span className="text-slate-500">{info.label}</span>
+        <span
+          className={`ml-auto rounded px-2 py-0.5 text-xs font-medium ${
+            item.enabled
+              ? 'bg-emerald-100 text-emerald-900 dark:bg-emerald-900/40 dark:text-emerald-200'
+              : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+          }`}
+        >
           {item.enabled ? 'enabled' : 'disabled'}
         </span>
-      </p>
+      </div>
       <p className="text-xs text-slate-600 dark:text-slate-400">
         Secret: {item.has_secret ? `set (fingerprint ${item.secret_fingerprint ?? '-'}, key ${item.secret_key_id ?? '-'})` : 'not set'}
         {item.case_id && ` · case ${item.case_id}`}
         {item.last_status && ` · last status: ${item.last_status} at ${formatUtc(item.last_status_at)}`}
       </p>
-      <p className="break-all font-mono text-xs">{JSON.stringify(item.config)}</p>
+      <pre className="overflow-x-auto rounded bg-slate-100 p-2 font-mono text-xs whitespace-pre-wrap break-all dark:bg-slate-950">
+        {JSON.stringify(item.config, null, 2)}
+      </pre>
       {item.type === 'webhook_in' && (
         <p className="break-all text-xs">
           Ingest endpoint (POST, signed with X-Timestamp and X-Signature):{' '}
           <span className="font-mono">/api/v1/ingest/webhook/{item.id}</span>
         </p>
       )}
-      <div className="mt-1 flex flex-wrap items-end gap-2">
-        <Button disabled={toggle.isPending} onClick={() => toggle.mutate()}>
-          {item.enabled ? 'Disable' : 'Enable'}
-        </Button>
-        <SecretInput label={`New ${info.secretLabel.toLowerCase()}`} value={secret} onChange={setSecret} />
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="w-full sm:w-72">
+          <SecretInput label={`New ${info.secretLabel.toLowerCase()}`} value={secret} onChange={setSecret} />
+        </div>
         <Button disabled={saveSecret.isPending || !secret} onClick={() => saveSecret.mutate()}>
           Replace secret
         </Button>
-        {CHANNELS.has(item.type) && (
-          <Button disabled={test.isPending || !item.enabled} onClick={() => test.mutate()}>
-            Send test
+        <div className="flex flex-wrap gap-2 sm:ml-auto">
+          <Button disabled={toggle.isPending} onClick={() => toggle.mutate()}>
+            {item.enabled ? 'Disable' : 'Enable'}
           </Button>
-        )}
-        <Button variant="ghost" aria-expanded={showLog} onClick={() => setShowLog(!showLog)}>
-          Delivery log
-        </Button>
+          {CHANNELS.has(item.type) && (
+            <Button disabled={test.isPending || !item.enabled} onClick={() => test.mutate()}>
+              Send test
+            </Button>
+          )}
+          <Button variant="ghost" aria-expanded={showLog} onClick={() => setShowLog(!showLog)}>
+            Delivery log
+          </Button>
+        </div>
       </div>
       {test.data && <p role="status" className="text-xs">Test event queued; see the delivery log.</p>}
       <ErrorMessage error={toggle.error ?? saveSecret.error ?? test.error} />
@@ -341,77 +369,103 @@ function NotificationRules() {
     change([...rules, { event, min_severity: minSeverity || null, recipients, enabled: true }])
     setRecipients([])
   }
+  const recipientLabel = (x: NotificationRecipients) => RECIPIENTS.find((c) => c.id === x)?.label ?? x
   return (
-    <div>
-      {rules.length === 0 && <p className="text-sm text-slate-500">No rules: nobody gets in-app notifications.</p>}
-      <ul className="text-sm">
-        {rules.map((r, i) => (
-          <li key={`${r.event}-${i}`} className="flex flex-wrap items-center gap-2 border-t border-slate-200 py-1 dark:border-slate-800">
-            <span className="font-mono text-xs">{r.event}</span>
-            <span>
-              {r.min_severity ? `severity ${r.min_severity}+ ` : ''}to{' '}
-              {r.recipients.map((x) => RECIPIENTS.find((c) => c.id === x)?.label ?? x).join(', ')}
-            </span>
-            <label className="inline-flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={r.enabled}
-                onChange={(e) => change(rules.map((x, j) => (j === i ? { ...x, enabled: e.target.checked } : x)))}
-              />
-              enabled
-            </label>
-            <Button variant="ghost" onClick={() => change(rules.filter((_, j) => j !== i))}>
-              Remove
-            </Button>
-          </li>
-        ))}
-      </ul>
-      <form onSubmit={add} aria-label="New notification rule" className="mt-2 flex flex-wrap items-end gap-2">
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Event</span>
-          <select className={inputClass} value={event} onChange={(e) => setEvent(e.target.value)}>
-            {EVENTS.map((ev) => (
-              <option key={ev}>{ev}</option>
+    <div className="space-y-4">
+      {rules.length === 0 ? (
+        <p className="text-sm text-slate-500">No rules: nobody gets in-app notifications.</p>
+      ) : (
+        <table className="w-full text-left text-sm">
+          <caption className="sr-only">Notification rules</caption>
+          <thead className="text-xs text-slate-500 uppercase">
+            <tr>
+              <th scope="col" className="py-2">Event</th>
+              <th scope="col">Minimum severity</th>
+              <th scope="col">Recipients</th>
+              <th scope="col">Enabled</th>
+              <th scope="col">
+                <span className="sr-only">Actions</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {rules.map((r, i) => (
+              <tr key={`${r.event}-${i}`} className="border-t border-slate-200 dark:border-slate-800">
+                <td className="py-2 font-mono text-xs">{r.event}</td>
+                <td>{r.min_severity ? `${r.min_severity}+` : 'any'}</td>
+                <td>{r.recipients.map(recipientLabel).join(', ')}</td>
+                <td>
+                  <input
+                    type="checkbox"
+                    aria-label={`Rule ${i + 1} enabled`}
+                    checked={r.enabled}
+                    onChange={(e) => change(rules.map((x, j) => (j === i ? { ...x, enabled: e.target.checked } : x)))}
+                  />
+                </td>
+                <td className="text-right">
+                  <Button variant="ghost" onClick={() => change(rules.filter((_, j) => j !== i))}>
+                    Remove
+                  </Button>
+                </td>
+              </tr>
             ))}
-          </select>
-        </label>
-        <label className="text-sm">
-          <span className="mb-1 block font-medium">Rule minimum severity</span>
-          <select className={inputClass} value={minSeverity} onChange={(e) => setMinSeverity(e.target.value)}>
-            {SEVERITIES.map((s) => (
-              <option key={s} value={s}>
-                {s || 'any'}
-              </option>
-            ))}
-          </select>
-        </label>
+          </tbody>
+        </table>
+      )}
+      <form onSubmit={add} aria-label="New notification rule" className={`${subPanelClass} space-y-4`}>
+        <h3 className="text-sm font-semibold">Add a rule</h3>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <Field label="Event">
+            <select className={fieldClass} value={event} onChange={(e) => setEvent(e.target.value)}>
+              {EVENTS.map((ev) => (
+                <option key={ev}>{ev}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Rule minimum severity">
+            <select className={fieldClass} value={minSeverity} onChange={(e) => setMinSeverity(e.target.value)}>
+              {SEVERITIES.map((s) => (
+                <option key={s} value={s}>
+                  {s || 'any'}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
         <fieldset className="text-sm">
-          <legend className="mb-1 font-medium">Recipients</legend>
-          {RECIPIENTS.map((c) => (
-            <label key={c.id} className="mr-2 inline-flex items-center gap-1">
-              <input
-                type="checkbox"
-                checked={recipients.includes(c.id)}
-                onChange={(e) =>
-                  setRecipients(e.target.checked ? [...recipients, c.id] : recipients.filter((x) => x !== c.id))
-                }
-              />
-              {c.label}
-            </label>
-          ))}
+          <legend className="mb-2 font-medium">Recipients</legend>
+          <div className="flex flex-wrap gap-x-6 gap-y-2">
+            {RECIPIENTS.map((c) => (
+              <label key={c.id} className={checkClass}>
+                <input
+                  type="checkbox"
+                  checked={recipients.includes(c.id)}
+                  onChange={(e) =>
+                    setRecipients(e.target.checked ? [...recipients, c.id] : recipients.filter((x) => x !== c.id))
+                  }
+                />
+                {c.label}
+              </label>
+            ))}
+          </div>
         </fieldset>
         <Button type="submit" disabled={recipients.length === 0}>
           Add rule
         </Button>
       </form>
-      <div className="mt-2 flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 pt-4 dark:border-slate-800">
         <Button variant="primary" disabled={draft === null || save.isPending} onClick={() => save.mutate(rules)}>
           Save rules
         </Button>
-        {draft !== null && (
-          <Button variant="ghost" onClick={() => setDraft(null)}>
-            Discard changes
-          </Button>
+        {draft !== null ? (
+          <>
+            <Button variant="ghost" onClick={() => setDraft(null)}>
+              Discard changes
+            </Button>
+            <span className="text-xs text-amber-700 dark:text-amber-300">Unsaved changes</span>
+          </>
+        ) : (
+          <span className="text-xs text-slate-500">Changes apply only after you save.</span>
         )}
       </div>
       <ErrorMessage error={save.error} />
@@ -429,20 +483,32 @@ export function IntegrationsPage() {
   })
   if (!allowed) return <p>Integrations are managed by administrators.</p>
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <Panel title="Integrations">
-        <p className="mb-2 text-sm text-slate-600 dark:text-slate-400">
+        <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
           Credentials are stored encrypted and are never shown again. Outbound requests go to public https addresses
           only, unless the server&apos;s allowlist says otherwise.
         </p>
         {q.isPending && <Loading />}
         <ErrorMessage error={q.error} />
-        {q.data && <CreateForm secretsAvailable={q.data.secrets_available} />}
-        <ul className="mt-3">
-          {(q.data?.items ?? []).map((item) => (
-            <Row key={item.id} item={item} />
-          ))}
-        </ul>
+        {q.data && (
+          <>
+            <div className={subPanelClass}>
+              <h3 className="mb-4 text-sm font-semibold">Add an integration</h3>
+              <CreateForm secretsAvailable={q.data.secrets_available} />
+            </div>
+            <h3 className="mt-6 mb-3 text-sm font-semibold">Configured integrations</h3>
+            {q.data.items.length === 0 ? (
+              <p className="text-sm text-slate-500">None yet.</p>
+            ) : (
+              <ul className="space-y-3">
+                {q.data.items.map((item) => (
+                  <Row key={item.id} item={item} />
+                ))}
+              </ul>
+            )}
+          </>
+        )}
       </Panel>
       <Panel title="In-app notification rules">
         <NotificationRules />

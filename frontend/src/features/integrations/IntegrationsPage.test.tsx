@@ -143,7 +143,7 @@ describe('integrations page', () => {
     fireEvent.change(screen.getByLabelText('URL (https)'), { target: { value: 'https://hooks.example.test/x' } })
     fireEvent.click(screen.getByLabelText('alert.created'))
     fireEvent.change(screen.getByLabelText('Signing secret (32+ characters)'), { target: { value: SECRET } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create (disabled)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create integration' }))
     await waitFor(() => expect(calls.some((c) => c.url === 'create')).toBe(true))
     const sent = JSON.parse(calls.find((c) => c.url === 'create')!.body)
     expect(sent).toMatchObject({
@@ -172,7 +172,9 @@ describe('integrations page', () => {
     const calls: { url: string; body: string }[] = []
     vi.stubGlobal('fetch', routes(['users:manage'], calls))
     renderPage(<IntegrationsPage />)
-    expect(await screen.findByText(/severity high\+ to case lead/)).toBeInTheDocument()
+    const table = await screen.findByRole('table', { name: 'Notification rules' })
+    expect(within(table).getByText('high+')).toBeInTheDocument()
+    expect(within(table).getByText('case lead')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save rules' })).toBeDisabled() // nothing changed yet
     const form = screen.getByRole('form', { name: 'New notification rule' })
     fireEvent.change(within(form).getByLabelText('Event'), { target: { value: 'evidence.verification_failed' } })
