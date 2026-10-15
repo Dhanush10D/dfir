@@ -34,6 +34,34 @@ export function CaseList() {
 
   return (
     <div className="space-y-4">
+      {can('case:create') && (
+        <Panel title="New case">
+          <form onSubmit={submit} className="flex flex-wrap items-end gap-2" aria-label="Create a case">
+            <label className="text-sm">
+              <span className="mb-1 block font-medium">Title</span>
+              <input className={inputClass} required maxLength={300} value={title} onChange={(e) => setTitle(e.target.value)} />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium">Description</span>
+              <input className={inputClass} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium">Severity</span>
+              <select className={inputClass} value={severity} onChange={(e) => setSeverity(e.target.value as Severity)}>
+                {SEVERITIES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Button type="submit" variant="primary" disabled={create.isPending}>
+              Create
+            </Button>
+            <ErrorMessage error={create.error} />
+          </form>
+        </Panel>
+      )}
       <Panel title="Cases">
         {cases.isPending && <Loading />}
         <ErrorMessage error={cases.error} />
@@ -76,34 +104,6 @@ export function CaseList() {
           </table>
         )}
       </Panel>
-      {can('case:create') && (
-        <Panel title="New case">
-          <form onSubmit={submit} className="flex flex-wrap items-end gap-2" aria-label="Create a case">
-            <label className="text-sm">
-              <span className="mb-1 block font-medium">Title</span>
-              <input className={inputClass} required maxLength={300} value={title} onChange={(e) => setTitle(e.target.value)} />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-medium">Description</span>
-              <input className={inputClass} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} />
-            </label>
-            <label className="text-sm">
-              <span className="mb-1 block font-medium">Severity</span>
-              <select className={inputClass} value={severity} onChange={(e) => setSeverity(e.target.value as Severity)}>
-                {SEVERITIES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <Button type="submit" variant="primary" disabled={create.isPending}>
-              Create
-            </Button>
-            <ErrorMessage error={create.error} />
-          </form>
-        </Panel>
-      )}
     </div>
   )
 }
