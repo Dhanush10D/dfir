@@ -311,7 +311,10 @@ without a KEK, secrets cannot be saved.
 * **Outbound policy:** only `https` to public addresses by default. To reach an internal host
   (a mail relay, an on-premises MISP), list it in `OUTBOUND_ALLOW_HOSTS` (host names or CIDRs).
 * **Enrichment** of indicators needs `ENABLE_ENRICHMENT=true` and the provider's integration
-  enabled. Only indicator values are sent, never files, and TLP markings are respected.
+  enabled. Only indicator values are sent, never files, and TLP markings are respected:
+  VirusTotal receives TLP:CLEAR/GREEN only, MISP up to its **Highest TLP to send** (indicators
+  without a TLP count as AMBER). For a demo without internet access, `ENRICHMENT_FAKE=true`
+  (refused when `APP_ENV=prod`) returns simulated verdicts from every enabled provider.
 * **Inbound webhooks** (`POST /api/v1/ingest/webhook/{integration id}`) must be HMAC-signed with a
   timestamp; size, item count and rate are limited.
 * **Notification links** point to `PUBLIC_BASE_URL`.

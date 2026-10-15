@@ -92,9 +92,10 @@ was deferred, is [`docs/BACKLOG.md`](BACKLOG.md).
 
 ### User interface
 
-* **Some administration is API-only**: creating users, case membership, MFA enrolment, IOC import,
-  API keys, detection rule management and on-demand detection runs. The interactive API docs at
-  `/api/v1/docs` cover these ([`admin-guide.md`](admin-guide.md)).
+* **Some administration is API-only**: MFA enrolment, IOC import, API keys, detection rule
+  management and on-demand detection runs. The interactive API docs at `/api/v1/docs` cover these ([`admin-guide.md`](admin-guide.md)). Accounts and case membership
+  have the **Admin** page. An admin cannot reset another user's password; disable the account and
+  create a new one instead.
 * **No browser end-to-end tests** (Playwright); components are unit-tested and the API is tested
   live.
 * **Simple charts and graph**: hand-written SVG histogram, ATT&CK heatmap and entity graph; no

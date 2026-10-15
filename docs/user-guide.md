@@ -63,14 +63,14 @@ from your authenticator app, or a recovery code.
 ![Case list](images/cases.png)
 
 **Cases** lists the investigations you can see, with their number (`IR-YYYY-NNNN`), title,
-severity, status and opening date. To start one, fill in the **Create a case** form (title,
-severity, optional description) and press **Create**. The case opens, and you are its first member.
+severity, status and opening date. To start one, fill in the **New case** form at the top of the
+page (title, optional description, severity) and press **Create**. The case opens, and you are its first member.
 Severity starts at **info** unless you pick another level. Each detection run raises it to the
 most severe alert that is not stale or marked a false positive; it never lowers it, so a rating you
 set by hand stays until you change it.
 
-To add colleagues to a case, a lead or admin adds them as members (see the administrator guide;
-there is no membership screen yet).
+To add colleagues to a case, an admin adds them under **Admin → Case access** (see the
+[administrator guide](admin-guide.md#managing-users-admin-page)).
 
 ## 4. The case workspace
 
@@ -233,15 +233,25 @@ terms everyone in security recognises.
 dfirbench extracts **entities** (hosts, users, IP addresses, processes) from the events and links
 them when they appear together. On **Entities & graph**:
 
-* the list shows each entity with how often it occurs; filter by type or search by name;
-* click one to see its aliases and neighbours, and to centre the graph on it;
-* the graph shows the relations; the **Edges** table below lists them with counts.
+* the list shows each entity with a coloured type label and how many events mention it; filter by
+  type or search by name;
+* the graph has one column per type (users, hosts, processes, IPs, ...). Hover a node to highlight
+  its links, hover a link to see the relation and count, and click a node (or a list entry) to focus
+  the graph on it; **Show whole case** goes back;
+* the **Entity detail** panel shows events, alerts, first and last seen, aliases and the linked
+  entities, with **Open in timeline**; **All links as a table** under the graph lists every link.
 
 In the demo, the attacker's address `203.0.113.45` connects to the users it tried and to `web01`.
 
 **Process tree** builds parent-child trees per host from process events (Windows process creation
-events, memory analysis). Choose a host to see which process started which. It stays
-empty when the evidence has no process data, as with the demo's Linux logs.
+events, memory analysis, and any event that carries a process id). Pick a host from the buttons
+(or type one) and press **Show**. The page shows counts (processes, top-level processes, with
+alerts, warnings) and a table with the process and its command line, PID, parent PID, user, first
+seen, source and alerts. Children are indented under their parent; use the arrows or **Expand all /
+Collapse all**. **Filter** searches name, user, PID and command line, and **Only processes with
+alerts or warnings** keeps those plus their parents. The **Source** column says how the process is
+known: *created* (seen starting), *observed* (only seen in later events) or *inferred parent*
+(known only from a child's parent PID). Rows with alerts are highlighted.
 
 ## 11. Notes and bookmarks
 
@@ -255,7 +265,8 @@ empty when the evidence has no process data, as with the demo's Linux logs.
 
 ![AI analyst](images/ai.png)
 
-When your administrator has enabled AI, the **AI analyst** tab offers:
+When your administrator has enabled AI, the **AI analyst** tab offers the features below (if AI is
+switched off or not configured, the tab says so at the top):
 
 | Feature | What it does |
 |---|---|
@@ -286,7 +297,8 @@ from the case you are in. A case lead can switch AI off for a case.
 Playbooks are checklists for common incident types: credential compromise, ransomware, malware,
 phishing, data exfiltration, log tampering, web shell, cloud account takeover.
 
-1. Choose a **Playbook**, optionally enter the id of the alert that triggered it, and press
+1. Optionally choose the **Triggering alert** from the list (or use **Run a playbook for this alert**
+   on an alert); the matching playbook is then preselected. Choose a **Playbook** and press
    **Dry run** to preview the steps, or **Start playbook**.
 2. Work through the steps: **Mark done** for manual steps, **Execute** for actions that need
    no approval, or **Skip (reason in notes)** after writing the reason in the step's notes.
@@ -300,8 +312,10 @@ phishing, data exfiltration, log tampering, web shell, cloud account takeover.
    your own tools, write in the notes how and where it was done, then press **Record manual
    completion**.
 
-**Indicator enrichment** looks up the case's IOCs at VirusTotal or MISP (if configured); only the
-indicator values are sent, never files.
+**Indicator enrichment** looks up the case's IOCs at VirusTotal or MISP; only the indicator values
+are sent, never files. It is off until an administrator enables it (the button then says
+*Enrichment is switched off*), and indicators marked with a TLP the provider may not receive are
+skipped: VirusTotal only gets TLP:CLEAR or GREEN, so TLP:AMBER indicators are listed as skipped.
 
 ## 14. Reports
 

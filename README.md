@@ -85,7 +85,8 @@ dfirbench brings the whole investigation into one web application:
 | **Parsing** | EVTX, Linux auth/syslog, journald JSON, wtmp/btmp, shell histories, registry hives (services, USB, ShimCache, BAM, Run keys, UserAssist, ...), Amcache, Prefetch, LNK, Chromium and Firefox history, PE triage, pcap/pcapng (flows, DNS, HTTP, TLS SNI), Sleuth Kit file-system timeline, Volatility 3 memory analysis, YARA, optional Zeek ([`docs/parsers.md`](docs/parsers.md)) |
 | **Collection** | Read-only triage collectors for Windows (PowerShell 5.1) and Linux (Python 3, also from mounted images) producing ZIP bundles with a hash manifest; bundles are verified member by member at ingest ([`docs/collection.md`](docs/collection.md)) |
 | **Detection** | 25 built-in rules across 14 ATT&CK techniques, YAML rule format, Sigma subset import, IOC lists (CSV, JSON, STIX 2.1), anti-forensics detectors (log gaps, out-of-order timestamps, EVTX record gaps), alert deduplication, risk scoring, alert lifecycle ([`docs/detection-coverage.md`](docs/detection-coverage.md)) |
-| **Analysis UI** | Timeline explorer with a safe search language (no SQL), facets, histogram, context, CSV/JSON export; alerts; ATT&CK matrix; entity resolution and graph; process tree; notes with version history; bookmarks |
+| **Analysis UI** | Timeline explorer with a safe search language (no SQL), facets, histogram, context, CSV/JSON export; alerts; ATT&CK matrix; entity resolution and a column-per-type entity graph; process tree table with collapse, search and an alerts-only filter; notes with version history; bookmarks |
+| **Administration** | Admin page: create accounts with a role and password, change roles, disable, unlock or reset MFA, manage who can see each case, system and AI provider status, recent audit activity |
 | **AI layer** | Providers: Anthropic Claude, Ollama, any OpenAI-compatible server, or an offline demo provider. Alert explanation, case chat (RAG over pgvector), natural-language search, attack narrative, script decoding and explanation, AI report drafts. Prompt-injection defences, schema and citation validation, redaction, rate limits and budgets, full provenance per answer, offline evaluation harness ([`docs/ai.md`](docs/ai.md)) |
 | **Response** | 8 YAML playbooks (ransomware, credential compromise, exfiltration, malware, phishing, log tampering, web shell, cloud), dry runs, four-eyes approvals, Slack/Teams/e-mail/in-app notifications, signed outbound webhooks, HMAC-signed SIEM/EDR inbound webhooks, VirusTotal/MISP enrichment ([`docs/response.md`](docs/response.md)) |
 | **Reporting** | Technical, executive, custody and IOC reports as HTML, PDF, JSON, STIX 2.1 and CSV; QA gate; four-eyes approval; Ed25519 signatures; deterministic re-rendering; offline verification ([`docs/reports.md`](docs/reports.md)) |
@@ -297,7 +298,8 @@ docs/        guides, references, validation reports, screenshots, sample reports
 
 dfirbench is a single-host platform (Standard profile) for small teams. It has no endpoint agent
 (endpoint actions are recorded, not executed), no scheduler for periodic jobs, and some
-administration is API-only. It is not a certified forensic tool, so cross-check important findings.
+administration (detection rules, IOC import, MFA enrolment) is API-only. It is not a certified
+forensic tool, so cross-check important findings.
 The full, honest list is in [`docs/limitations.md`](docs/limitations.md).
 
 ## Licence and contributors
