@@ -4,9 +4,13 @@ import { useState, type FormEvent } from 'react'
 import { api } from '@/api/endpoints'
 import { caseHref, navigate } from '@/app/router'
 import { Link } from '@/app/Link'
+import type { Severity } from '@/api/types'
 import { useAuth } from '@/auth/AuthContext'
 import { Button, ErrorMessage, inputClass, Loading, Panel, SeverityChip } from '@/components/ui'
 import { formatUtc } from '@/lib/format'
+
+// New cases start at info; detection raises the severity to the worst live alert.
+const SEVERITIES: Severity[] = ['info', 'low', 'medium', 'high', 'critical']
 
 export function CaseList() {
   const { can } = useAuth()
@@ -14,8 +18,9 @@ export function CaseList() {
   const cases = useQuery({ queryKey: ['cases'], queryFn: ({ signal }) => api.cases(signal) })
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
+  const [severity, setSeverity] = useState<Severity>('info')
   const create = useMutation({
-    mutationFn: () => api.createCase(title.trim(), description.trim()),
+    mutationFn: () => api.createCase(title.trim(), description.trim(), severity),
     onSuccess: (c) => {
       void client.invalidateQueries({ queryKey: ['cases'] })
       navigate(caseHref(c.id, 'overview'))
@@ -81,6 +86,16 @@ export function CaseList() {
             <label className="text-sm">
               <span className="mb-1 block font-medium">Description</span>
               <input className={inputClass} maxLength={2000} value={description} onChange={(e) => setDescription(e.target.value)} />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block font-medium">Severity</span>
+              <select className={inputClass} value={severity} onChange={(e) => setSeverity(e.target.value as Severity)}>
+                {SEVERITIES.map((s) => (
+                  <option key={s} value={s}>
+                    {s}
+                  </option>
+                ))}
+              </select>
             </label>
             <Button type="submit" variant="primary" disabled={create.isPending}>
               Create

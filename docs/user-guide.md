@@ -65,6 +65,9 @@ from your authenticator app, or a recovery code.
 **Cases** lists the investigations you can see, with their number (`IR-YYYY-NNNN`), title,
 severity, status and opening date. To start one, fill in the **Create a case** form (title,
 severity, optional description) and press **Create**. The case opens, and you are its first member.
+Severity starts at **info** unless you pick another level. Each detection run raises it to the
+most severe alert that is not stale or marked a false positive; it never lowers it, so a rating you
+set by hand stays until you change it.
 
 To add colleagues to a case, a lead or admin adds them as members (see the administrator guide;
 there is no membership screen yet).

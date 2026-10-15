@@ -13,7 +13,7 @@ from app.db.models.enums import CaseStatus, Severity, UserRole
 class CaseCreate(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     description: str | None = Field(default=None, max_length=20000)
-    severity: Severity = Severity.medium
+    severity: Severity = Severity.info
     classification: str | None = Field(default=None, max_length=64)
     case_number: str | None = Field(
         default=None, max_length=32, description="Default: IR-YYYY-NNNN"

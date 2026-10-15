@@ -82,6 +82,7 @@ from app.db.models import (
     Job,
     JobStatus,
     Rule,
+    Severity,
 )
 from app.detection import fields as F  # noqa: N812
 from app.detection.detectors import SourceInfo
@@ -878,6 +879,16 @@ class DetectionService:
                     "heartbeat_at": func.now(),
                 }
             session.execute(update(Job).where(Job.id == job_id).values(**values))
+            raised = _raise_case_severity(session, claim.case_id)
+            if raised is not None:
+                manifest["case_severity"] = raised
+                AuditService(session).record(
+                    "case.severity_raised",
+                    user_id=None,
+                    object_type="case",
+                    object_id=claim.case_id,
+                    detail={"job_id": str(job_id), **raised},
+                )
             AuditService(session).record(
                 "detection.completed",
                 user_id=None,
@@ -892,6 +903,34 @@ class DetectionService:
             raise
         log.info("detect_finished", job_id=str(job_id), outcome=outcome, **counts)
         return RunResult(job_id, outcome, counts=counts, error=error)
+
+
+_SEVERITY_ORDER = list(Severity)
+
+
+def _raise_case_severity(session: Session, case_id: uuid.UUID) -> dict[str, str] | None:
+    """Raise the case severity to its worst live alert; never lower it.
+
+    Stale alerts and alerts triaged as false positives do not count. Lowering stays a
+    decision for the analyst (PATCH /cases/{id}).
+    """
+    current = session.execute(
+        select(Case.severity).where(Case.id == case_id).with_for_update()
+    ).scalar_one()
+    levels = session.execute(
+        select(Alert.severity)
+        .where(
+            Alert.case_id == case_id,
+            Alert.stale.is_(False),
+            Alert.status != AlertStatus.false_positive,
+        )
+        .distinct()
+    ).scalars()
+    worst = max(levels, key=_SEVERITY_ORDER.index, default=None)
+    if worst is None or _SEVERITY_ORDER.index(worst) <= _SEVERITY_ORDER.index(current):
+        return None
+    session.execute(update(Case).where(Case.id == case_id).values(severity=worst))
+    return {"from": current.value, "to": worst.value}
 
 
 def _uuid(value: Any) -> uuid.UUID:

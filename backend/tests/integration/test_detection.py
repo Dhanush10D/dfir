@@ -139,6 +139,33 @@ def test_detection_end_to_end(world: World, db_engine: Engine) -> None:
     )
 
 
+def test_detection_raises_case_severity_but_never_lowers_it(
+    world: World, db_engine: Engine
+) -> None:
+    h = world.h
+    order = ["info", "low", "medium", "high", "critical"]
+
+    def case_severity() -> str:
+        return str(h.get(f"/cases/{world.cid}", world.viewer).json()["severity"])
+
+    assert case_severity() == "info"  # nothing found yet
+    world.detect()
+    world.run()
+    worst = max((a["severity"] for a in world.alerts()), key=order.index)
+    assert order.index(worst) > order.index("info")
+    assert case_severity() == worst
+    raised = (
+        "SELECT count(*) FROM audit_log WHERE action = 'case.severity_raised' AND object_id = :cid"
+    )
+    assert _count(db_engine, raised, cid=world.cid) == 1
+    # An analyst's higher rating survives a rerun; detection only ever raises.
+    r = h.patch(f"/cases/{world.cid}", world.lead, json={"severity": "critical"})
+    assert r.status_code == 200, r.text
+    world.detect()
+    world.run()
+    assert case_severity() == "critical"
+
+
 def test_rerun_is_idempotent_and_reprocess_keeps_links(world: World, db_engine: Engine) -> None:
     h = world.h
     world.detect()

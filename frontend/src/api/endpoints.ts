@@ -43,6 +43,7 @@ import type {
   ReportKind,
   ReportVerify,
   RunPlan,
+  Severity,
   StepOp,
   StepPlan,
   Summary,
@@ -87,8 +88,8 @@ export function saveBlob(blob: Blob, filename: string): void {
 
 export const api = {
   cases: (signal?: AbortSignal) => apiGet<Page<Case>>('/cases?limit=200', { signal }),
-  createCase: (title: string, description: string) =>
-    apiPost<CaseDetail>('/cases', { title, description: description || null }),
+  createCase: (title: string, description: string, severity: Severity) =>
+    apiPost<CaseDetail>('/cases', { title, description: description || null, severity }),
   caseDetail: (id: string, signal?: AbortSignal) =>
     apiGet<CaseDetail>(`/cases/${enc(id)}`, { signal }),
   summary: (id: string, signal?: AbortSignal) =>

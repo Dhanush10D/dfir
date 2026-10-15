@@ -101,7 +101,7 @@ class CaseService:
         title: str,
         meta: RequestMeta,
         description: str | None = None,
-        severity: Severity = Severity.medium,
+        severity: Severity = Severity.info,
         classification: str | None = None,
         case_number: str | None = None,
     ) -> Case:
