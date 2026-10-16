@@ -1,7 +1,7 @@
 id: PB-CLOUD-01
 title: Cloud account takeover
 description: Remove the access of the attacker to the tenant and find what they changed.
-trigger: { attack: [T1078.004, T1098, T1136.003, T1528] }
+trigger: { attack: [T1078.004, T1098.001, T1098.003, T1136.003, T1528] }
 phases:
   - name: Containment
     steps:

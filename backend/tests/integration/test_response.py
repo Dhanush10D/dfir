@@ -23,6 +23,7 @@ from app.core.permissions import Principal
 from app.db.models import (
     ActionRequest,
     Alert,
+    AlertStatus,
     AuditLog,
     Notification,
     OutboundEvent,
@@ -210,6 +211,42 @@ def test_trigger_suggestions(world: World) -> None:
     assert r.status_code == 200
     assert "PB-RANSOMWARE-01" in {p["id"] for p in r.json()["items"]}
     assert h.get(f"/alerts/{world.alert_id}/playbooks", world.outsider).status_code == 404
+
+
+def test_case_recommendations_rank_playbooks_by_matching_alerts(world: World) -> None:
+    h = world.h
+    with h.sessions() as session:
+        # IOC alerts carry no technique; they match by indicator type (rules table not seeded).
+        for title, tags, details, risk, status in (
+            ("IOC match: sha1 ab", [], {"ioc": {"type": "sha1"}}, 72.0, AlertStatus.new),
+            ("IOC match: ip 203.0.113.9", [], {"ioc": {"type": "ip"}}, 56.0, AlertStatus.new),
+            ("Old brute force", ["T1110"], {}, 36.0, AlertStatus.false_positive),
+        ):
+            session.add(
+                Alert(
+                    id=uuid.uuid4(),
+                    case_id=uuid.UUID(world.cid),
+                    rule_id=None,
+                    title=title,
+                    severity=Severity.high,
+                    attack_tags=tags,
+                    details=details,
+                    risk_score=risk,
+                    status=status,
+                    dedup_key=f"test:{uuid.uuid4().hex}",
+                    first_seen=T0,
+                    last_seen=T0,
+                )
+            )
+        session.commit()
+    r = h.get(f"/cases/{world.cid}/playbook-recommendations", world.viewer)
+    assert r.status_code == 200, r.text
+    items = {i["playbook"]["id"]: i for i in r.json()["items"]}
+    assert "PB-RANSOMWARE-01" in items  # T1490 on the world alert
+    assert items["PB-MALWARE-01"]["reasons"] == ["IOC match on a sha1"]
+    assert items["PB-MALWARE-01"]["alert_count"] == 1
+    assert "PB-CREDENTIAL-01" not in items  # its only match is a false positive
+    assert h.get(f"/cases/{world.cid}/playbook-recommendations", world.outsider).status_code == 404
 
 
 # ------------------------------------------------------------------ dry run

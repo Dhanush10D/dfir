@@ -3,7 +3,7 @@ import { useState, type FormEvent } from 'react'
 
 import { api } from '@/api/endpoints'
 import { useLocation } from '@/app/router'
-import type { ActionRequest, PlaybookRunDetail, RunPlan, RunStep, StepOp, StepPlan } from '@/api/types'
+import type { ActionRequest, PlaybookRecommendation, PlaybookRunDetail, RunPlan, RunStep, StepOp, StepPlan } from '@/api/types'
 import { Button, ErrorMessage, inputClass, Loading, Panel } from '@/components/ui'
 import { useCase } from '@/features/cases/CaseContext'
 import { formatUtc, shortHash } from '@/lib/format'
@@ -103,15 +103,28 @@ function StartForm({ onStarted }: { onStarted: (id: string) => void }) {
     queryFn: ({ signal }) => api.alertPlaybooks(alertKey, signal),
     enabled: ALERT_ID.test(alertKey),
   })
-  // An explicit choice wins; otherwise the best match for the chosen alert, then the first playbook.
-  const chosen = playbookId || suggestions.data?.items[0]?.id || enabled[0]?.id || ''
+  // dfirbench matches every playbook trigger against the case's live alerts and ranks them.
+  const recommended = useQuery({
+    queryKey: ['playbook-recommendations', caseId],
+    queryFn: ({ signal }) => api.playbookRecommendations(caseId, signal),
+  })
+  const best = recommended.data?.items[0]?.playbook.id
+  // An explicit choice wins; otherwise the best match for the chosen alert, then the best match for
+  // the case, then the first playbook.
+  const chosen =
+    playbookId || suggestions.data?.items[0]?.id || (alertKey ? '' : best) || enabled[0]?.id || ''
+  const started = (run: { id: string }) => {
+    setPlan(null)
+    void client.invalidateQueries({ queryKey: ['playbook-runs', caseId] })
+    onStarted(run.id)
+  }
   const start = useMutation({
     mutationFn: () => api.startRun(caseId, chosen, alertId.trim() || null),
-    onSuccess: (run) => {
-      setPlan(null)
-      void client.invalidateQueries({ queryKey: ['playbook-runs', caseId] })
-      onStarted(run.id)
-    },
+    onSuccess: started,
+  })
+  const startRecommended = useMutation({
+    mutationFn: (r: PlaybookRecommendation) => api.startRun(caseId, r.playbook.id, r.alert_ids[0] ?? null),
+    onSuccess: started,
   })
   const preview = useMutation({
     mutationFn: () => api.planRun(caseId, chosen, alertId.trim() || null),
@@ -124,6 +137,16 @@ function StartForm({ onStarted }: { onStarted: (id: string) => void }) {
   if (playbooks.isPending) return <Loading />
   return (
     <div>
+      <Recommendations
+        query={recommended}
+        chosen={chosen}
+        busy={startRecommended.isPending}
+        onSelect={(id) => {
+          setAlertId('')
+          setPlaybookId(id)
+        }}
+        onStart={(r) => startRecommended.mutate(r)}
+      />
       <form onSubmit={submit} aria-label="Start playbook" className="flex flex-wrap items-end gap-2">
         <label className="text-sm">
           <span className="mb-1 block font-medium">Playbook</span>
@@ -176,9 +199,68 @@ function StartForm({ onStarted }: { onStarted: (id: string) => void }) {
           )}
         </p>
       )}
-      <ErrorMessage error={playbooks.error ?? start.error ?? preview.error} />
+      <ErrorMessage error={playbooks.error ?? start.error ?? startRecommended.error ?? preview.error} />
       {plan && <PlanView plan={plan} />}
     </div>
+  )
+}
+
+function Recommendations({
+  query,
+  chosen,
+  busy,
+  onSelect,
+  onStart,
+}: {
+  query: { data?: { items: PlaybookRecommendation[] }; isPending: boolean; error: unknown }
+  chosen: string
+  busy: boolean
+  onSelect: (id: string) => void
+  onStart: (r: PlaybookRecommendation) => void
+}) {
+  const items = query.data?.items ?? []
+  return (
+    <section aria-label="Recommended playbooks" className="mb-4">
+      <h3 className="text-sm font-semibold">Recommended for this case</h3>
+      {query.isPending && <Loading />}
+      <ErrorMessage error={query.error} />
+      {query.data && items.length === 0 && (
+        <p className="text-sm text-slate-500">
+          No playbook matches this case's alerts yet. Process the evidence first; until then you can pick
+          one below.
+        </p>
+      )}
+      {items.length > 0 && (
+        <ol className="mt-1 space-y-2">
+          {items.map((r, i) => (
+            <li key={r.playbook.id} className="rounded border border-slate-200 p-2 text-sm dark:border-slate-700">
+              <div className="flex flex-wrap items-center gap-2">
+                {i === 0 && (
+                  <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-xs font-semibold text-emerald-900 dark:bg-emerald-900 dark:text-emerald-100">
+                    Best match
+                  </span>
+                )}
+                <span className="font-medium">
+                  {r.playbook.id}: {r.playbook.title}
+                </span>
+                <span className="text-xs text-slate-500">
+                  {r.alert_count} matching alert{r.alert_count === 1 ? '' : 's'}, total risk {r.score}
+                </span>
+                <span className="ml-auto flex gap-1">
+                  <Button variant="ghost" aria-pressed={chosen === r.playbook.id} onClick={() => onSelect(r.playbook.id)}>
+                    Select
+                  </Button>
+                  <Button variant={i === 0 ? 'primary' : 'secondary'} disabled={busy} onClick={() => onStart(r)}>
+                    Start
+                  </Button>
+                </span>
+              </div>
+              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Why: {r.reasons.join(' · ')}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
   )
 }
 

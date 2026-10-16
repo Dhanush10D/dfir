@@ -32,6 +32,18 @@ class PlaybookList(BaseModel):
     items: list[PlaybookOut]
 
 
+class PlaybookRecommendation(BaseModel):
+    playbook: PlaybookOut
+    score: float = Field(description="summed risk score of the matching alerts")
+    alert_count: int
+    alert_ids: list[uuid.UUID] = Field(description="highest risk first (at most 5)")
+    reasons: list[str]
+
+
+class PlaybookRecommendations(BaseModel):
+    items: list[PlaybookRecommendation]
+
+
 class PlaybookImport(BaseModel):
     model_config = ConfigDict(extra="forbid")
     yaml: str = Field(min_length=1, max_length=MAX_PLAYBOOK_BYTES)

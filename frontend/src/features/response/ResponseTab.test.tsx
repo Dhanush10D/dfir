@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 
 import { ResponseTab } from '@/features/response/ResponseTab'
 import { ANALYST, CASE_ID, jsonResponse, renderInCase, routeFetch, USER_ID, VIEWER } from '@/test/utils'
@@ -191,6 +191,18 @@ function routes(detail: Record<string, unknown>, calls: { url: string; body: str
       })
     },
     [`GET /api/v1/alerts/${ALERT}/playbooks`]: () => jsonResponse(200, PLAYBOOKS),
+    [`GET /api/v1/cases/${CASE_ID}/playbook-recommendations`]: () =>
+      jsonResponse(200, {
+        items: [
+          {
+            playbook: PLAYBOOKS.items[0],
+            score: 80,
+            alert_count: 1,
+            alert_ids: [ALERT],
+            reasons: [`Suspicious thing ${HOSTILE}`, 'ATT&CK T1486'],
+          },
+        ],
+      }),
     [`POST /api/v1/action-requests/${REQ}/approve`]: (init) => {
       calls.push({ url: 'approve', body: String(init.body) })
       return jsonResponse(200, request({ status: 'approved' }))
@@ -311,6 +323,20 @@ describe('response tab', () => {
     fireEvent.change(select, { target: { value: ALERT } })
     expect(await screen.findByText(/Suggested for this alert/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'PB-RANSOMWARE-01' })).toBeInTheDocument()
+  })
+
+  it('recommends playbooks for the case and starts the best match with its alert', async () => {
+    const calls: { url: string; body: string }[] = []
+    vi.stubGlobal('fetch', routes(run([step()]), calls))
+    renderInCase(<ResponseTab />, ANALYST)
+    expect(await screen.findByText('Best match')).toBeInTheDocument()
+    expect(screen.getByText(`Why: Suspicious thing ${HOSTILE} · ATT&CK T1486`)).toBeInTheDocument() // text, not HTML
+    expect(screen.getByText(/1 matching alert, total risk 80/)).toBeInTheDocument()
+    const section = screen.getByRole('region', { name: 'Recommended playbooks' })
+    fireEvent.click(within(section).getByRole('button', { name: 'Start' }))
+    await waitFor(() => expect(calls.some((c) => c.url === 'start')).toBe(true))
+    const body = JSON.parse(calls.find((c) => c.url === 'start')!.body)
+    expect(body).toMatchObject({ playbook_id: 'PB-RANSOMWARE-01', alert_id: ALERT })
   })
 
   it('is read-only for viewers and for finished runs', async () => {

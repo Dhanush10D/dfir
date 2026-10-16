@@ -36,6 +36,8 @@ from app.schemas.response import (
     PlaybookImport,
     PlaybookList,
     PlaybookOut,
+    PlaybookRecommendation,
+    PlaybookRecommendations,
     RejectRequest,
     RequestStatus,
     RunCreate,
@@ -174,6 +176,25 @@ def suggest_playbooks(
 ) -> PlaybookList:
     """Playbooks whose trigger matches the alert's rule or ATT&CK techniques."""
     return PlaybookList(items=[_playbook(p) for p in playbooks.suggestions(principal, alert_id)])
+
+
+@router.get("/cases/{case_id}/playbook-recommendations", response_model=PlaybookRecommendations)
+def recommend_playbooks(
+    case_id: uuid.UUID, principal: CurrentPrincipal, playbooks: PlaybookSvc
+) -> PlaybookRecommendations:
+    """Playbooks whose trigger matches the case's live alerts, best match first."""
+    return PlaybookRecommendations(
+        items=[
+            PlaybookRecommendation(
+                playbook=_playbook(r.playbook),
+                score=r.score,
+                alert_count=r.alert_count,
+                alert_ids=r.alert_ids,
+                reasons=r.reasons,
+            )
+            for r in playbooks.recommendations(principal, case_id)
+        ]
+    )
 
 
 # ------------------------------------------------------------------ runs

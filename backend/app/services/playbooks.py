@@ -46,6 +46,7 @@ from app.core.permissions import Permission, Principal
 from app.db.models import (
     ActionRequest,
     Alert,
+    AlertStatus,
     Case,
     CaseStatus,
     Playbook,
@@ -72,6 +73,7 @@ log = structlog.stdlib.get_logger("dfirbench.playbooks")
 
 SYNC_LOCK = int.from_bytes(hashlib.sha256(b"dfir_playbooks_sync").digest()[:8], "big", signed=True)
 MAX_NOTES = 4000
+MAX_RECOMMEND_ALERTS = 2000
 MAX_REASON = 2000
 MAX_LIST = 200
 OPEN_REQUEST = ("pending", "approved")
@@ -101,6 +103,32 @@ class RunView:
     run: PlaybookRun
     steps: list[PlaybookRunStep]
     requests: list[ActionRequest]
+
+
+@dataclass(frozen=True)
+class Recommendation:
+    playbook: Playbook
+    score: float  # summed risk of the matching alerts
+    alert_count: int
+    alert_ids: list[uuid.UUID]  # highest risk first; the first one becomes the triggering alert
+    reasons: list[str]
+
+
+def trigger_reasons(trigger: Mapping[str, Any], alert: Alert) -> list[str]:
+    """Why a playbook trigger matches an alert (empty: it does not)."""
+    rules = set(trigger.get("rules") or [])
+    attack = set(trigger.get("attack") or [])
+    ioc_types = set(trigger.get("ioc_types") or [])
+    tags = set(alert.attack_tags or [])
+    tags |= {t.split(".", 1)[0] for t in tags}
+    out = []
+    if alert.rule_id and alert.rule_id in rules:
+        out.append(alert.title)
+    out += [f"ATT&CK {t}" for t in sorted(tags & attack)]
+    ioc = (alert.details or {}).get("ioc")
+    if isinstance(ioc, dict) and ioc.get("type") in ioc_types:
+        out.append(f"IOC match on a {ioc['type']}")
+    return out
 
 
 class PlaybookService:
@@ -223,7 +251,7 @@ class PlaybookService:
         return row
 
     def suggestions(self, principal: Principal, alert_id: uuid.UUID) -> list[Playbook]:
-        """Playbooks whose trigger names the alert's rule or one of its techniques."""
+        """Playbooks whose trigger names the alert's rule, technique or indicator type."""
         alert = self.session.get(Alert, alert_id)
         if alert is None:
             raise NotFoundError("Alert not found.")
@@ -231,15 +259,51 @@ class PlaybookService:
             self._access(principal, alert.case_id)
         except NotFoundError as exc:
             raise NotFoundError("Alert not found.") from exc
-        tags = set(alert.attack_tags or [])
-        tags |= {t.split(".", 1)[0] for t in tags}
+        return [
+            row
+            for row in self.list_playbooks(principal)
+            if row.enabled and trigger_reasons(row.trigger or {}, alert)
+        ]
+
+    def recommendations(self, principal: Principal, case_id: uuid.UUID) -> list[Recommendation]:
+        """Playbooks for the whole case: every enabled playbook whose trigger matches at least one
+        live alert (not stale, not a false positive), ranked by the summed risk of those alerts."""
+        self._access(principal, case_id)
+        alerts = list(
+            self.session.execute(
+                select(Alert)
+                .where(
+                    Alert.case_id == case_id,
+                    Alert.stale.is_(False),
+                    Alert.status != AlertStatus.false_positive,
+                )
+                .order_by(Alert.risk_score.desc(), Alert.last_seen.desc(), Alert.id)
+                .limit(MAX_RECOMMEND_ALERTS)
+            ).scalars()
+        )
+        self.session.commit()
         out = []
         for row in self.list_playbooks(principal):
-            trigger = row.trigger or {}
-            rules = set(trigger.get("rules") or [])
-            attack = set(trigger.get("attack") or [])
-            if row.enabled and ((alert.rule_id and alert.rule_id in rules) or tags & attack):
-                out.append(row)
+            if not row.enabled:
+                continue
+            matched: list[Alert] = []
+            reasons: dict[str, None] = {}
+            for alert in alerts:
+                why = trigger_reasons(row.trigger or {}, alert)
+                if why:
+                    matched.append(alert)
+                    reasons.update(dict.fromkeys(why))
+            if matched:
+                out.append(
+                    Recommendation(
+                        playbook=row,
+                        score=round(sum(float(a.risk_score) for a in matched), 1),
+                        alert_count=len(matched),
+                        alert_ids=[a.id for a in matched[:5]],
+                        reasons=list(reasons)[:12],
+                    )
+                )
+        out.sort(key=lambda r: (-r.score, -r.alert_count, r.playbook.id))
         return out
 
     # ------------------------------------------------------------------ access and locks

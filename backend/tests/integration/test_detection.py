@@ -19,6 +19,7 @@ from sqlalchemy import Engine, text
 from sqlalchemy.exc import DBAPIError, IntegrityError
 
 from app.db.models import UserRole
+from app.detection.scoring import case_severity as rate_case
 from app.services.detection import DetectionService
 from tests.integration.harness import Harness, UserCtx
 
@@ -151,9 +152,13 @@ def test_detection_raises_case_severity_but_never_lowers_it(
     assert case_severity() == "info"  # nothing found yet
     world.detect()
     world.run()
-    worst = max((a["severity"] for a in world.alerts()), key=order.index)
+    alerts = world.alerts()
+    worst = max((a["severity"] for a in alerts), key=order.index)
     assert order.index(worst) > order.index("info")
-    assert case_severity() == worst
+    # The worst alert, or critical when high alerts span several ATT&CK tactics.
+    rated = rate_case((a["severity"], a["attack_tags"]) for a in alerts)
+    assert rated is not None and order.index(rated[0]) >= order.index(worst)
+    assert case_severity() == rated[0]
     raised = (
         "SELECT count(*) FROM audit_log WHERE action = 'case.severity_raised' AND object_id = :cid"
     )

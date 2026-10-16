@@ -87,6 +87,10 @@ class PhaseModel(_Strict):
 class TriggerModel(_Strict):
     attack: list[Technique] = Field(default_factory=list, max_length=50)
     rules: list[RuleId] = Field(default_factory=list, max_length=100)
+    # IOC alerts (DFIR-IOC-0001) carry no technique: match them by the indicator type instead.
+    ioc_types: list[
+        Literal["ip", "domain", "url", "sha256", "sha1", "md5", "email", "filename"]
+    ] = Field(default_factory=list, max_length=8)
 
 
 class NotifyModel(_Strict):

@@ -22,7 +22,14 @@ from app.detection.ioc import (
     parse_stix,
 )
 from app.detection.rules import RuleError, load_rule, parse_condition
-from app.detection.scoring import ScoredAlert, alert_risk, case_risk, host_risk, summarize
+from app.detection.scoring import (
+    ScoredAlert,
+    alert_risk,
+    case_risk,
+    case_severity,
+    host_risk,
+    summarize,
+)
 from app.detection.yamlsafe import YamlInputError, safe_yaml
 from app.services.processing import RunResult
 from app.workers.tasks import parse as parse_task
@@ -460,3 +467,18 @@ def test_anti_forensics_detectors_skip_shell_history() -> None:
 
     assert run("shell_history") == set()
     assert run("auth_log") == {"DFIR-AF-0001"}
+
+
+def test_case_severity_is_the_worst_alert_or_critical_for_a_multi_stage_attack() -> None:
+    assert case_severity([]) is None
+    assert case_severity([("low", ["T1070.006"]), ("medium", [])]) == (
+        "medium",
+        "most severe alert is medium",
+    )
+    # High alerts across initial access/credential access, persistence and privilege escalation.
+    multi = [("high", ["T1110"]), ("medium", ["T1136.001"]), ("high", ["T1098"])]
+    rated = case_severity(multi)
+    assert rated is not None and rated[0] == "critical" and "ATT&CK tactics" in rated[1]
+    # Low alerts do not count towards the stages; two tactics stay high.
+    assert case_severity([("high", ["T1110"]), ("low", ["T1136.001", "T1070.006"])])[0] == "high"  # type: ignore[index]
+    assert case_severity([("critical", [])]) == ("critical", "most severe alert is critical")

@@ -54,7 +54,9 @@ export function CaseWorkspace({ id, tab }: { id: string; tab: string }) {
           <h1 className="text-lg font-semibold">
             <span className="font-mono">{c.case_number}</span> {c.title}
           </h1>
-          <SeverityChip severity={c.severity} />
+          <span title="Set automatically: rises to the most serious alert after each analysis">
+            <SeverityChip severity={c.severity} />
+          </span>
           <span className="rounded bg-slate-200 px-1.5 py-0.5 text-xs dark:bg-slate-700">Status: {c.status}</span>
           {ctx.closed && <span className="text-xs text-slate-500">(closed: read-only)</span>}
         </header>

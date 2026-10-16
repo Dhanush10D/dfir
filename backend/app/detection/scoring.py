@@ -9,6 +9,9 @@
   "+0.1 per tactic" is read on the 0-1 scale (10 points on 0-100), capped at 3 tactics.
 * Scoring alerts: every alert except ``false_positive`` ones and ``stale`` ones (no longer
   produced by the latest detection run). Alerts without a host are scored under ``(no host)``.
+* ``case_severity``: the severity the case is rated at from the same alerts: the worst alert
+  level, and ``critical`` for a multi-stage attack (a ``high`` alert while the medium-or-worse
+  alerts span at least ``MULTI_STAGE_TACTICS`` distinct ATT&CK tactics).
 """
 
 from __future__ import annotations
@@ -16,7 +19,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from app.detection.attack import Level, tactics_for
+from app.detection.attack import LEVELS, Level, tactics_for
 
 SEVERITY_WEIGHT: dict[str, int] = {
     "info": 5,
@@ -28,6 +31,7 @@ SEVERITY_WEIGHT: dict[str, int] = {
 TACTIC_POINTS = 10.0
 TACTIC_CAP = 3
 NO_HOST = "(no host)"
+MULTI_STAGE_TACTICS = 3
 
 
 def alert_risk(severity: Level | str, confidence: float, asset_criticality: float = 1.0) -> float:
@@ -47,6 +51,24 @@ def case_risk(host_risks: Iterable[float], techniques: Iterable[str]) -> float:
     top = max(host_risks, default=0.0)
     tactics = len(tactics_for(set(techniques)))
     return round(min(100.0, top + TACTIC_POINTS * min(tactics, TACTIC_CAP)), 1)
+
+
+def case_severity(alerts: Iterable[tuple[str, Iterable[str]]]) -> tuple[str, str] | None:
+    """``(severity, reason)`` for a case from its scoring alerts as ``(level, ATT&CK tags)``;
+    ``None`` when there are none."""
+    levels: list[str] = []
+    techniques: set[str] = set()
+    for level, tags in alerts:
+        levels.append(str(level))
+        if LEVELS.index(str(level)) >= LEVELS.index("medium"):
+            techniques.update(tags)
+    if not levels:
+        return None
+    worst = max(levels, key=LEVELS.index)
+    tactics = tactics_for(techniques)
+    if worst == "high" and len(tactics) >= MULTI_STAGE_TACTICS:
+        return "critical", f"high alerts across {len(tactics)} ATT&CK tactics (multi-stage attack)"
+    return worst, f"most severe alert is {worst}"
 
 
 @dataclass(frozen=True)

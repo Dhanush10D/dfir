@@ -1,7 +1,7 @@
 id: PB-PHISHING-01
 title: Phishing or business e-mail compromise
 description: Scope who received and opened the message, remove it, and reset exposed credentials.
-trigger: { attack: [T1566, T1566.001, T1566.002, T1114] }
+trigger: { attack: [T1566, T1566.001, T1566.002, T1114], ioc_types: [url, email] }
 phases:
   - name: Triage
     steps:

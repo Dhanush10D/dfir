@@ -544,6 +544,15 @@ export interface PlaybookStepDef {
   requires_approval: boolean
 }
 
+/** A playbook whose trigger matches the case's live alerts (GET /cases/{id}/playbook-recommendations). */
+export interface PlaybookRecommendation {
+  playbook: Playbook
+  score: number
+  alert_count: number
+  alert_ids: string[]
+  reasons: string[]
+}
+
 export interface Playbook {
   id: string
   title: string

@@ -64,10 +64,19 @@ from your authenticator app, or a recovery code.
 
 **Cases** lists the investigations you can see, with their number (`IR-YYYY-NNNN`), title,
 severity, status and opening date. To start one, fill in the **New case** form at the top of the
-page (title, optional description, severity) and press **Create**. The case opens, and you are its first member.
-Severity starts at **info** unless you pick another level. Each detection run raises it to the
-most severe alert that is not stale or marked a false positive; it never lowers it, so a rating you
-set by hand stays until you change it.
+page (title, optional description) and press **Create**. The case opens, and you are its first member.
+
+You do not rate the case yourself: the **severity is set automatically**. A new case starts at
+**info**; after evidence is processed, each detection run rates the case from its alerts (ignoring
+stale ones and false positives) and raises the severity to that rating:
+
+* the most severe alert (low, medium, high or critical), and
+* **critical** for a multi-stage attack: high-severity alerts while the medium-or-worse alerts
+  span three or more ATT&CK tactics (for example initial access, privilege escalation and
+  persistence).
+
+The reason is recorded in the detection run and the audit log. Detection never lowers the
+severity; a lead can still change it through the API (`PATCH /cases/{id}`).
 
 To add colleagues to a case, an admin adds them under **Admin → Case access** (see the
 [administrator guide](admin-guide.md#managing-users-admin-page)).
@@ -305,8 +314,12 @@ from the case you are in. A case lead can switch AI off for a case.
 Playbooks are checklists for common incident types: credential compromise, ransomware, malware,
 phishing, data exfiltration, log tampering, web shell, cloud account takeover.
 
-1. Optionally choose the **Triggering alert** from the list (or use **Run a playbook for this alert**
-   on an alert); the matching playbook is then preselected. Choose a **Playbook** and press
+1. **Recommended for this case** lists the playbooks whose triggers match the case's alerts (their
+   rules, ATT&CK techniques or indicator types), best match first, with the reasons ("Why: SSH
+   brute force · ATT&CK T1110") and the number of matching alerts. Press **Start** to run one with
+   its highest-risk alert as the triggering alert, or **Select** to put it in the form below. The
+   best match is also preselected in the form. To pick by hand, optionally choose the **Triggering
+   alert** (or use **Run a playbook for this alert** on an alert), choose a **Playbook** and press
    **Dry run** to preview the steps, or **Start playbook**.
 2. Work through the steps: **Mark done** for manual steps, **Execute** for actions that need
    no approval, or **Skip (reason in notes)** after writing the reason in the step's notes.

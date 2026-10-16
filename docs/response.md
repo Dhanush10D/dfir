@@ -50,6 +50,14 @@ and step ids, at most 200 steps, and action names from the closed registry only.
 | `agent.collect_triage` (host) | no | none |
 | `notify.team` | no | platform: one `playbook.notice` outbox event in the same transaction |
 
+`trigger` (`attack`, `rules`, `ioc_types`) decides which playbooks are suggested.
+`GET /alerts/{id}/playbooks` returns the playbooks matching one alert;
+`GET /cases/{id}/playbook-recommendations` ranks every enabled playbook against the case's live
+alerts (not stale, not false positives): a playbook matches an alert through its rule id, an ATT&CK
+technique (a sub-technique also matches its parent) or, for IOC alerts, the indicator type
+(`ioc_types`). The score is the summed risk of the matching alerts; each item carries the reasons
+and up to five alert ids, highest risk first (the UI starts a run with the first one).
+
 `GET /playbook-actions` lists the registry. A playbook file can add `requires_approval` to any
 action but can never remove it from an impactful one; the database enforces the same rule
 (CHECK `ck_playbook_run_steps_impactful`).
