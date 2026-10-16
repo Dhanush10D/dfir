@@ -43,15 +43,15 @@ export function EventTable({
     <div className="overflow-x-auto">
       <table className="w-full text-left text-sm" aria-rowcount={events.length + 1}>
         <caption className="sr-only">{caption}. Use arrow keys to move and Enter to open.</caption>
-        <thead className="text-xs text-slate-500 uppercase">
-          <tr>
-            <th scope="col" className="py-1 whitespace-nowrap">Time (UTC)</th>
+        <thead className="border-b border-slate-200 text-xs text-slate-500 uppercase dark:border-slate-700">
+          <tr className="[&>th]:px-3 [&>th]:py-2 [&>th]:font-semibold [&>th]:whitespace-nowrap">
+            <th scope="col" className="pl-0!">Time (UTC)</th>
             <th scope="col">Source</th>
             <th scope="col">Host</th>
             <th scope="col">User</th>
             <th scope="col">Code</th>
-            <th scope="col">Summary</th>
-            <th scope="col">ATT&amp;CK</th>
+            <th scope="col" className="w-full">Summary</th>
+            <th scope="col" className="pr-0!">ATT&amp;CK</th>
           </tr>
         </thead>
         <tbody>
@@ -68,15 +68,26 @@ export function EventTable({
                 onOpen(ev)
               }}
               onKeyDown={(e) => onKeyDown(e, i)}
-              className="cursor-pointer border-t border-slate-100 align-top hover:bg-sky-50 focus:bg-sky-100 focus:outline-none dark:border-slate-800 dark:hover:bg-slate-800 dark:focus:bg-slate-700"
+              className="cursor-pointer border-t border-slate-100 align-top hover:bg-sky-50 focus:bg-sky-100 focus:outline-none dark:border-slate-800 dark:hover:bg-slate-800 dark:focus:bg-slate-700 [&>td]:px-3 [&>td]:py-2"
             >
-              <td className="py-1 font-mono text-xs whitespace-nowrap">{formatUtc(ev.ts)}</td>
-              <td>{ev.source_type}</td>
-              <td className="break-all">{ev.host ?? ''}</td>
-              <td className="break-all">{ev.user ?? ''}</td>
-              <td className="font-mono">{ev.event_code ?? ''}</td>
-              <td className="max-w-xl break-words">{ev.message ?? ''}</td>
-              <td className="font-mono text-xs">{ev.attack_tags.join(' ')}</td>
+              <td className="pl-0! font-mono text-xs whitespace-nowrap">{formatUtc(ev.ts)}</td>
+              <td className="whitespace-nowrap">{ev.source_type}</td>
+              <td className="whitespace-nowrap">{ev.host ?? ''}</td>
+              <td className="max-w-[16rem] wrap-anywhere">{ev.user ?? ''}</td>
+              <td className="font-mono whitespace-nowrap">{ev.event_code ?? ''}</td>
+              <td className="min-w-[20rem] wrap-anywhere">{ev.message ?? ''}</td>
+              <td className="pr-0!">
+                <div className="flex flex-col items-start gap-1">
+                  {ev.attack_tags.map((tag) => (
+                    <span
+                      key={tag}
+                      className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs whitespace-nowrap text-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                    >
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+              </td>
             </tr>
           ))}
           {events.length === 0 && (
