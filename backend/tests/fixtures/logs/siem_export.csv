@@ -1,0 +1,8 @@
+TimeCreated,Computer,EventID,TargetUserName,IpAddress,LogonType,Message
+2026-09-14T02:10:03Z,DC01,4625,administrator,203.0.113.45,10,An account failed to log on
+2026-09-14T02:10:09Z,DC01,4625,administrator,203.0.113.45,10,An account failed to log on
+2026-09-14T02:11:30+05:30,DC01,4624,svc_backup,203.0.113.45,10,An account was successfully logged on
+2026-09-14 02:12:00,DC01,4672,svc_backup,,,"Special privileges assigned to new logon, including SeDebugPrivilege"
+1789352400,DC01,4720,helpdesk_tmp,,,A user account was created
+not-a-time,DC01,4688,svc_backup,,,A new process has been created
+2026-09-14T02:14:00Z,DC01,4732

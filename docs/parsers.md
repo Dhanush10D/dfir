@@ -14,6 +14,9 @@ manifest of every job records parser and engine versions, limits, assumptions an
 | `linux_auth` | auth.log, secure, syslog | yes | own | SSH, sudo, account changes (`auth_log`, `syslog`) |
 | `journal_json` | `journalctl -o json` | yes | own | journal entries, auth-classified (`journal`) |
 | `wtmp` | wtmp / btmp / utmp | yes (by name) | own | boot, logon, logoff, failed logon (`wtmp`, `btmp`) |
+| `web_access` | Apache/Nginx `access.log` (combined, common), plain or gzip | yes | own | requests: client IP, user, method, path, status, size, referrer, user agent (`web_access`) |
+| `w3c` | W3C extended logs: Windows Firewall `pfirewall.log`, IIS `u_ex*.log` | yes | own | firewall connections (`firewall`, local time + `timezone`), IIS requests (`iis`) |
+| `csv_events` | CSV/TSV exports with a header row and a timestamp column (SIEM, EDR, firewall exports) | yes | own | one event per row; known column names mapped, every column in `raw.csv` (`csv`) |
 | `shell_history` | `.bash_history`, `.zsh_history`, PSReadLine | yes (by name) | own | commands (`shell_history`) |
 | `registry_hive` | SYSTEM, SOFTWARE, NTUSER.DAT, UsrClass.dat | yes | own regf reader | services, USB, ShimCache, BAM, Run keys, Winlogon, IFEO, Uninstall, UserAssist, RunMRU, TypedPaths/URLs (`registry`) |
 | `amcache` | Amcache.hve | yes | own regf reader | files with SHA-1, programs, drivers (`amcache`) |
@@ -37,6 +40,8 @@ reuses the ones derived before.
 | Parser | Parameter | Values |
 |---|---|---|
 | `linux_auth` | `timezone`, `year` | IANA zone; 1970-2100 |
+| `w3c` | `timezone` | IANA zone for Windows Firewall logs (local time); default UTC |
+| `csv_events` | `timezone` | IANA zone for times without an offset; default UTC |
 | `tsk_fs` | `timezone` | IANA zone, passed to `fls -z` (FAT stores local time); default UTC |
 | `volatility` | `os` | `windows` (default) or `linux` |
 | `volatility` | `plugins` | windows: `info pslist psscan pstree cmdline netscan netstat dlllist svcscan malfind`; linux: `pslist pstree bash lsmod sockstat malfind`. Default windows `info pslist cmdline netscan`, linux `pslist bash` |

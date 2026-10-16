@@ -40,6 +40,11 @@ the test suite, so a parser, fixture, golden file or rule change that is not re-
 | evtx | 1.0.1 | `tests/fixtures/evtx/security_short_selected.evtx` | 7 | 7 | 0 | 0 | `9b42476271a993c8` | match | in-process (pinned Python packages) |
 | linux_auth | 1.0.0 | `tests/fixtures/linux/auth.log` (timezone=UTC) | 24 | 22 | 1 | 1 | `71e0e982a0e77f50` | match | in-process (pinned Python packages) |
 | linux_auth | 1.0.0 | `tests/fixtures/linux/auth.log` (timezone=Asia/Kolkata) | 24 | 22 | 1 | 1 | `9091dac06b93abb4` | match | in-process (pinned Python packages) |
+| web_access | 1.0.0 | `tests/fixtures/logs/access.log` | 12 | 10 | 1 | 1 | `52c67470a8eb90b0` | match | in-process (pinned Python packages) |
+| w3c | 1.0.0 | `tests/fixtures/logs/pfirewall.log` (timezone=Asia/Kolkata) | 11 | 5 | 5 | 1 | `6c55b4b0d54063cd` | match | in-process (pinned Python packages) |
+| w3c | 1.0.0 | `tests/fixtures/logs/u_ex260914.log` | 9 | 4 | 4 | 1 | `adb9d1ec84956b0f` | match | in-process (pinned Python packages) |
+| csv_events | 1.0.0 | `tests/fixtures/logs/siem_export.csv` | 8 | 5 | 1 | 2 | `98e631b15d219f6a` | match | in-process (pinned Python packages) |
+| csv_events | 1.0.0 | `tests/fixtures/logs/edr_netconn.tsv` | 3 | 2 | 1 | 0 | `6c45003f95b2a902` | match | in-process (pinned Python packages) |
 | registry_hive | 1.0.0 | `tests/fixtures/deep/bin/SYSTEM` | 11 | 9 | 2 | 0 | `ce6d34b2306c9958` | match | in-process (pinned Python packages) |
 | registry_hive | 1.0.0 | `tests/fixtures/deep/bin/SOFTWARE` | 7 | 6 | 1 | 0 | `260865bf1c6b9c13` | match | in-process (pinned Python packages) |
 | registry_hive | 1.0.0 | `tests/fixtures/deep/bin/NTUSER.DAT` | 10 | 8 | 2 | 0 | `12cf174dd2119bc6` | match | in-process (pinned Python packages) |

@@ -27,6 +27,7 @@ import type {
   EventPage,
   EventRow,
   Evidence,
+  EvidenceIdentified,
   FacetValue,
   Graph,
   Histogram,
@@ -90,6 +91,18 @@ export function saveBlob(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
+const IDENTIFY_HEAD = 8192 // same window as the server's automatic parser selection
+const IDENTIFY_TAIL = 65536 // a ZIP's central directory (triage bundle manifest) sits at the end
+
+async function toBase64(blob: Blob): Promise<string> {
+  const bytes = new Uint8Array(await blob.arrayBuffer())
+  let text = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    text += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  }
+  return btoa(text)
+}
+
 export const api = {
   cases: (signal?: AbortSignal) => apiGet<Page<Case>>('/cases?limit=200', { signal }),
   createCase: (title: string, description: string, severity: Severity) =>
@@ -108,6 +121,16 @@ export const api = {
     apiPost<{ jobs: Job[] }>(`/evidence/${enc(evidenceId)}/process`, {}),
   jobs: (id: string, signal?: AbortSignal) =>
     apiGet<Page<Job>>(`/cases/${enc(id)}/jobs?limit=50`, { signal }),
+  /** Suggest the evidence kind from the file name, its first 8 KiB and last 64 KiB. */
+  async identify(caseId: string, file: File): Promise<EvidenceIdentified> {
+    const head = await toBase64(file.slice(0, IDENTIFY_HEAD))
+    const tail = file.size > IDENTIFY_HEAD ? await toBase64(file.slice(Math.max(IDENTIFY_HEAD, file.size - IDENTIFY_TAIL))) : ''
+    return apiPost<EvidenceIdentified>(`/cases/${enc(caseId)}/evidence/identify`, {
+      filename: file.name.slice(0, 1024) || 'upload.bin',
+      head,
+      tail,
+    })
+  },
   async upload(caseId: string, file: File, kind: string): Promise<Evidence> {
     const created = await apiPost<{ evidence: Evidence }>(`/cases/${enc(caseId)}/evidence`, {
       kind,

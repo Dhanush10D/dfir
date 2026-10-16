@@ -1,14 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 
+import { ApiError } from '@/api/client'
 import { api, saveBlob } from '@/api/endpoints'
 import type { Evidence, VerifyResult } from '@/api/types'
 import { Dialog } from '@/components/Dialog'
-import { Button, ErrorMessage, inputClass, Loading, Panel } from '@/components/ui'
+import { Button, ErrorMessage, Loading, Panel } from '@/components/ui'
 import { useCase } from '@/features/cases/CaseContext'
 import { formatBytes, formatUtc, shortHash } from '@/lib/format'
-
-const KINDS = ['log', 'evtx', 'file', 'triage_bundle', 'memory', 'disk_image', 'pcap', 'cloud_export']
 
 function CustodyDialog({ evidence, onClose }: { evidence: Evidence; onClose: () => void }) {
   const q = useQuery({
@@ -45,21 +44,43 @@ function UploadForm() {
   const client = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
   const [pickerKey, setPickerKey] = useState(0)
-  const [kind, setKind] = useState('log')
+  const [autoProcess, setAutoProcess] = useState(true)
+  // The server recognises the file from its name and first/last bytes (the same detection that
+  // picks the parser) and decides the evidence kind; the analyst never has to choose it.
+  const identify = useMutation({ mutationFn: (f: File) => api.identify(caseId, f) })
+  const detected = identify.data && identify.variables === file ? identify.data : null
+  function choose(f: File | null) {
+    setFile(f)
+    identify.reset()
+    if (f) identify.mutate(f)
+  }
   const upload = useMutation({
-    mutationFn: () => api.upload(caseId, file as File, kind),
+    mutationFn: async () => {
+      const ev = await api.upload(caseId, file as File, detected?.kind ?? 'file')
+      if (!autoProcess) return { ev, processing: 'skipped' as const, error: null }
+      try {
+        await api.process(ev.id)
+        return { ev, processing: 'started' as const, error: null }
+      } catch (err) {
+        // The evidence is stored either way; report why processing did not start.
+        return { ev, processing: 'failed' as const, error: err }
+      }
+    },
     onSuccess: () => {
-      setFile(null)
+      choose(null)
       setPickerKey((k) => k + 1) // clear the picker too, so the same file can be chosen again
       // The upload response is shown immediately, while invalidation makes the evidence list
       // authoritative again after the server has recorded the new custody state.
       void client.invalidateQueries({ queryKey: ['evidence', caseId] })
+      void client.invalidateQueries({ queryKey: ['jobs', caseId] })
     },
   })
   function submit(e: FormEvent) {
     e.preventDefault()
     if (file) upload.mutate()
   }
+  const noParser =
+    upload.data?.error instanceof ApiError && upload.data.error.code === 'no_parser'
   return (
     <form onSubmit={submit} className="mt-3 flex flex-wrap items-end gap-2" aria-label="Upload evidence">
       <label className="text-sm">
@@ -68,32 +89,44 @@ function UploadForm() {
           key={pickerKey}
           type="file"
           className="cursor-pointer text-sm file:mr-3 file:cursor-pointer file:rounded file:border-0 file:bg-slate-200 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-slate-900 hover:file:bg-slate-300 dark:file:bg-slate-700 dark:file:text-slate-100 dark:hover:file:bg-slate-600"
-          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+          onChange={(e) => choose(e.target.files?.[0] ?? null)}
         />
       </label>
-      <label className="text-sm">
-        <span className="mb-1 block font-medium">Kind</span>
-        <select className={inputClass} value={kind} onChange={(e) => setKind(e.target.value)}>
-          {KINDS.map((k) => (
-            <option key={k}>{k}</option>
-          ))}
-        </select>
+      <label className="flex items-center gap-1.5 self-center text-sm">
+        <input type="checkbox" checked={autoProcess} onChange={(e) => setAutoProcess(e.target.checked)} />
+        Process after upload
       </label>
       <Button
         type="submit"
         variant="primary"
-        disabled={!file || upload.isPending}
+        disabled={!file || upload.isPending || identify.isPending}
         title={file ? undefined : 'Choose a file first'}
       >
         {upload.isPending ? 'Uploading…' : 'Upload'}
       </Button>
       {!file && !upload.isPending && <p className="text-xs text-slate-500">Choose a file to enable Upload.</p>}
-      <ErrorMessage error={upload.error} />
-      {upload.data && (
-        <p role="status" className="text-sm">
-          Stored {upload.data.label}: SHA-256 <span className="font-mono">{upload.data.sha256}</span>
+      {file && identify.isPending && <p className="w-full text-sm text-slate-500">Detecting the file type…</p>}
+      {detected && (
+        <p role="status" className="w-full text-sm">
+          Detected: <span className="font-medium">{detected.description}</span>
+          {detected.parser ? ` (parser ${detected.parser})` : ''}, stored as{' '}
+          <span className="font-mono">{detected.kind}</span>.
         </p>
       )}
+      {file && identify.isError && (
+        <p className="w-full text-sm text-amber-700 dark:text-amber-400">
+          Could not detect the file type; it will be stored as a generic file.
+        </p>
+      )}
+      <ErrorMessage error={upload.error} />
+      {upload.data && (
+        <p role="status" className="w-full text-sm">
+          Stored {upload.data.ev.label}: SHA-256 <span className="font-mono">{upload.data.ev.sha256}</span>.{' '}
+          {upload.data.processing === 'started' && 'Processing started (see Jobs).'}
+          {noParser && 'No parser recognises this file, so it is stored as evidence only.'}
+        </p>
+      )}
+      {upload.data?.processing === 'failed' && !noParser && <ErrorMessage error={upload.data.error} />}
     </form>
   )
 }

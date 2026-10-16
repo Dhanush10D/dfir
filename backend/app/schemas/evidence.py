@@ -37,6 +37,21 @@ class EvidenceCreate(BaseModel):
     expected_md5: str | None = Field(default=None, pattern=HEX32)
 
 
+class EvidenceIdentify(BaseModel):
+    """Name plus the first 8 KiB and last 64 KiB of a file, base64-encoded."""
+
+    filename: str = Field(min_length=1, max_length=1024)
+    head: str = Field(max_length=11000, description="base64 of the first 8 KiB")
+    tail: str = Field(default="", max_length=87400, description="base64 of the last 64 KiB")
+
+
+class EvidenceIdentified(BaseModel):
+    kind: str
+    parser: str | None
+    confidence: float
+    description: str
+
+
 class EvidenceOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 

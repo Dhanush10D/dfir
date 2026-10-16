@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 from typing import Any
 
@@ -244,3 +245,30 @@ def test_signing_keys_are_published(h: Harness) -> None:
     keys = {k["key_id"]: k for k in r.json()}
     assert keys["test-custody-1"]["algorithm"] == "ed25519"
     assert "BEGIN PUBLIC KEY" in keys["test-custody-1"]["public_key"]
+
+
+def test_identify_suggests_kind_without_storing_anything(h: Harness, vault: FakeVault) -> None:
+    analyst = h.make_user(UserRole.analyst)
+    case = h.create_case(analyst)
+    sample = base64.b64encode(
+        b"Jan  2 10:00:00 web01 sshd[1]: Failed password for root from 203.0.113.5 port 22 ssh2\n"
+    )
+    r = h.post(
+        f"/cases/{case['id']}/evidence/identify",
+        analyst,
+        json={"filename": "auth.log", "head": sample.decode()},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["kind"] == "log" and r.json()["parser"] == "linux_auth"
+    assert h.get(f"/cases/{case['id']}/evidence", analyst).json()["total"] == 0
+    r = h.post(
+        f"/cases/{case['id']}/evidence/identify",
+        analyst,
+        json={"filename": "x", "head": "not base64!"},
+    )
+    assert r.status_code == 422 and r.json()["error"]["code"] == "invalid_sample"
+    outsider = h.make_user(UserRole.analyst)
+    r = h.post(
+        f"/cases/{case['id']}/evidence/identify", outsider, json={"filename": "x", "head": ""}
+    )
+    assert r.status_code == 404

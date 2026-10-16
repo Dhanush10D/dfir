@@ -100,11 +100,18 @@ anything.
 ![Evidence tab](images/evidence.png)
 
 1. Open **Evidence & custody**.
-2. **Choose File**, pick the **Kind** that describes it, and press **Upload**.
+2. **Choose File**. You do not pick a file type: dfirbench recognises the file from its name and
+   its first and last bytes (the same check that later picks the parser) and shows what it found,
+   for example "Detected: Web server access log (Apache/Nginx) (parser web_access), stored as
+   log". Press **Upload**. With **Process after upload** ticked (the default), processing starts by
+   itself. A file that no parser recognises is still stored, hashed and kept in custody, but
+   produces no events.
 
-   | Kind | Use for |
+   The kind dfirbench assigns:
+
+   | Kind | Detected for |
    |---|---|
-   | `log` | Text logs: Linux `auth.log`/`secure`/`syslog`, `journalctl -o json` output, shell histories (`.bash_history`, `.zsh_history`, PowerShell `ConsoleHost_history.txt`) |
+   | `log` | Text logs: Linux `auth.log`/`secure`/`syslog`, `journalctl -o json` output, shell histories (`.bash_history`, `.zsh_history`, PowerShell `ConsoleHost_history.txt`), web server access logs (Apache/Nginx, IIS), Windows Firewall logs, CSV/TSV exports with a timestamp column |
    | `evtx` | Windows event logs (`Security.evtx`, `System.evtx`, ...) |
    | `pcap` | Packet captures (`.pcap`, `.pcapng`) |
    | `triage_bundle` | ZIP bundles made by the dfirbench collectors (section 15) |
@@ -116,8 +123,9 @@ anything.
    While the file streams to the evidence vault, dfirbench computes its SHA-256 and MD5. When the
    upload finishes, the hash is shown and recorded in the custody chain. The original can never be
    changed or deleted afterwards (the vault uses Object Lock).
-3. Press **Process** (or **Ingest bundle** for a triage bundle). dfirbench picks the right parser
-   from the file's content and name. The **Jobs** list shows progress. When parsing finishes, a
+3. If you unticked **Process after upload**, press **Process** (or **Ingest bundle** for a triage
+   bundle). dfirbench picks the right parser from the file's content and name. The **Jobs** list
+   shows progress. When parsing finishes, a
    detection run starts by itself.
 
 Good to know:

@@ -7,7 +7,8 @@ provenance ids; the result (counts, warnings, assumptions and every row, ids inc
 
 Fixtures: ``evtx/*.evtx`` are byte-identical copies of ``samples/new-user-security.evtx`` and
 ``samples/Security_short_selected.evtx`` from github.com/omerbenamram/evtx (MIT/Apache-2.0);
-``linux/auth.log`` is synthetic (documentation IP ranges).
+``linux/auth.log`` and ``logs/*`` (web access, Windows Firewall, IIS, CSV/TSV exports) are
+synthetic (documentation IP ranges).
 """
 
 from __future__ import annotations
@@ -36,6 +37,11 @@ CASES = [
     ("evtx", "evtx/security_short_selected.evtx", "evtx_security_short_selected", {}),
     ("linux_auth", "linux/auth.log", "linux_auth_utc", {"timezone": "UTC"}),
     ("linux_auth", "linux/auth.log", "linux_auth_kolkata", {"timezone": "Asia/Kolkata"}),
+    ("web_access", "logs/access.log", "web_access", {}),
+    ("w3c", "logs/pfirewall.log", "w3c_firewall_kolkata", {"timezone": "Asia/Kolkata"}),
+    ("w3c", "logs/u_ex260914.log", "w3c_iis", {}),
+    ("csv_events", "logs/siem_export.csv", "csv_events_siem", {}),
+    ("csv_events", "logs/edr_netconn.tsv", "csv_events_tsv", {}),
 ]
 
 

@@ -71,6 +71,14 @@ export interface Page<T> {
   total: number
 }
 
+/** What the server recognised a file as, before upload (POST /cases/{id}/evidence/identify). */
+export interface EvidenceIdentified {
+  kind: string
+  parser: string | null
+  confidence: number
+  description: string
+}
+
 export interface Evidence {
   id: string
   case_id: string

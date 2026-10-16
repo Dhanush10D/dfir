@@ -1,0 +1,241 @@
+{
+ "assumptions": {
+  "compression": "none",
+  "timezone": "UTC (W3C extended log format)"
+ },
+ "counts": {
+  "errors": 1,
+  "events_emitted": 4,
+  "records_read": 9,
+  "skipped": 4
+ },
+ "error_samples": [
+  {
+   "detail": "5 values, 15 fields",
+   "location": "line 9",
+   "reason": "column_count"
+  }
+ ],
+ "events": [
+  {
+   "action": "get",
+   "cmdline": null,
+   "dst_ip": "10.20.0.40",
+   "dst_port": 443,
+   "event_category": "web",
+   "event_code": "200",
+   "file_hash": null,
+   "file_path": "/owa/auth/logon.aspx",
+   "host": null,
+   "id": "f015ecd3-a6f7-5ed1-9f8d-28e9d5a4f453",
+   "message": "GET /owa/auth/logon.aspx -> 200",
+   "outcome": "success",
+   "parser_name": "w3c",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": "http",
+   "raw": {
+    "http": {
+     "method": "GET",
+     "path": "/owa/auth/logon.aspx",
+     "status": 200,
+     "user_agent": "Mozilla/5.0 (Windows NT 10.0)"
+    },
+    "line_no": 5,
+    "w3c": {
+     "c-ip": "198.51.100.77",
+     "cs(User-Agent)": "Mozilla/5.0+(Windows+NT+10.0)",
+     "cs-method": "GET",
+     "cs-uri-stem": "/owa/auth/logon.aspx",
+     "date": "2026-09-14",
+     "s-ip": "10.20.0.40",
+     "s-port": "443",
+     "sc-status": "200",
+     "sc-substatus": "0",
+     "sc-win32-status": "0",
+     "time": "02:00:05",
+     "time-taken": "31"
+    }
+   },
+   "registry_key": null,
+   "source_file": "u_ex260914.log",
+   "source_record_id": "5",
+   "source_type": "iis",
+   "src_ip": "198.51.100.77",
+   "src_port": null,
+   "tags": [],
+   "ts": "2026-09-14T02:00:05+00:00",
+   "ts_original": "2026-09-14 02:00:05",
+   "user": null
+  },
+  {
+   "action": "post",
+   "cmdline": null,
+   "dst_ip": "10.20.0.40",
+   "dst_port": 443,
+   "event_category": "web",
+   "event_code": "302",
+   "file_hash": null,
+   "file_path": "/owa/auth.owa",
+   "host": null,
+   "id": "d17ca5d3-e954-5234-a97f-3b29a2b73ed4",
+   "message": "POST /owa/auth.owa -> 302",
+   "outcome": "success",
+   "parser_name": "w3c",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": "http",
+   "raw": {
+    "http": {
+     "method": "POST",
+     "path": "/owa/auth.owa",
+     "status": 302,
+     "user_agent": "Mozilla/5.0 (Windows NT 10.0)"
+    },
+    "line_no": 6,
+    "w3c": {
+     "c-ip": "198.51.100.77",
+     "cs(User-Agent)": "Mozilla/5.0+(Windows+NT+10.0)",
+     "cs-method": "POST",
+     "cs-uri-stem": "/owa/auth.owa",
+     "cs-username": "alice@corp.example",
+     "date": "2026-09-14",
+     "s-ip": "10.20.0.40",
+     "s-port": "443",
+     "sc-status": "302",
+     "sc-substatus": "0",
+     "sc-win32-status": "0",
+     "time": "02:00:09",
+     "time-taken": "112"
+    }
+   },
+   "registry_key": null,
+   "source_file": "u_ex260914.log",
+   "source_record_id": "6",
+   "source_type": "iis",
+   "src_ip": "198.51.100.77",
+   "src_port": null,
+   "tags": [],
+   "ts": "2026-09-14T02:00:09+00:00",
+   "ts_original": "2026-09-14 02:00:09",
+   "user": "alice@corp.example"
+  },
+  {
+   "action": "get",
+   "cmdline": null,
+   "dst_ip": "10.20.0.40",
+   "dst_port": 443,
+   "event_category": "web",
+   "event_code": "404",
+   "file_hash": null,
+   "file_path": "/aspnet_client/test.aspx",
+   "host": null,
+   "id": "c4170350-0c6c-5080-9f6f-b40ac1dec259",
+   "message": "GET /aspnet_client/test.aspx -> 404",
+   "outcome": "failure",
+   "parser_name": "w3c",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": "http",
+   "raw": {
+    "http": {
+     "method": "GET",
+     "path": "/aspnet_client/test.aspx",
+     "query": "cmd=whoami",
+     "status": 404,
+     "user_agent": "curl/8.5.0"
+    },
+    "line_no": 7,
+    "w3c": {
+     "c-ip": "203.0.113.45",
+     "cs(User-Agent)": "curl/8.5.0",
+     "cs-method": "GET",
+     "cs-uri-query": "cmd=whoami",
+     "cs-uri-stem": "/aspnet_client/test.aspx",
+     "date": "2026-09-14",
+     "s-ip": "10.20.0.40",
+     "s-port": "443",
+     "sc-status": "404",
+     "sc-substatus": "0",
+     "sc-win32-status": "2",
+     "time": "02:03:44",
+     "time-taken": "5"
+    }
+   },
+   "registry_key": null,
+   "source_file": "u_ex260914.log",
+   "source_record_id": "7",
+   "source_type": "iis",
+   "src_ip": "203.0.113.45",
+   "src_port": null,
+   "tags": [],
+   "ts": "2026-09-14T02:03:44+00:00",
+   "ts_original": "2026-09-14 02:03:44",
+   "user": null
+  },
+  {
+   "action": "get",
+   "cmdline": null,
+   "dst_ip": "10.20.0.40",
+   "dst_port": 443,
+   "event_category": "web",
+   "event_code": "401",
+   "file_hash": null,
+   "file_path": "/ecp/",
+   "host": null,
+   "id": "6f0d89aa-3c80-5004-9c01-61b33e73ecbe",
+   "message": "GET /ecp/ -> 401",
+   "outcome": "failure",
+   "parser_name": "w3c",
+   "parser_version": "1.0.0",
+   "pid": null,
+   "ppid": null,
+   "process_name": null,
+   "protocol": "http",
+   "raw": {
+    "http": {
+     "method": "GET",
+     "path": "/ecp/",
+     "status": 401,
+     "user_agent": "curl/8.5.0"
+    },
+    "line_no": 8,
+    "w3c": {
+     "c-ip": "203.0.113.45",
+     "cs(User-Agent)": "curl/8.5.0",
+     "cs-method": "GET",
+     "cs-uri-stem": "/ecp/",
+     "date": "2026-09-14",
+     "s-ip": "10.20.0.40",
+     "s-port": "443",
+     "sc-status": "401",
+     "sc-substatus": "2",
+     "sc-win32-status": "5",
+     "time": "02:03:45",
+     "time-taken": "4"
+    }
+   },
+   "registry_key": null,
+   "source_file": "u_ex260914.log",
+   "source_record_id": "8",
+   "source_type": "iis",
+   "src_ip": "203.0.113.45",
+   "src_port": null,
+   "tags": [],
+   "ts": "2026-09-14T02:03:45+00:00",
+   "ts_original": "2026-09-14 02:03:45",
+   "user": null
+  }
+ ],
+ "parser": "w3c",
+ "parser_version": "1.0.0",
+ "warnings": {
+  "skipped:directive": 4
+ }
+}

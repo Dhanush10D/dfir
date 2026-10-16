@@ -130,6 +130,98 @@
   },
   {
    "counts": {
+    "errors": 1,
+    "events_emitted": 10,
+    "records_read": 12,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/logs/access.log",
+   "fixture_sha256": "51326b4744f5c68fd05b5b13412f3c648770967990993a6ab70b6feb647259e0",
+   "golden": "tests/fixtures/golden/web_access.json",
+   "matches_golden": true,
+   "output_sha256": "52c67470a8eb90b0a080b1994da5d06bd8107c734d0a157ee720cd67d248f373",
+   "params": {},
+   "parser": "web_access",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 1,
+    "events_emitted": 5,
+    "records_read": 11,
+    "skipped": 5
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/logs/pfirewall.log",
+   "fixture_sha256": "bbb5a23238b80bb077dbd9423d8f3edde37476d8348fa57d6afa6b8272c4f722",
+   "golden": "tests/fixtures/golden/w3c_firewall_kolkata.json",
+   "matches_golden": true,
+   "output_sha256": "6c55b4b0d54063cdbfbe1ba52171ea46ad5984220e3013db65bd375d8366ab4f",
+   "params": {
+    "timezone": "Asia/Kolkata"
+   },
+   "parser": "w3c",
+   "parser_version": "1.0.0",
+   "warnings": 5
+  },
+  {
+   "counts": {
+    "errors": 1,
+    "events_emitted": 4,
+    "records_read": 9,
+    "skipped": 4
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/logs/u_ex260914.log",
+   "fixture_sha256": "4d102b4ed882fbafdcc1a14825bc9dcb78c8b4f37eca9698aaf446678a942907",
+   "golden": "tests/fixtures/golden/w3c_iis.json",
+   "matches_golden": true,
+   "output_sha256": "adb9d1ec84956b0f704f7ff9df30effe2fe3357e3183480914967ff08fb98b44",
+   "params": {},
+   "parser": "w3c",
+   "parser_version": "1.0.0",
+   "warnings": 4
+  },
+  {
+   "counts": {
+    "errors": 2,
+    "events_emitted": 5,
+    "records_read": 8,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/logs/siem_export.csv",
+   "fixture_sha256": "f78f16cfa557612fbbb7d9c7187839922ea6316043c308740325e0e6d85161de",
+   "golden": "tests/fixtures/golden/csv_events_siem.json",
+   "matches_golden": true,
+   "output_sha256": "98e631b15d219f6aa84f997a07f24d0f47b9f38440dd72f23e0fd93849c9fe56",
+   "params": {},
+   "parser": "csv_events",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
+    "errors": 0,
+    "events_emitted": 2,
+    "records_read": 3,
+    "skipped": 1
+   },
+   "engine": "in-process (pinned Python packages)",
+   "fixture": "tests/fixtures/logs/edr_netconn.tsv",
+   "fixture_sha256": "35ea20d572f521583d5aca8410ecfe499b2bf6863da445ddc847b56ee2447e68",
+   "golden": "tests/fixtures/golden/csv_events_tsv.json",
+   "matches_golden": true,
+   "output_sha256": "6c45003f95b2a90276f621cc46483dd04d5715941b9d392c8011b3e50ab68e57",
+   "params": {},
+   "parser": "csv_events",
+   "parser_version": "1.0.0",
+   "warnings": 1
+  },
+  {
+   "counts": {
     "errors": 0,
     "events_emitted": 9,
     "records_read": 11,

@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 
 import { EvidenceTab } from '@/features/evidence/EvidenceTab'
 import { ANALYST, CASE_ID, jsonResponse, renderInCase, routeFetch } from '@/test/utils'
@@ -54,6 +54,40 @@ describe('upload form', () => {
     expect(screen.getByText('Choose a file to enable Upload.')).toBeInTheDocument()
     const picker = screen.getByLabelText('File')
     fireEvent.change(picker, { target: { files: [new File(['x'], 'Security.evtx')] } })
-    expect(upload).toBeEnabled()
+    await waitFor(() => expect(upload).toBeEnabled())
+  })
+})
+
+describe('automatic file type detection', () => {
+  it('detects the kind, uploads with it and starts processing', async () => {
+    const calls: string[] = []
+    const stored = { ...base, id: 'e1', label: 'EV-001', kind: 'evtx', original_name: 'Security.evtx', parent_evidence_id: null }
+    const fetchMock = routeFetch({
+      [`GET /api/v1/cases/${CASE_ID}/evidence`]: () => jsonResponse(200, { items: [], total: 0 }),
+      [`GET /api/v1/cases/${CASE_ID}/jobs`]: () => jsonResponse(200, { items: [], total: 0 }),
+      [`POST /api/v1/cases/${CASE_ID}/evidence/identify`]: () =>
+        jsonResponse(200, { kind: 'evtx', parser: 'evtx', confidence: 0.95, description: 'Windows event log' }),
+      [`POST /api/v1/cases/${CASE_ID}/evidence`]: (init) => {
+        calls.push(`create ${JSON.parse(String(init.body)).kind}`)
+        return jsonResponse(201, { evidence: { ...stored, status: 'uploading' } })
+      },
+      'PUT /api/v1/evidence/e1/upload': () => jsonResponse(200, stored),
+      'POST /api/v1/evidence/e1/finalize': () => jsonResponse(200, { ok: true, evidence: stored }),
+      'POST /api/v1/evidence/e1/process': () => {
+        calls.push('process')
+        return jsonResponse(202, { jobs: [] })
+      },
+    })
+    vi.stubGlobal('fetch', fetchMock)
+    renderInCase(<EvidenceTab />, ANALYST)
+    const picker = await screen.findByLabelText('File')
+    fireEvent.change(picker, { target: { files: [new File(['ElfFile\0'], 'Security.evtx')] } })
+    expect(await screen.findByText('Windows event log')).toBeInTheDocument()
+    expect(screen.queryByRole('combobox')).not.toBeInTheDocument() // no kind to pick by hand
+    const upload = screen.getByRole('button', { name: 'Upload' })
+    await waitFor(() => expect(upload).toBeEnabled())
+    fireEvent.click(upload)
+    expect(await screen.findByText(/Processing started/)).toBeInTheDocument()
+    expect(calls).toEqual(['create evtx', 'process'])
   })
 })

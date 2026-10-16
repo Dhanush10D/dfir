@@ -262,3 +262,67 @@ def test_lnk_body_of_tiny_extra_blocks_is_bounded(tmp_path: Path) -> None:
     _, stats = parse(tmp_path, "lnk", data, "x.lnk")
     assert time.monotonic() - started < 20
     assert stats.warnings["lnk_truncated_for_parsing"] == 1
+
+
+# ------------------------------------------------------------------ web, W3C and CSV text logs
+
+LOG_FIXTURES = {
+    "web_access": "logs/access.log",
+    "w3c": "logs/pfirewall.log",
+    "csv_events": "logs/siem_export.csv",
+}
+
+
+@settings(
+    max_examples=40, deadline=None, suppress_health_check=[HealthCheck.function_scoped_fixture]
+)
+@given(
+    st.sampled_from(sorted(LOG_FIXTURES)),
+    st.lists(st.tuples(st.integers(0, 2000), st.integers(0, 255)), min_size=1, max_size=20),
+    st.binary(max_size=512),
+)
+def test_text_log_parsers_fuzz(
+    tmp_path: Path, parser: str, flips: list[tuple[int, int]], tail: bytes
+) -> None:
+    data = bytearray((FIXTURES / LOG_FIXTURES[parser]).read_bytes())
+    for at, value in flips:
+        data[at % len(data)] = value
+    with contextlib.suppress(ParserInputError):  # e.g. a CSV header destroyed by the flips
+        parse(
+            tmp_path,
+            parser,
+            bytes(data) + tail,
+            Path(LOG_FIXTURES[parser]).name,
+            limits=ParseLimits(max_line_bytes=512),
+        )
+
+
+def test_text_log_parsers_bad_values_never_crash(tmp_path: Path) -> None:
+    events, stats = parse(
+        tmp_path,
+        "web_access",
+        b'999.1.1.1 - - [31/Feb/2026:25:00:00 +0000] "GET / HTTP/1.1" 200 1 "-" "-"\n'
+        b'host.example - - [14/Sep/2026:02:00:00 +9999] "GET / HTTP/1.1" 200 1\n'
+        b'host.example - - [14/Sep/2026:02:00:00 -0700] "' + b"\xff" * 40 + b'" 200 -\n',
+        "access.log",
+    )
+    assert stats.errors == 2 and len(events) == 1
+    assert events[0].src_ip is None and events[0].ts.hour == 9  # -0700 -> UTC
+    events, stats = parse(
+        tmp_path,
+        "w3c",
+        b"#Fields: date time action protocol src-ip dst-ip src-port dst-port\n"
+        b"2026-02-30 10:00:00 DROP TCP 1.2.3.4 5.6.7.8 1 2\n"
+        b"2026-09-14 10:00:00 DROP TCP 999.1.1.1 5.6.7.8 99999 x\n",
+        "pfirewall.log",
+    )
+    assert stats.errors == 1 and events[0].src_ip is None and events[0].src_port is None
+    with pytest.raises(ParserInputError):
+        parse(tmp_path, "csv_events", b"a,b\n1,2\n", "x.csv")
+    events, stats = parse(
+        tmp_path,
+        "csv_events",
+        b"time;host;port\n9999-99-99;h;1\n2026-09-14T10:00:00+99:00;h;2\n2026-09-14T10:00:00Z;h;70000\n",
+        "x.csv",
+    )
+    assert stats.errors == 2 and len(events) == 1 and events[0].dst_port is None

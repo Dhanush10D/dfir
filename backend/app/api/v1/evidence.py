@@ -23,6 +23,8 @@ from app.schemas.evidence import (
     CustodyEntryOut,
     EvidenceCreate,
     EvidenceCreated,
+    EvidenceIdentified,
+    EvidenceIdentify,
     EvidenceList,
     EvidenceOut,
     FinalizeOut,
@@ -87,6 +89,19 @@ def create_evidence(
             max_bytes=svc.settings.max_upload_bytes,
             finalize_url=f"{API}/evidence/{ev.id}/finalize",
         ),
+    )
+
+
+@router.post("/cases/{case_id}/evidence/identify", response_model=EvidenceIdentified)
+def identify_evidence(
+    case_id: uuid.UUID, body: EvidenceIdentify, principal: CurrentPrincipal, svc: EvidenceSvc
+) -> EvidenceIdentified:
+    found = svc.identify(principal, case_id, body.filename, body.head, body.tail)
+    return EvidenceIdentified(
+        kind=found.kind,
+        parser=found.parser,
+        confidence=found.confidence,
+        description=found.description,
     )
 
 

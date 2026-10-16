@@ -8,6 +8,7 @@ transaction. Long reads/writes of evidence bytes happen outside any database tra
 
 from __future__ import annotations
 
+import binascii
 import re
 import unicodedata
 import uuid
@@ -28,6 +29,7 @@ from app.core.hashing import Digests, HashingReader, Readable, UploadTooLargeErr
 from app.core.permissions import Permission, Principal
 from app.core.signing import CustodySigner
 from app.db.models import CaseStatus, CustodyLog, Evidence
+from app.parsers.identify import Identification, identify
 from app.repositories.vault import (
     MIB,
     RetentionInfo,
@@ -289,6 +291,19 @@ class EvidenceService:
         )
         self.session.commit()
         return ev
+
+    def identify(
+        self, principal: Principal, case_id: uuid.UUID, filename: str, head_b64: str, tail_b64: str
+    ) -> Identification:
+        """Suggest the evidence kind from a file's name, head and tail (nothing is stored)."""
+        access = self._access(principal, case_id)
+        access.require(Permission.EVIDENCE_ADD)
+        try:
+            head = binascii.a2b_base64(head_b64.encode("ascii"), strict_mode=True)
+            tail = binascii.a2b_base64(tail_b64.encode("ascii"), strict_mode=True)
+        except (binascii.Error, UnicodeEncodeError) as exc:
+            raise AppError("invalid_sample", "head and tail must be base64.", 422) from exc
+        return identify(filename, head, tail)
 
     def get(self, principal: Principal, evidence_id: uuid.UUID) -> Evidence:
         ev, _ = self._load(principal, evidence_id, Permission.CASE_READ)
