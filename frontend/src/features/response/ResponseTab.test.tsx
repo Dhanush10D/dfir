@@ -298,21 +298,12 @@ describe('response tab', () => {
     expect(screen.queryByRole('button', { name: 'Reject' })).toBeNull()
   })
 
-  it('shows cached enrichment verdicts as text and enriches on request', async () => {
-    const calls: { url: string; body: string }[] = []
-    vi.stubGlobal('fetch', routes(run([step()]), calls))
-    const first = renderInCase(<ResponseTab />, VIEWER)
-    expect(await screen.findByText(/203\.0\.113\.9/)).toBeInTheDocument()
-    expect(screen.getByText('malicious')).toBeInTheDocument()
-    expect(document.querySelector('img')).toBeNull() // a hostile indicator value stays text
-    expect(screen.queryByRole('button', { name: 'Enrich indicators' })).toBeNull()
-    first.unmount()
-
+  it('has no indicator enrichment section', async () => {
+    vi.stubGlobal('fetch', routes(run([step()])))
     renderInCase(<ResponseTab />, ANALYST)
-    fireEvent.click(await screen.findByRole('button', { name: 'Enrich indicators' }))
-    await waitFor(() => expect(calls.some((c) => c.url === 'enrich')).toBe(true))
-    expect(await screen.findByText(/cached: 1, skipped_tlp: 1/)).toBeInTheDocument()
-    expect(screen.getByText(/secret\.internal\.test at virustotal: skipped_tlp \(TLP amber\)/)).toBeInTheDocument()
+    expect(await screen.findByText('Recommended for this case')).toBeInTheDocument()
+    expect(screen.queryByText('Indicator enrichment')).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Enrich indicators' })).toBeNull()
   })
 
   it('suggests playbooks whose trigger matches the alert', async () => {

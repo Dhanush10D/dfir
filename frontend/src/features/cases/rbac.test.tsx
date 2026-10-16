@@ -60,8 +60,8 @@ describe('RBAC-hidden actions (the server still enforces them)', () => {
     mockApi()
     renderInCase(<EvidenceTab />, VIEWER)
     expect(await screen.findByText('auth.log')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Verify' })).toBeNull()
-    expect(screen.queryByRole('button', { name: 'Process' })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'Verify all' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Process all/ })).toBeNull()
     expect(screen.queryByRole('form', { name: 'Upload evidence' })).toBeNull()
     expect(screen.queryByRole('button', { name: /Custody chain/ })).toBeNull()
   })
@@ -69,8 +69,8 @@ describe('RBAC-hidden actions (the server still enforces them)', () => {
   it('an analyst sees the actions', async () => {
     mockApi()
     renderInCase(<EvidenceTab />, ANALYST)
-    expect(await screen.findByRole('button', { name: 'Verify' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Process' })).toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Verify all' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /Process all/ })).toBeInTheDocument()
     expect(screen.getByRole('form', { name: 'Upload evidence' })).toBeInTheDocument()
   })
 
@@ -78,7 +78,7 @@ describe('RBAC-hidden actions (the server still enforces them)', () => {
     mockApi()
     renderInCase(<EvidenceTab />, ANALYST, 'closed')
     expect(await screen.findByText('auth.log')).toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Process' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /Process all/ })).toBeNull()
     expect(screen.getByRole('button', { name: /Custody chain/ })).toBeInTheDocument()
   })
 

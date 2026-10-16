@@ -15,7 +15,7 @@ const base = {
 }
 
 describe('triage bundles in the evidence list', () => {
-  it('offers "Ingest bundle" and shows derived items with their parent', async () => {
+  it('processes all items with one button and shows derived items with their parent', async () => {
     vi.stubGlobal(
       'fetch',
       routeFetch({
@@ -33,8 +33,9 @@ describe('triage bundles in the evidence list', () => {
     renderInCase(<EvidenceTab />, ANALYST)
     expect(await screen.findByText('logs/var/log/auth.log')).toBeInTheDocument()
     expect(screen.getByText('from EV-001')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Ingest bundle' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Process' })).toBeInTheDocument()
+    // One button for every item; the member was derived by the bundle, so only the bundle counts.
+    expect(screen.getByRole('button', { name: 'Process all (1)' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Ingest bundle' })).toBeNull()
   })
 })
 
@@ -89,5 +90,42 @@ describe('automatic file type detection', () => {
     fireEvent.click(upload)
     expect(await screen.findByText(/Processing started/)).toBeInTheDocument()
     expect(calls).toEqual(['create evtx', 'process'])
+  })
+})
+
+describe('actions on all evidence', () => {
+  it('verifies every item with one click and processes only what is left', async () => {
+    const verified: string[] = []
+    const processed: string[] = []
+    const item = (id: string, label: string) => ({ ...base, id, label, kind: 'log', original_name: label + '.log', parent_evidence_id: null })
+    vi.stubGlobal(
+      'fetch',
+      routeFetch({
+        [`GET /api/v1/cases/${CASE_ID}/evidence`]: () =>
+          jsonResponse(200, { items: [item('e1', 'EV-001'), item('e2', 'EV-002')], total: 2 }),
+        [`GET /api/v1/cases/${CASE_ID}/jobs`]: () =>
+          jsonResponse(200, { items: [{ id: 'j1', evidence_id: 'e1', kind: 'parse', status: 'succeeded', parser: 'linux_auth', progress: 1, error: null, queued_at: '2026-09-30T08:00:00Z' }], total: 1 }),
+        'POST /api/v1/evidence/e1/verify': () => {
+          verified.push('e1')
+          return jsonResponse(200, { ok: true })
+        },
+        'POST /api/v1/evidence/e2/verify': () => {
+          verified.push('e2')
+          return jsonResponse(200, { ok: true })
+        },
+        'POST /api/v1/evidence/e2/process': () => {
+          processed.push('e2')
+          return jsonResponse(202, { jobs: [] })
+        },
+      }),
+    )
+    renderInCase(<EvidenceTab />, ANALYST)
+    fireEvent.click(await screen.findByRole('button', { name: 'Verify all' }))
+    expect(await screen.findByText('All 2 items verified: hashes match.')).toBeInTheDocument()
+    expect(verified).toEqual(['e1', 'e2'])
+    expect(screen.queryByRole('button', { name: 'Verify' })).toBeNull() // no per-row buttons
+    fireEvent.click(screen.getByRole('button', { name: 'Process all (1)' })) // e1 already has a job
+    expect(await screen.findByText(/Processing started for 1 item\./)).toBeInTheDocument()
+    expect(processed).toEqual(['e2'])
   })
 })

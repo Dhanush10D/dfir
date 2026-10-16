@@ -75,7 +75,7 @@ also sign the three sample reports and save their PDFs (that is how `docs/sample
 
 ### 1. Create the case (lead)
 
-**Cases**, then **Create a case**: title `Web server compromise`, severity **high**. Open the case and
+**Cases**, then **Create a case**: title `Web server compromise` (no severity to choose: dfirbench rates the case after the analysis). Open the case and
 add the analyst as a member (API docs: `POST /cases/{case_id}/members`
 `{"user_id": "<analyst id>", "role": "analyst"}`, or create the case as the analyst instead).
 
@@ -93,16 +93,18 @@ indicators that exist before the uploads are matched straight away.
 
 ### 3. Upload and process the evidence (analyst)
 
-In **Evidence & custody**, for each of `auth.log` (kind `log`), `.bash_history` (`log`) and
-`capture.pcap` (`pcap`): **Choose File**, pick the kind, **Upload**, then **Process**. Point out:
+In **Evidence & custody**, for each of `auth.log`, `.bash_history` and `capture.pcap`: **Choose
+File** (dfirbench detects the type and shows it, for example "Detected: Linux auth / syslog log")
+and **Upload**; with **Process after upload** ticked, processing starts by itself. Point out:
 
 * the SHA-256 shown as soon as the upload finishes (computed while streaming into the vault);
-* **Custody**: the signed, hash-chained entries (`created`, `ingested`, then `processed` after parsing); **Verify**
-  re-hashes the stored original and appends a `hash_verified` entry;
-* the **Jobs** list: one parse job per file, then a detection run.
+* **Custody**: the signed, hash-chained entries (`created`, `ingested`, then `processed` after parsing);
+  **Verify all** re-hashes every stored original and appends a `hash_verified` entry to each;
+* the **Jobs** list: one parse job per file, then a detection run, after which the case severity
+  is set automatically (critical here: high alerts across several ATT&CK tactics).
 
-Upload `dropper.sh` as kind `file` too, but do not press **Process**: no automatic parser handles a
-shell script, and the UI would say so. To run YARA on it, use the API docs:
+Upload `dropper.sh` too: no automatic parser handles a shell script, so it is stored only, and the
+UI says so. To run YARA on it, use the API docs:
 `POST /evidence/{evidence_id}/process` with `{"parsers": ["yara_scan"]}`.
 
 ### 4. Investigate
@@ -115,7 +117,7 @@ shell script, and the UI would say so. To run YARA on it, use the API docs:
 | **ATT&CK** | The heatmap | T1110 (credential access), T1078, T1098, T1136.001 |
 | **Entities & graph** | Click `203.0.113.45` or `backupsvc` | Links between host, users, processes and addresses |
 | **AI analyst** | Chat: *What did the attacker do on web01?*; plain-language search: *failed ssh logins from 203.0.113.45* (shows the generated query); script explanation: paste the `powershell.exe ... -enc ...` line from `dropper.sh` | Every answer is labelled AI-generated with validated citations; the script explainer shows the decoded command |
-| **Response** | Start **PB-CREDENTIAL-01** with the alert id of *SSH success after failures*; try an approval step | Impactful steps need a second person; agent actions are recorded as **not executed** |
+| **Response** | **Recommended for this case** lists **PB-CREDENTIAL-01** first (SSH brute force, new account, sudo group); press **Start**, then try an approval step | Impactful steps need a second person; agent actions are recorded as **not executed** |
 | **Notes & bookmarks** | Add a note, bookmark an event | Note history is kept |
 
 Expected alerts:

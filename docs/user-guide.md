@@ -132,10 +132,11 @@ anything.
    While the file streams to the evidence vault, dfirbench computes its SHA-256 and MD5. When the
    upload finishes, the hash is shown and recorded in the custody chain. The original can never be
    changed or deleted afterwards (the vault uses Object Lock).
-3. If you unticked **Process after upload**, press **Process** (or **Ingest bundle** for a triage
-   bundle). dfirbench picks the right parser from the file's content and name. The **Jobs** list
-   shows progress. When parsing finishes, a
-   detection run starts by itself.
+3. If you unticked **Process after upload**, press **Process all** at the top of the evidence list:
+   it processes every item that has not been processed yet (triage bundles are ingested, and their
+   members are processed by the bundle). dfirbench picks the right parser from the file's content
+   and name. The **Jobs** list shows progress. When parsing finishes, a detection run starts by
+   itself.
 
 Good to know:
 
@@ -150,15 +151,16 @@ Good to know:
 
 ## 6. Chain of custody
 
-For each evidence item:
+The buttons at the top of the evidence list act on **all** items at once; **Custody** on each row
+opens that item's chain.
 
 * **Custody** opens its chain: every entry with time, actor, action and details (`created`,
   `ingested`, `processed`, `hash_verified`, `downloaded`, `exported`, ...). Each entry is
   hash-linked to the previous one and signed with the platform's Ed25519 key; the chain is
   verified when you open it.
-* **Verify** re-reads the stored original, recomputes its SHA-256, compares it with the hash
+* **Verify all** re-reads each stored original, recomputes its SHA-256, compares it with the hash
   recorded at upload and appends a `hash_verified` (or `hash_failed`) entry.
-* **Export package** downloads a signed ZIP (`manifest.json`, `custody.json`, `manifest.sig`) with
+* **Export all packages** downloads, for each item, a signed ZIP (`manifest.json`, `custody.json`, `manifest.sig`) with
   the evidence's hashes, acquisition data, processing runs and full custody chain, for handing
   evidence over. Anyone with the platform's public key can check it offline:
   `python -m app.reports.verify package <file>.zip --keys trusted.json`.
@@ -333,10 +335,9 @@ phishing, data exfiltration, log tampering, web shell, cloud account takeover.
    your own tools, write in the notes how and where it was done, then press **Record manual
    completion**.
 
-**Indicator enrichment** looks up the case's IOCs at VirusTotal or MISP; only the indicator values
-are sent, never files. It is off until an administrator enables it (the button then says
-*Enrichment is switched off*), and indicators marked with a TLP the provider may not receive are
-skipped: VirusTotal only gets TLP:CLEAR or GREEN, so TLP:AMBER indicators are listed as skipped.
+Indicator enrichment (VirusTotal or MISP look-ups of the case's IOCs) is not shown in the UI; it
+remains available to administrators through the API (`POST /cases/{id}/iocs/enrich`, see
+[`response.md`](response.md)).
 
 ## 14. Reports
 

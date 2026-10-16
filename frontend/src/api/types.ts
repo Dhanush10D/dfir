@@ -343,6 +343,7 @@ export interface Summary {
 
 export interface Job {
   id: string
+  evidence_id: string | null
   kind: string
   status: string
   parser: string | null

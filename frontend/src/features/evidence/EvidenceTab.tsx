@@ -154,27 +154,104 @@ export function EvidenceTab() {
   }, [jobs.dataUpdatedAt, active, caseId, client])
   const [custody, setCustody] = useState<Evidence | null>(null)
   const [verified, setVerified] = useState<Record<string, VerifyResult>>({})
-  const verify = useMutation({
-    mutationFn: (id: string) => api.verify(id),
-    onSuccess: (res, id) => {
-      setVerified((v) => ({ ...v, [id]: res }))
+  const [note, setNote] = useState<string | null>(null)
+  // One button per action, run over every evidence item (one request per item, in order).
+  const items = list.data?.items ?? []
+  const stored = items.filter((ev) => !['uploading', 'uploaded', 'failed'].includes(ev.status))
+  // Bundle members are processed by their bundle; an item with a job that did not fail is done.
+  const handled = new Set(
+    (jobs.data?.items ?? []).filter((j) => !['failed', 'cancelled'].includes(j.status)).map((j) => j.evidence_id),
+  )
+  const toProcess = stored.filter((ev) => !ev.parent_evidence_id && !handled.has(ev.id))
+  const processAll = useMutation({
+    mutationFn: async () => {
+      let started = 0
+      let noParser = 0
+      const failed: string[] = []
+      for (const ev of toProcess) {
+        try {
+          await api.process(ev.id)
+          started += 1
+        } catch (err) {
+          if (err instanceof ApiError && err.code === 'no_parser') noParser += 1
+          else failed.push(`${ev.label}: ${err instanceof Error ? err.message : 'failed'}`)
+        }
+      }
+      return { started, noParser, failed }
+    },
+    onSuccess: ({ started, noParser, failed }) => {
+      const parts = [`Processing started for ${started} item${started === 1 ? '' : 's'}`]
+      if (noParser) parts.push(`${noParser} stored only (no parser recognises them)`)
+      if (failed.length) parts.push(`not started: ${failed.join('; ')}`)
+      setNote(parts.join(', ') + '.')
+      void client.invalidateQueries({ queryKey: ['jobs', caseId] })
+    },
+  })
+  const verifyAll = useMutation({
+    mutationFn: async () => {
+      const results: Record<string, VerifyResult> = {}
+      for (const ev of stored) results[ev.id] = await api.verify(ev.id)
+      return results
+    },
+    onSuccess: (results) => {
+      setVerified(results)
+      const total = Object.keys(results).length
+      const bad = Object.values(results).filter((r) => !r.ok).length
+      setNote(bad ? `${bad} of ${total} items FAILED the integrity check.` : `All ${total} items verified: hashes match.`)
       void client.invalidateQueries({ queryKey: ['evidence', caseId] })
     },
   })
-  const process = useMutation({
-    mutationFn: (id: string) => api.process(id),
-    onSuccess: () => void client.invalidateQueries({ queryKey: ['jobs', caseId] }),
+  const exportAll = useMutation({
+    mutationFn: async () => {
+      for (const ev of stored) {
+        const { blob, filename } = await api.exportPackage(ev.id)
+        saveBlob(blob, filename)
+        await new Promise((resolve) => setTimeout(resolve, 300)) // browsers drop downloads started too close together
+      }
+      return stored.length
+    },
+    onSuccess: (n) => setNote(`Downloaded ${n} signed evidence package${n === 1 ? '' : 's'}.`),
   })
-  const exportPackage = useMutation({
-    mutationFn: (id: string) => api.exportPackage(id),
-    onSuccess: ({ blob, filename }) => saveBlob(blob, filename),
-  })
+  const busy = processAll.isPending || verifyAll.isPending || exportAll.isPending
+  const actions = (
+    <div className="flex flex-wrap gap-1">
+      {can('evidence:add') && (
+        <Button
+          variant="primary"
+          onClick={() => processAll.mutate()}
+          disabled={busy || toProcess.length === 0}
+          title={toProcess.length ? 'Process every item that has not been processed yet' : 'Everything has been processed'}
+        >
+          {processAll.isPending ? 'Processing…' : `Process all (${toProcess.length})`}
+        </Button>
+      )}
+      {can('evidence:verify') && (
+        <Button onClick={() => verifyAll.mutate()} disabled={busy || stored.length === 0} title="Re-hash every stored original and compare">
+          {verifyAll.isPending ? 'Verifying…' : 'Verify all'}
+        </Button>
+      )}
+      {can('custody:view') && (
+        <Button
+          onClick={() => exportAll.mutate()}
+          disabled={busy || stored.length === 0}
+          title="Signed packages: manifest, custody chain and signature (no original bytes), one per item"
+        >
+          {exportAll.isPending ? 'Exporting…' : 'Export all packages'}
+        </Button>
+      )}
+    </div>
+  )
 
   return (
     <div className="space-y-4">
-      <Panel title="Evidence">
+      <Panel title="Evidence" actions={items.length > 0 ? actions : undefined}>
         {list.isPending && <Loading />}
-        <ErrorMessage error={list.error ?? verify.error ?? process.error ?? exportPackage.error} />
+        <ErrorMessage error={list.error ?? processAll.error ?? verifyAll.error ?? exportAll.error} />
+        {note && (
+          <p role="status" className="mb-2 text-sm">
+            {note}
+          </p>
+        )}
         {list.data && (
           <div className="overflow-x-auto">
             <table className="w-full text-left text-sm">
@@ -187,7 +264,7 @@ export function EvidenceTab() {
                   <th scope="col">Size</th>
                   <th scope="col">SHA-256</th>
                   <th scope="col">Status</th>
-                  <th scope="col">Actions</th>
+                  <th scope="col">Chain of custody</th>
                 </tr>
               </thead>
               <tbody>
@@ -220,29 +297,10 @@ export function EvidenceTab() {
                           </span>
                         )}
                       </td>
-                      <td className="space-x-1 whitespace-nowrap">
+                      <td className="whitespace-nowrap">
                         {can('custody:view') && (
                           <Button onClick={() => setCustody(ev)} aria-label={`Custody chain of ${ev.label}`}>
                             Custody
-                          </Button>
-                        )}
-                        {can('custody:view') && (
-                          <Button
-                            onClick={() => exportPackage.mutate(ev.id)}
-                            disabled={exportPackage.isPending}
-                            title="Signed package: manifest, custody chain and signature (no original bytes)"
-                          >
-                            Export package
-                          </Button>
-                        )}
-                        {can('evidence:verify') && (
-                          <Button onClick={() => verify.mutate(ev.id)} disabled={verify.isPending}>
-                            Verify
-                          </Button>
-                        )}
-                        {can('evidence:add') && (
-                          <Button onClick={() => process.mutate(ev.id)} disabled={process.isPending}>
-                            {ev.kind === 'triage_bundle' ? 'Ingest bundle' : 'Process'}
                           </Button>
                         )}
                       </td>
